@@ -105,7 +105,9 @@ la réponse inclut la date source, la méthode et les limites. Ce calcul n’est
 une prévision, ni une probabilité de scénario, ni une recommandation.
 
 La couverture médiatique n’alimente pas le calcul des cours; `/v1/simulation/news/{ticker}`
-ajoute une recherche GDELT DOC 2.0 sur les 30 derniers jours. Ces liens
+ajoute une recherche GDELT DOC 2.0 sur les 30 derniers jours. `indexedAt` est
+l’horodatage auquel GDELT a repéré le document, pas nécessairement sa date de
+publication. Ces liens
 sont des pistes secondaires de couverture, pas des déclarations vérifiées de
 l’émetteur : les homonymes et les mentions indirectes sont possibles. La route
 retourne l’heure d’indexation quand elle est fournie, garde seulement les URLs

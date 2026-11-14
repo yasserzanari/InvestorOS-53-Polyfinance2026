@@ -116,7 +116,7 @@ export type SimulationNewsArticle = {
   title: string;
   url: string;
   domain: string;
-  publishedAt: string;
+  indexedAt: string;
   imageUrl?: string;
 };
 export type SimulationNews = {
