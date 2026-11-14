@@ -10,9 +10,11 @@ from investoros_api.demo_contexts import PersonaId, context_for
 from investoros_api.profiles.models import ScenarioAnalysisInput
 from investoros_api.profiles.portfolio import analyze_configured_scenario
 from investoros_api.profiles.router import router as profiles_router
+from investoros_api.simulation import router as simulation_router
 
 app = FastAPI(title="InvestorOS API", version="0.1.0")
 app.include_router(profiles_router)
+app.include_router(simulation_router)
 _dynamodb = None
 
 
