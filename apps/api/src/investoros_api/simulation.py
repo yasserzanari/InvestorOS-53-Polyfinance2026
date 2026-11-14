@@ -3,7 +3,8 @@
 import csv
 import json
 import os
-from datetime import date, datetime, timezone
+import re
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -290,8 +291,8 @@ def _cached_sec_json(key: str, url: str, user_agent: str, ttl_seconds: int) -> A
 
 
 @router.get("/filings/{ticker}")
-def issuer_filings(ticker: str, limit: int = 30) -> dict[str, Any]:
-    """Return recent primary-source SEC filings; never infer their market impact."""
+def issuer_filings(ticker: str, limit: int = 50, start_date: date | None = None) -> dict[str, Any]:
+    """Return primary-source SEC filings across the requested price-history window."""
     normalized = ticker.upper()
     if limit < 1 or limit > 50:
         raise HTTPException(status_code=422, detail="La limite doit être comprise entre 1 et 50.")
@@ -325,36 +326,74 @@ def issuer_filings(ticker: str, limit: int = 30) -> dict[str, Any]:
     except HTTPException:
         return {"ticker": normalized, "company": company, "available": False, "reason": "L’historique des dépôts est temporairement indisponible.", "source": "SEC EDGAR Submissions API", "sourceUrl": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces", "filings": []}
 
-    recent = submissions.get("filings", {}).get("recent", {}) if isinstance(submissions, dict) else {}
-    accessions = recent.get("accessionNumber", []) if isinstance(recent, dict) else []
-
-    def field(name: str, index: int, default: Any = "") -> Any:
-        values = recent.get(name, []) if isinstance(recent, dict) else []
-        return values[index] if isinstance(values, list) and index < len(values) else default
+    filing_history = submissions.get("filings", {}) if isinstance(submissions, dict) else {}
+    recent = filing_history.get("recent", {}) if isinstance(filing_history, dict) else {}
+    window_start = start_date or (date.today() - timedelta(days=365 * 5))
+    window_start_text = window_start.isoformat()
+    filing_groups = [recent] if isinstance(recent, dict) else []
+    archives_incomplete = False
+    archive_files = filing_history.get("files", []) if isinstance(filing_history, dict) else []
+    for archive in archive_files if isinstance(archive_files, list) else []:
+        if not isinstance(archive, dict):
+            continue
+        if str(archive.get("filingTo", "")) < window_start_text:
+            continue
+        filename = archive.get("name")
+        if not isinstance(filename, str) or not re.fullmatch(r"[A-Za-z0-9._-]+\.json", filename):
+            archives_incomplete = True
+            continue
+        try:
+            archived_submissions = _cached_sec_json(
+                f"submissions:{cik}:{filename}",
+                f"https://data.sec.gov/submissions/{filename}",
+                user_agent,
+                24 * 60 * 60,
+            )
+        except HTTPException:
+            archives_incomplete = True
+            continue
+        archived_recent = archived_submissions.get("filings", {}).get("recent", {}) if isinstance(archived_submissions, dict) else {}
+        if isinstance(archived_recent, dict):
+            filing_groups.append(archived_recent)
 
     filings = []
-    for index, accession in enumerate(accessions):
-        form = field("form", index)
-        if form not in {"8-K", "10-K", "10-Q", "6-K", "20-F", "40-F"}:
-            continue
-        filing_date = field("filingDate", index)
-        if not filing_date:
-            continue
-        accession_path = accession.replace("-", "")
-        primary_document = field("primaryDocument", index)
-        document_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_path}/{primary_document}" if primary_document else f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_path}/"
-        filings.append({
-            "id": f"sec:{accession}",
-            "form": form,
-            "filedAt": filing_date,
-            "reportedAt": field("reportDate", index) or None,
-            "acceptedAt": field("acceptanceDateTime", index) or None,
-            "title": field("primaryDocDescription", index) or f"Dépôt {form}",
-            "url": document_url,
-            "accessionNumber": accession,
-        })
-        if len(filings) >= limit:
-            break
+    seen_accessions: set[str] = set()
+    for group in filing_groups:
+        accessions = group.get("accessionNumber", [])
+        for index, accession in enumerate(accessions if isinstance(accessions, list) else []):
+            if not isinstance(accession, str) or accession in seen_accessions:
+                continue
+            seen_accessions.add(accession)
+
+            def field(name: str, default: Any = "") -> Any:
+                values = group.get(name, [])
+                return values[index] if isinstance(values, list) and index < len(values) else default
+
+            form = field("form")
+            filing_date = field("filingDate")
+            if form not in {"8-K", "10-K", "10-Q", "6-K", "20-F", "40-F"} or not isinstance(filing_date, str) or filing_date < window_start_text:
+                continue
+            accession_path = accession.replace("-", "")
+            primary_document = field("primaryDocument")
+            document_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_path}/{primary_document}" if primary_document else f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_path}/"
+            filings.append({
+                "id": f"sec:{accession}",
+                "form": form,
+                "filedAt": filing_date,
+                "reportedAt": field("reportDate") or None,
+                "acceptedAt": field("acceptanceDateTime") or None,
+                "title": field("primaryDocDescription") or f"Dépôt {form}",
+                "url": document_url,
+                "accessionNumber": accession,
+            })
+    filings.sort(key=lambda filing: (filing["filedAt"], filing.get("acceptedAt") or ""), reverse=True)
+    truncated = len(filings) > limit
+    filings = filings[:limit]
+    limitations = ["Les dépôts sont les déclarations de l’émetteur, pas une vérification indépendante.", "Un formulaire, une date de dépôt et son cours postérieur ne prouvent pas que le dépôt a causé ce mouvement."]
+    if archives_incomplete:
+        limitations.append("Certaines archives EDGAR n’ont pas pu être chargées; la liste historique peut être partielle.")
+    if truncated:
+        limitations.append(f"La liste est limitée aux {limit} dépôts les plus récents de la période; certains dépôts plus anciens ne sont pas affichés.")
     return {
         "ticker": normalized,
         "company": company,
@@ -363,8 +402,10 @@ def issuer_filings(ticker: str, limit: int = 30) -> dict[str, Any]:
         "source": "SEC EDGAR Submissions API",
         "sourceUrl": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
         "asOf": datetime.now(timezone.utc).isoformat(),
+        "startDate": window_start_text,
+        "truncated": truncated,
         "filings": filings,
-        "limitations": ["Les dépôts sont les déclarations de l’émetteur, pas une vérification indépendante.", "Un formulaire, une date de dépôt et son cours postérieur ne prouvent pas que le dépôt a causé ce mouvement."],
+        "limitations": limitations,
     }
 
 

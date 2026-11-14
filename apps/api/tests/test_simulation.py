@@ -153,6 +153,34 @@ class SimulationHistoryTests(unittest.TestCase):
         self.assertEqual(result["filings"][0]["url"], "https://www.sec.gov/Archives/edgar/data/123/000000012325000001/report.htm")
         self.assertEqual(fetch.call_count, 2)
 
+    @patch.dict(os.environ, {"SEC_USER_AGENT": "InvestorOS test contact test@example.com"})
+    @patch.object(simulation, "_fetch_json")
+    def test_sec_filings_include_matching_historical_submission_archives(self, fetch):
+        fetch.side_effect = [
+            {"0": {"ticker": "ABC", "cik_str": 123, "title": "Example Corp"}},
+            {"filings": {
+                "recent": {"accessionNumber": [], "form": [], "filingDate": []},
+                "files": [{"name": "CIK0000000123-submissions-001.json", "filingFrom": "2020-01-01", "filingTo": "2023-12-31"}],
+            }},
+            {"filings": {"recent": {
+                "accessionNumber": ["0000000123-22-000001"],
+                "form": ["10-Q"],
+                "filingDate": ["2022-04-28"],
+                "reportDate": ["2022-03-31"],
+                "primaryDocument": ["quarterly.htm"],
+                "primaryDocDescription": ["Quarterly report"],
+            }}}
+        ]
+
+        result = simulation.issuer_filings("ABC", start_date=date(2021, 1, 1))
+
+        self.assertTrue(result["available"])
+        self.assertEqual(result["startDate"], "2021-01-01")
+        self.assertEqual(result["filings"][0]["filedAt"], "2022-04-28")
+        self.assertEqual(result["filings"][0]["url"], "https://www.sec.gov/Archives/edgar/data/123/000000012322000001/quarterly.htm")
+        self.assertEqual(fetch.call_args_list[-1].args[0], "https://data.sec.gov/submissions/CIK0000000123-submissions-001.json")
+        self.assertEqual(fetch.call_count, 3)
+
     def test_sec_filings_report_server_contact_configuration_requirement(self):
         with patch.dict(os.environ, {"SEC_USER_AGENT": ""}):
             result = simulation.issuer_filings("ABC")
