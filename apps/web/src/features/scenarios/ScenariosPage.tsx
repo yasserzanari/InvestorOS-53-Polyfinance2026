@@ -47,7 +47,7 @@ function returnsAfterDate(data: SimulationHistory, eventDate: string) {
   })) as Record<'1'|'5'|'20', number|null>;
 }
 
-function HistoricalChart({ data, regulations = [], filings = [], filingsMessage, filingsLimitations = [], news, socialPosts, projection, selectedId, onSelect, selectedBranchId, onSelectBranch, onSearchAccounts, range = 3, onRangeChange, visibleRegulationCount = 8, onShowMoreRegulations, hasMoreRegulations = false, regulationTotalDocuments, regulationPagesCapped = false, regulationsLoading = false }: { data: SimulationHistory; regulations?: SimulationRegulation[]; filings?: SimulationFiling[]; filingsMessage?: string; filingsLimitations?: string[]; news?: SimulationNews; socialPosts?: SimulationSocialPosts; projection?: SimulationProjection; selectedId?: string; onSelect: (id: string) => void; selectedBranchId?: string; onSelectBranch: (id: string) => void; onSearchAccounts: (accounts: string[]) => void; range?: Range; onRangeChange?: (range: Range) => void; visibleRegulationCount?: number; onShowMoreRegulations?: () => void; hasMoreRegulations?: boolean; regulationTotalDocuments?: number | null; regulationPagesCapped?: boolean; regulationsLoading?: boolean }) {
+function HistoricalChart({ data, regulations = [], filings = [], filingsMessage, filingsLimitations = [], news, socialPosts, projection, selectedId, onSelect, selectedBranchId, onSelectBranch, onSearchAccounts, range = 3, onRangeChange, visibleRegulationCount = 8, onShowMoreRegulations, hasMoreRegulations = false, regulationTotalDocuments, regulationPagesCapped = false, regulationsLoading = false, visibleFilingCount = 8, onShowMoreFilings }: { data: SimulationHistory; regulations?: SimulationRegulation[]; filings?: SimulationFiling[]; filingsMessage?: string; filingsLimitations?: string[]; news?: SimulationNews; socialPosts?: SimulationSocialPosts; projection?: SimulationProjection; selectedId?: string; onSelect: (id: string) => void; selectedBranchId?: string; onSelectBranch: (id: string) => void; onSearchAccounts: (accounts: string[]) => void; range?: Range; onRangeChange?: (range: Range) => void; visibleRegulationCount?: number; onShowMoreRegulations?: () => void; hasMoreRegulations?: boolean; regulationTotalDocuments?: number | null; regulationPagesCapped?: boolean; regulationsLoading?: boolean; visibleFilingCount?: number; onShowMoreFilings?: () => void }) {
   const [horizon, setHorizon] = useState<Horizon>(60);
   const [accountsInput, setAccountsInput] = useState('');
   const [accountsError, setAccountsError] = useState('');
@@ -260,7 +260,8 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
         </div>}
         <div className="simulation-regulation-list">
           <div className="simulation-regulation-heading"><strong>Déclarations de l’émetteur</strong><span>{filings.length}</span></div>
-          {filings.slice(0, 8).map((filing) => <button type="button" key={filing.id} aria-pressed={selectedId === `sec:${filing.id}`} onClick={() => onSelect(`sec:${filing.id}`)}><span className="simulation-regulation-icon"><Database size={12} /></span><span><strong>{filing.form} · {filing.title}</strong><small>{dateLabel(filing.filedAt)}{filing.reportedAt ? ` · exercice ${filing.reportedAt}` : ''}</small></span></button>)}
+          {filings.slice(0, visibleFilingCount).map((filing) => <button type="button" key={filing.id} aria-pressed={selectedId === `sec:${filing.id}`} onClick={() => onSelect(`sec:${filing.id}`)}><span className="simulation-regulation-icon"><Database size={12} /></span><span><strong>{filing.form} · {filing.title}</strong><small>{dateLabel(filing.filedAt)}{filing.reportedAt ? ` · exercice ${filing.reportedAt}` : ''}</small></span></button>)}
+          {filings.length > visibleFilingCount && <button type="button" className="simulation-load-more" onClick={onShowMoreFilings}>Afficher les dépôts suivants</button>}
           {!filings.length && <p className="simulation-filings-status">{filingsMessage ?? 'Aucune déclaration disponible.'}</p>}
           {filingsLimitations.map((limitation) => <p className="simulation-filings-status" key={limitation}>{limitation}</p>)}
         </div>
@@ -313,6 +314,7 @@ export function ScenariosPage() {
   const [regulationsLoading, setRegulationsLoading] = useState(false);
   const [regulationPage, setRegulationPage] = useState(1);
   const [visibleRegulationCount, setVisibleRegulationCount] = useState(8);
+  const [visibleFilingCount, setVisibleFilingCount] = useState(8);
   const [filings, setFilings] = useState<SimulationFilings>();
   const [filingsMessage, setFilingsMessage] = useState('');
   const [news, setNews] = useState<SimulationNews>();
@@ -379,14 +381,14 @@ export function ScenariosPage() {
     const controller = new AbortController();
     setFilings(undefined);
     setFilingsMessage('Chargement des déclarations SEC…');
-    loadSimulationFilings(ticker, history.prices[0]?.date, controller.signal).then((result) => {
+    loadSimulationFilings(ticker, regulationWindow.start, controller.signal).then((result) => {
       setFilings(result);
       setFilingsMessage(result.available ? '' : result.reason ?? 'Déclarations non configurées.');
     }).catch((cause) => {
       if (!controller.signal.aborted) setFilingsMessage(cause instanceof Error ? cause.message : 'Les déclarations SEC sont indisponibles.');
     });
     return () => controller.abort();
-  }, [ticker, history]);
+  }, [ticker, history, regulationWindow]);
 
   useEffect(() => {
     if (!ticker) return;
@@ -473,7 +475,9 @@ export function ScenariosPage() {
     setChartRange(range);
     setRegulationPage(1);
     setVisibleRegulationCount(8);
+    setVisibleFilingCount(8);
   };
+  const showMoreFilings = () => setVisibleFilingCount((count) => count + 8);
 
   return (
     <section className="simulation-page" aria-labelledby="simulation-title">
@@ -489,7 +493,7 @@ export function ScenariosPage() {
         <>
           <div className="simulation-source-note"><ShieldCheck size={16} /><span><strong>{history.source}</strong> · cours jusqu’au {dateLabel(history.sourceAsOf)} · {history.prices.length.toLocaleString('fr-CA')} observations · devise {history.currency}</span><a className="simulation-source-link" href={`https://finance.yahoo.com/quote/${encodeURIComponent(history.asset.ticker)}/history/`} target="_blank" rel="noopener noreferrer">Source Yahoo Finance <ExternalLink size={11}/></a><span className="simulation-source-badge"><Database size={13} /> Données historiques</span></div>
           <div className="simulation-regulation-toolbar"><span><CalendarDays size={14} /> Actes réglementaires · {chartRange} ans</span><div role="group" aria-label="Thème de recherche réglementaire">{[['tariff','Tarifs'],['supply-chain','Chaîne logistique'],['export-controls','Contrôles export'],['energy','Énergie']].map(([id,label])=><button type="button" key={id} aria-pressed={regulationTopic===id} onClick={()=>{setRegulationTopic(id);setRegulationPage(1);setVisibleRegulationCount(8);}}>{label}</button>)}</div>{regulationsLoading&&<small role="status">Chargement des documents datés…</small>}{regulationError&&<small role="status">{regulationError}</small>}</div>
-          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} filingsLimitations={filings?.limitations} news={news} socialPosts={socialPosts} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} onSearchAccounts={setSocialAccounts} range={chartRange} onRangeChange={changeChartRange} visibleRegulationCount={visibleRegulationCount} onShowMoreRegulations={showMoreRegulations} hasMoreRegulations={regulationPage<Math.min(regulations?.totalPages??0,regulations?.pageLimit??500)} regulationTotalDocuments={regulations?.totalDocuments} regulationPagesCapped={(regulations?.totalPages??0)>(regulations?.pageLimit??500)} regulationsLoading={regulationsLoading} /></div>
+          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} filingsLimitations={filings?.limitations} news={news} socialPosts={socialPosts} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} onSearchAccounts={setSocialAccounts} range={chartRange} onRangeChange={changeChartRange} visibleRegulationCount={visibleRegulationCount} onShowMoreRegulations={showMoreRegulations} hasMoreRegulations={regulationPage<Math.min(regulations?.totalPages??0,regulations?.pageLimit??500)} regulationTotalDocuments={regulations?.totalDocuments} regulationPagesCapped={(regulations?.totalPages??0)>(regulations?.pageLimit??500)} regulationsLoading={regulationsLoading} visibleFilingCount={visibleFilingCount} onShowMoreFilings={showMoreFilings} /></div>
           <section className="simulation-scenario-builder" aria-labelledby="scenario-builder-title">
             <div className="simulation-scenario-heading"><span className="simulation-panel-icon"><GitBranch size={16} /></span><div><span className="simulation-eyebrow">HYPOTHÈSES EXPLICITES</span><h2 id="scenario-builder-title">Construire des trajectoires conditionnelles</h2><p>Choisissez les événements et les chocs à comparer. Aucun choc n’est estimé par le modèle.</p></div><label><span>Horizon</span><select value={horizon} onChange={(event) => setHorizon(Number(event.target.value) as Horizon)}>{HORIZONS.map((value) => <option key={value} value={value}>{value} séances</option>)}</select></label><button type="button" className="simulation-add-branch" disabled={branches.length >= 4} onClick={() => setBranches((current) => [...current, { id: globalThis.crypto?.randomUUID?.() ?? `branch-${Date.now()}`, title: `Hypothèse ${current.length + 1}`, event: '', shockPct: '', eventAfterObservations: 10 }])}><Plus size={13}/>Ajouter</button></div>
             {selectedEventLabel && <div className="simulation-use-event"><span>Événement sélectionné : <strong>{selectedEventLabel}</strong></span><button type="button" onClick={() => setBranches((current) => current.map((branch) => ({ ...branch, event: selectedEventLabel })))}>Utiliser dans les hypothèses</button></div>}
