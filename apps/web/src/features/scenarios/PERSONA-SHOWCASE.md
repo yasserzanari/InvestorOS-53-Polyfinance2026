@@ -90,7 +90,7 @@ Les pourcentages de choc choisis dans une simulation de portefeuille sont des hy
 1. Choisir un actif dans l’univers chargé par l’API. Le graphique indique le paquet de prix, la date de fin, la devise et les limites.
 2. Choisir un événement d’entreprise, un acte réglementaire ou un dépôt SEC. Les marqueurs et la liste latérale sélectionnent la même preuve; les sources officielles s’ouvrent dans un nouvel onglet.
 3. Lire les rendements après date uniquement pour les séances présentes dans le jeu. Ils ne sont pas attribués à l’événement.
-4. Examiner la couverture GDELT récente séparément des événements historiques. Si X est activé et configuré, consulter aussi ses publications récentes et ouvrir la publication originale; le contenu n’est pas confirmé par sa seule présence.
+4. Examiner les articles GDELT récents dans la liste et, lorsque leur date d’indexation tombe dans la fenêtre du graphique, sélectionner leur marqueur daté. La fiche ouvre l’article original et peut montrer les rendements observés après indexation; ceux-ci ne prouvent pas que l’article a causé le mouvement. La date d’indexation n’est pas nécessairement la date de publication. Si X est activé et configuré, consulter aussi ses publications récentes et ouvrir la publication originale; le contenu n’est pas confirmé par sa seule présence.
 5. Comparer deux à quatre branches en saisissant soi-même le libellé du scénario, l’amplitude du choc et son jalon. Le moteur applique ces hypothèses aux quantiles de fenêtres historiques du même actif.
 6. Lire les hypothèses et limites à côté du résultat : les quantiles marginaux ne sont pas des trajectoires conjointes, des probabilités, ni une prévision.
 
