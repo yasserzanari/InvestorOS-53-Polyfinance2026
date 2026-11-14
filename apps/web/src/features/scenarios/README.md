@@ -16,6 +16,8 @@ Le calcul requiert deux à quatre branches, un horizon de 20, 60 ou 120 séances
 
 Pour chaque jalon, le service calcule les 10e, 50e et 90e centiles des rendements glissants historiques du même titre. Il applique le choc utilisateur à partir du jalon indiqué. Le graphique trace les médianes conditionnelles et leur bande empirique; les cartes montrent la fourchette de fin. Ces quantiles marginaux ne décrivent pas des trajectoires individuelles cohérentes et ne sont ni probabilités ni prévisions.
 
+Après le calcul, les courbes conditionnelles sont sélectionnables directement dans le graphique (clic, Entrée ou Espace). Le contrôle correspondant dans la fiche de chaque branche sélectionne la même courbe; la couleur et l’épaisseur la distinguent des autres branches. Le libellé accessible expose le nom, la condition, le choc saisi et le jalon. Les repères historiques restent des commandes distinctes et ouvrent leur propre fiche de preuve. Aucun événement futur n’est déduit automatiquement d’un article ou d’une publication.
+
 ## Relais vers l’Assistant
 
 Depuis une observation sélectionnée, le bouton de relais envoie à l’Assistant le ticker, la date, la source et les rendements calculés disponibles. Les prompts doivent séparer la coïncidence temporelle de la causalité et demander quelles preuves manquent. Une analyse d’une déclaration SEC récente doit dire explicitement quand la série de prix s’arrête avant le dépôt.
