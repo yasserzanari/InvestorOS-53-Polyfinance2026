@@ -4,7 +4,6 @@ import { shortDate } from '../utils/format';
 
 type PortfolioToolbarProps = {
   snapshot: PortfolioSnapshot;
-  accountName: string;
   speed: number;
   isPlaying: boolean;
   exportComplete: boolean;
@@ -14,12 +13,12 @@ type PortfolioToolbarProps = {
   onExport: () => void;
 };
 
-export function PortfolioToolbar({ snapshot, accountName, speed, isPlaying, exportComplete, onSpeedChange, onTogglePlayback, onReset, onExport }: PortfolioToolbarProps) {
+export function PortfolioToolbar({ snapshot, speed, isPlaying, exportComplete, onSpeedChange, onTogglePlayback, onReset, onExport }: PortfolioToolbarProps) {
   return (
     <header className="portfolio-toolbar">
       <div className="portfolio-heading">
         <Wallet size={19} />
-        <div><h1>Portefeuille</h1><span>Modèle Croissance US · associé à {accountName}</span></div>
+        <div><h1>Portefeuille</h1><span>Relecture de marché synthétique · modèle séparé du compte actif</span></div>
         <span className="portfolio-demo-tag">Simulation fictive</span>
       </div>
       <div className="portfolio-toolbar-actions">
