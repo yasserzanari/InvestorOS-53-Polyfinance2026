@@ -7,7 +7,12 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
-from investoros_api.profiles.portfolio import load_demo_portfolio, summarize_portfolio
+from investoros_api.profiles.models import ScenarioAnalysisInput
+from investoros_api.profiles.portfolio import (
+    calculate_portfolio_scenario,
+    load_demo_portfolio,
+    summarize_portfolio,
+)
 
 
 class DynamoStub:
@@ -29,9 +34,9 @@ class PortfolioAnalysisTests(unittest.TestCase):
             "total_value": 100_000,
             "data_source": "fictional_fixture",
             "positions": [
-                {"label": "Actions", "weight_pct": 40, "value": 40_000},
-                {"label": "Obligations", "weight_pct": 25, "value": 25_000},
-                {"label": "Liquidités", "weight_pct": 35, "value": 35_000},
+                {"id": "stocks", "label": "Actions", "weight_pct": 40, "value": 40_000},
+                {"id": "bonds", "label": "Obligations", "weight_pct": 25, "value": 25_000},
+                {"id": "cash", "label": "Liquidités", "weight_pct": 35, "value": 35_000},
             ],
         }
 
@@ -50,6 +55,44 @@ class PortfolioAnalysisTests(unittest.TestCase):
         self.portfolio["positions"][0]["weight_pct"] = 20
         with self.assertRaisesRegex(ValueError, "proche de 100"):
             summarize_portfolio(self.portfolio)
+
+    def test_scenario_applies_only_explicit_shocks_and_discloses_assumptions(self):
+        scenario = ScenarioAnalysisInput.model_validate({
+            "name": "Repli des actions",
+            "shocks": [{"positionId": "stocks", "shockPct": -25}],
+        })
+
+        result = calculate_portfolio_scenario(self.portfolio, scenario)
+
+        self.assertEqual(result["baselineValue"], 100_000)
+        self.assertEqual(result["scenarioValue"], 90_000)
+        self.assertEqual(result["changeValue"], -10_000)
+        self.assertEqual(result["positions"][0]["scenarioValue"], 30_000)
+        self.assertEqual(result["positions"][1]["scenarioValue"], 25_000)
+        self.assertEqual(result["provenance"]["assumptions"], "user_supplied_conditional_shocks")
+
+    def test_scenario_rejects_positions_outside_the_configured_portfolio(self):
+        scenario = ScenarioAnalysisInput.model_validate({
+            "name": "Inconnu",
+            "shocks": [{"positionId": "not-a-position", "shockPct": -25}],
+        })
+        with self.assertRaisesRegex(ValueError, "position absente"):
+            calculate_portfolio_scenario(self.portfolio, scenario)
+
+    def test_scenario_validation_rejects_duplicate_positions_and_out_of_range_shocks(self):
+        with self.assertRaisesRegex(ValueError, "une seule fois"):
+            ScenarioAnalysisInput.model_validate({
+                "name": "Doublon",
+                "shocks": [
+                    {"positionId": "stocks", "shockPct": -10},
+                    {"positionId": "stocks", "shockPct": 10},
+                ],
+            })
+        with self.assertRaises(ValueError):
+            ScenarioAnalysisInput.model_validate({
+                "name": "Hors limites",
+                "shocks": [{"positionId": "stocks", "shockPct": -101}],
+            })
 
     @patch.dict(
         os.environ,

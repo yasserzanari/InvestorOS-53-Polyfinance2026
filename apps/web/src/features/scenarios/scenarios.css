@@ -1,0 +1,79 @@
+.workspace-content:has(.scenarios-page) { height: calc(100dvh - 62px); min-height: 0; overflow: auto; padding: 24px clamp(18px, 3vw, 44px); }
+.scenarios-page { display: flex; width: min(1180px, 100%); min-height: 100%; flex-direction: column; gap: 18px; margin: 0 auto; color: #243e50; }
+.scenarios-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.scenarios-header h1 { margin: 9px 0 4px; font-size: 24px; font-weight: 690; letter-spacing: -.04em; }
+.scenarios-header p { max-width: 610px; margin: 0; color: #718198; font-size: 12px; line-height: 1.6; }
+.scenarios-eyebrow { display: inline-flex; align-items: center; gap: 6px; color: #527883; font-size: 10px; font-weight: 690; letter-spacing: .08em; }
+.scenarios-demo-badge { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid #e2e9ed; border-radius: 8px; background: #fff; color: #6d7d89; font-size: 10px; }
+.scenarios-source-note { display: flex; min-height: 48px; align-items: center; gap: 9px; padding: 8px 12px; border: 1px solid #dfe9e9; border-radius: 9px; background: #f7fbfa; color: #647c83; font-size: 11px; }
+.scenarios-source-note > svg { flex: 0 0 auto; color: #357b76; }
+.scenarios-source-note > span { min-width: 0; flex: 1; }
+.scenarios-source-note strong { color: #34535e; font-weight: 650; }
+.scenarios-source-note a,.scenario-assistant-link { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; color: #376b78; font-size: 10px; font-weight: 620; text-decoration: none; }
+.scenarios-source-note a:hover,.scenario-assistant-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.scenarios-workspace { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr); gap: 14px; }
+.scenario-assumptions,.scenario-result { min-width: 0; padding: 16px; border: 1px solid #e3e9ee; border-radius: 12px; background: #fff; box-shadow: 0 4px 16px rgba(31, 57, 73, .035); }
+.scenario-section-heading { display: flex; align-items: flex-start; gap: 10px; }
+.scenario-step-number { display: grid; width: 26px; height: 26px; flex: 0 0 auto; place-items: center; border: 1px solid #e3eaf0; border-radius: 7px; background: #f5f8fb; color: #6b8091; font-size: 9px; font-weight: 680; }
+.scenario-section-heading h2 { margin: 2px 0 3px; color: #2c4758; font-size: 14px; font-weight: 670; }
+.scenario-section-heading p { margin: 0; color: #7b8997; font-size: 10px; line-height: 1.5; }
+.scenario-name-field { display: grid; gap: 6px; margin: 17px 0 10px; color: #728195; font-size: 10px; font-weight: 620; }
+.scenario-name-field input { height: 34px; padding: 0 10px; border: 1px solid #dfe6ed; border-radius: 7px; color: #344d5e; font: inherit; font-weight: 500; }
+.scenario-name-field input:focus-visible,.scenario-shock-control input:focus-visible { outline: 2px solid #6e9ca0; outline-offset: 2px; }
+.scenario-position-list { display: grid; max-height: min(44vh, 390px); overflow: auto; border-top: 1px solid #edf0f3; scrollbar-width: thin; }
+.scenario-position-row { display: flex; min-height: 55px; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid #edf0f3; }
+.scenario-position-main { display: grid; min-width: 0; gap: 3px; }
+.scenario-position-main strong { color: #3c5362; font-size: 10px; font-weight: 610; }
+.scenario-position-main small { color: #86929e; font-size: 9px; }
+.scenario-shock-control { display: inline-flex; width: 86px; height: 32px; flex: 0 0 auto; align-items: center; gap: 5px; padding: 0 7px; border: 1px solid #dfe6ed; border-radius: 7px; color: #607586; }
+.scenario-shock-control input { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: #344f60; font: inherit; font-size: 11px; text-align: right; }
+.scenario-shock-control input::-webkit-inner-spin-button,.scenario-shock-control input::-webkit-outer-spin-button { opacity: 1; }
+.scenario-input-help { margin: 10px 0; color: #7d8b97; font-size: 9px; line-height: 1.55; }
+.scenario-error { display: flex; align-items: center; gap: 6px; margin: 8px 0; color: #a74f4a; font-size: 10px; }
+.scenario-run-button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 0; border-radius: 7px; background: #376f77; color: #fff; font-size: 11px; font-weight: 640; cursor: pointer; }
+.scenario-run-button:hover { background: #2e6269; }
+.scenario-run-button:disabled { opacity: .58; cursor: wait; }
+.scenario-result { display: flex; flex-direction: column; }
+.scenario-empty { display: grid; flex: 1; align-content: center; justify-items: center; padding: 26px; color: #718698; text-align: center; }
+.scenario-empty > svg { color: #7899a0; }
+.scenario-empty h2 { margin: 12px 0 5px; color: #415b6d; font-size: 13px; }
+.scenario-empty p { max-width: 340px; margin: 0; color: #7d8c98; font-size: 10px; line-height: 1.65; }
+.scenario-summary-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 17px 0 14px; }
+.scenario-summary-metrics > div { display: grid; min-width: 0; gap: 7px; padding: 10px 9px; border-radius: 8px; background: #f5f8fa; }
+.scenario-summary-metrics dt { color: #798895; font-size: 9px; }
+.scenario-summary-metrics dd { overflow: hidden; margin: 0; color: #344f60; font-size: clamp(12px, 1.25vw, 17px); font-weight: 690; letter-spacing: -.02em; text-overflow: ellipsis; white-space: nowrap; }
+.scenario-summary-metrics dd small { font-size: 9px; font-weight: 580; }
+.scenario-result-table-wrap { max-height: min(33vh, 270px); overflow: auto; border: 1px solid #edf0f3; border-radius: 8px; scrollbar-width: thin; }
+.scenario-result-table { width: 100%; border-collapse: collapse; color: #526879; font-size: 9px; }
+.scenario-result-table th,.scenario-result-table td { padding: 9px 8px; border-bottom: 1px solid #edf0f3; text-align: right; font-variant-numeric: tabular-nums; }
+.scenario-result-table thead th { position: sticky; top: 0; background: #f8fafb; color: #778795; font-size: 8px; font-weight: 620; }
+.scenario-result-table th:first-child,.scenario-result-table td:first-child { text-align: left; }
+.scenario-result-table tbody th { color: #455c6d; font-weight: 580; }
+.scenario-result-table tr:last-child > * { border-bottom: 0; }
+.scenario-result-table .is-negative,.scenario-summary-metrics .is-negative { color: #a8555d; }
+.scenario-result-table .is-positive,.scenario-summary-metrics .is-positive { color: #32776e; }
+.scenario-assistant-link { margin-top: 13px; }
+.scenario-limitations { display: grid; gap: 4px; margin: 13px 0 0; padding: 10px 0 0 13px; border-top: 1px solid #edf0f3; color: #7a8893; font-size: 9px; line-height: 1.5; }
+.scenarios-state { display: flex; min-height: 110px; align-items: center; justify-content: center; gap: 8px; color: #748696; font-size: 12px; }
+.scenarios-state.is-error { border: 1px solid #efdfda; border-radius: 9px; background: #fffaf8; color: #9f5d53; }
+.scenarios-spinner { animation: scenario-spin .8s linear infinite; }
+@keyframes scenario-spin { to { transform: rotate(360deg); } }
+@media (max-width: 820px) {
+  .workspace-content:has(.scenarios-page) { height: auto; min-height: calc(100dvh - 62px); overflow: auto; padding: 18px 14px; }
+  .scenarios-page { min-height: 0; }
+  .scenarios-workspace { grid-template-columns: minmax(0, 1fr); }
+  .scenario-position-list { max-height: 320px; }
+  .scenario-result { min-height: 340px; }
+}
+@media (max-width: 560px) {
+  .scenarios-header { flex-direction: column; }
+  .scenarios-header h1 { font-size: 21px; }
+  .scenarios-demo-badge { order: -1; }
+  .scenarios-source-note { align-items: flex-start; flex-wrap: wrap; }
+  .scenarios-source-note > span { flex-basis: calc(100% - 30px); }
+  .scenarios-source-note a { margin-left: 25px; }
+  .scenario-assumptions,.scenario-result { padding: 13px; }
+  .scenario-summary-metrics { grid-template-columns: 1fr; }
+  .scenario-summary-metrics > div { grid-template-columns: 1fr auto; align-items: center; }
+}
+@media (prefers-reduced-motion: reduce) { .scenarios-spinner { animation-duration: 1.4s; } }
