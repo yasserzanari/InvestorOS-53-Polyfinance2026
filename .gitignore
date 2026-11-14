@@ -1,0 +1,12 @@
+# Documentation de travail gardée localement
+/docs/
+
+# Dépendances et environnements locaux
+node_modules/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
