@@ -55,10 +55,13 @@ Codes principaux : `200` succès, `404` fixture ou série absente, `403` associa
 Le backend lit les fichiers `assets_universe.csv`, `prices_daily.csv` et
 `corporate_actions.csv` depuis `SIMULATION_DATA_DIR`. En développement, le chemin
 par défaut pointe vers le paquet local ignoré sous
-`docs/prep/sources/Datathon2026/alphaforge_starter`; pour Lambda, fournir un
-répertoire de données empaqueté ou monté à cet emplacement configuré. Les fichiers
-de données ne sont pas versionnés dans Git. Sans ces fichiers, les routes de
-Simulation répondent clairement `503` plutôt que de produire des valeurs fictives.
+`docs/prep/sources/Datathon2026/alphaforge_starter`. `scripts/build-api.sh` inclut
+ces trois fichiers dans `investoros_api/data` dans l’archive Lambda et échoue
+explicitement si le paquet source manque. Le sous-ensemble utilisé (environ 4,3 Mo)
+est empaqueté depuis les fichiers présents localement; aucun CSV n’est versionné
+dans Git. `SIMULATION_DATA_DIR` permet de remplacer ce chemin en développement ou
+au déploiement. Sans le jeu requis, les routes de Simulation répondent clairement
+`503` plutôt que de produire des valeurs fictives.
 
 Les séries utilisent `adj_close` en devise de cotation. Les rendements autour des
 dates d’ex-dividende/de fractionnement sont des mesures historiques entre

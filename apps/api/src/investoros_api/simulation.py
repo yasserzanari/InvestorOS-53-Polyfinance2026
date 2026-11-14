@@ -71,9 +71,15 @@ def _data_dir() -> Path:
     configured = os.getenv("SIMULATION_DATA_DIR")
     if configured:
         return Path(configured).expanduser().resolve()
+    # Lambda packages carry the authorized CSV subset alongside this module.
+    packaged = Path(__file__).resolve().parent / "data"
+    if packaged.is_dir():
+        return packaged
     # The optional datathon data pack is deliberately kept out of Git.
-    root = Path(__file__).resolve().parents[4]
-    return root / "docs/prep/sources/Datathon2026/alphaforge_starter"
+    parents = Path(__file__).resolve().parents
+    if len(parents) > 4:
+        return parents[4] / "docs/prep/sources/Datathon2026/alphaforge_starter"
+    return packaged
 
 
 def _read_csv(name: str) -> list[dict[str, str]]:
