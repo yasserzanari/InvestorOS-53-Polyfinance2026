@@ -166,17 +166,27 @@ class SimulationHistoryTests(unittest.TestCase):
             "title": "Example Corp market coverage",
             "domain": "news.example",
             "seendate": "20251114T153000Z",
+            "socialimage": "https://cdn.news.example/story-preview.jpg",
         }, {
             "url": "javascript:alert(1)",
             "title": "Unsafe URL",
             "seendate": "20251114T153000Z",
+            "socialimage": "javascript:alert(1)",
+        }, {
+            "url": "https://news.example/without-safe-image",
+            "title": "Image URL is not HTTPS",
+            "domain": "news.example",
+            "seendate": "20251114T143000Z",
+            "socialimage": "http://cdn.news.example/preview.jpg",
         }]}).encode())
 
         result = simulation.issuer_news("abc")
 
         self.assertTrue(result["available"])
-        self.assertEqual(len(result["articles"]), 1)
+        self.assertEqual(len(result["articles"]), 2)
         self.assertEqual(result["articles"][0]["publishedAt"], "2025-11-14T15:30:00+00:00")
+        self.assertEqual(result["articles"][0]["imageUrl"], "https://cdn.news.example/story-preview.jpg")
+        self.assertNotIn("imageUrl", result["articles"][1])
         self.assertIn("secondaire", result["source"])
         self.assertIn("pas des faits vérifiés", " ".join(result["limitations"]))
 

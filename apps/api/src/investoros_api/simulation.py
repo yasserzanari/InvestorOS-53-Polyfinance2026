@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, HTTPException, Query
@@ -419,13 +419,25 @@ def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
                 published_at = datetime.strptime(seen[:15], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc).isoformat()
             except ValueError:
                 continue
-            documents.append({
+            article = {
                 "id": url,
                 "title": title.strip()[:400],
                 "url": url,
                 "domain": str(item.get("domain") or "Source externe")[:200],
                 "publishedAt": published_at,
-            })
+            }
+            # GDELT may return the article's social-sharing image. It can be an
+            # outlet logo or an unrelated preview, so keep it optional and
+            # never present it as a verified photograph of the event.
+            image_url = item.get("socialimage")
+            if isinstance(image_url, str) and len(image_url) <= 2048:
+                try:
+                    parsed_image = urlsplit(image_url)
+                    if parsed_image.scheme == "https" and parsed_image.hostname and not parsed_image.username and not parsed_image.password:
+                        article["imageUrl"] = image_url
+                except ValueError:
+                    pass
+            documents.append(article)
         result = {
             "ticker": normalized,
             "company": asset["name"],
