@@ -1,6 +1,6 @@
 # Dashboard InvestorOS
 
-`DashboardPage` est la vue d’accueil de `/app`. Elle présente l’état des modules, les étapes suivantes et un accès au chat; l’envoi d’une question ouvre le chat avec une transition. Le panneau de contexte reste visible pendant la conversation. Les panneaux de l’aperçu gardent une hauteur adaptée à leur contenu.
+`DashboardPage` est la vue d’accueil de `/app`. Elle présente l’état des modules, les étapes suivantes et un accès au chat; l’envoi d’une question ouvre le chat avec une transition. La barre de prompt se trouve sous le panneau d’analyse dans la colonne de gauche; dans la conversation, elle reste au bas du panneau de discussion. Le panneau de contexte reste visible pendant la conversation. Les panneaux de l’aperçu gardent une hauteur adaptée à leur contenu.
 
 ## Données et limites
 
