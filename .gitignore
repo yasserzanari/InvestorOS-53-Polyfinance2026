@@ -4,6 +4,7 @@
 # JavaScript
 node_modules/
 apps/web/dist/
+apps/api/build/
 .npm/
 
 # Python

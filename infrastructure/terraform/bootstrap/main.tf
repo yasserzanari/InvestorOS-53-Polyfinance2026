@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 locals {
-  state_bucket_name = "polyfinance2026-investoros-tfstate-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+  state_bucket_name = "investoros-tfstate-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
   common_tags = {
     Project   = "InvestorOS"
     ManagedBy = "Terraform"
