@@ -35,6 +35,18 @@ class RuntimeStub:
 
 
 class ProfileServiceTests(unittest.TestCase):
+    def test_workspace_accepts_simulation_results_as_shared_tabs(self):
+        request = ChatRequest(
+            message='Montre les trajectoires dans le chat',
+            tabs=[{
+                'id': 'simulation-abc',
+                'title': 'Trajectoires · ABC',
+                'kind': 'simulation',
+                'content': '{"ticker":"ABC","branches":[]}',
+            }],
+        )
+        self.assertEqual(request.tabs[0].kind, 'simulation')
+
     def test_private_tag_content_is_never_streamed(self):
         visible = VisibleText()
         chunks = ['<th', 'inking>private', ' reasoning</thin', 'king>Public', ' response.']

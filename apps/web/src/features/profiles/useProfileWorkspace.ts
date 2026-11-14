@@ -44,7 +44,23 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
       if(currentAccount.current!==owner)return;
       if(event.type==='status')setActivity(String(event.label));
       if(event.type==='text')patch(m=>({...m,text:m.text+String(event.delta||'')}));
-      if(event.type==='tool') {const tool=event as unknown as ToolEvent;patch(m=>({...m,tools:[...m.tools.filter(t=>t.id!==tool.id),tool]}));setActivity(tool.status==='running'?tool.name:'Préparation de la réponse');}
+      if(event.type==='tool') {
+        const tool=event as unknown as ToolEvent;
+        patch(m=>({...m,tools:[...m.tools.filter(t=>t.id!==tool.id),tool]}));
+        setActivity(tool.status==='running'?tool.name:'Préparation de la réponse');
+        if(tool.name==='project_market_scenarios'&&tool.status==='done'&&tool.output&&typeof tool.output==='object') {
+          const projection=tool.output as {ticker?:unknown;branches?:unknown};
+          if(typeof projection.ticker==='string'&&Array.isArray(projection.branches)) {
+            const id=`simulation-${projection.ticker.toLowerCase().replace(/[^a-z0-9_-]/g,'-')}`;
+            const tab:WorkspaceTab={id,title:`Trajectoires · ${projection.ticker.toUpperCase()}`,kind:'simulation',content:JSON.stringify(tool.output)};
+            const exists=workspace.tabs.some(item=>item.id===id);
+            if(exists||workspace.tabs.length<12) {
+              update(w=>({...w,tabs:w.tabs.some(item=>item.id===id)?w.tabs.map(item=>item.id===id?tab:item):[...w.tabs,tab]}));
+              setActiveTab(id);
+            }
+          }
+        }
+      }
       if(event.type==='agent'){const agent=event as unknown as AgentEvent;patch(m=>({...m,agents:[...m.agents.filter(a=>a.id!==agent.id),agent]}));}
       if(event.type==='sources'){patch(m=>({...m,citations:(event.citations as Citation[]).map(c=>({...c,url:sourceUrl(c.url)}))}));}
       if(event.type==='questions')patch(m=>({...m,questionRequest:event.request as AskUserRequest,followUps:[]}));
