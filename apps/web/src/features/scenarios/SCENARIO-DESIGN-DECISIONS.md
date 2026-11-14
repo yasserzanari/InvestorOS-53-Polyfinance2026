@@ -18,7 +18,7 @@ Les captures locales se trouvent dans `docs/prep/references-visuelles/` et ne so
 ## Système de Simulation à préserver
 
 1. L’actif et l’historique viennent de l’univers chargé par l’API, avec source, date d’extraction, devise et période visibles.
-2. Les dividendes/fractionnements et dépôts SEC sont des observations datées; leurs sources s’ouvrent. Le Federal Register fournit des documents réglementaires, pas une conclusion d’applicabilité.
+2. Les dividendes/fractionnements et dépôts SEC sont des observations datées; leurs sources s’ouvrent. Le Federal Register fournit des documents réglementaires sur la période de 1, 3 ou 5 ans sélectionnée, parcourables par pages anciennes, pas une conclusion d’applicabilité.
 3. GDELT est une source secondaire de découverte. Un document peut être sélectionné depuis sa vignette ou son marqueur sur le graphique; le marqueur utilise la date d’indexation de GDELT, qui n’est pas nécessairement l’heure de publication. Le lien source s’ouvre et les rendements post-indexation restent des observations non attribuées. Les vignettes éventuelles ne sont pas une preuve visuelle de l’événement.
 4. X Recent Search est optionnel et désactivé par défaut. Quand l’exploitant l’active et configure son jeton, la recherche porte sur le nom et le symbole de l’émetteur pour les sept derniers jours. La personne peut aussi fournir jusqu’à cinq comptes à inclure; l’application ne valide pas leur identité et n’en découvre aucun. Une publication et ses médias sont des déclarations publiques à vérifier; ils ne sont ni un événement de prix ni un facteur de calcul.
 5. Les rendements postérieurs sont des comparaisons temporelles quand les observations existent. Ils ne mesurent pas un effet causal.

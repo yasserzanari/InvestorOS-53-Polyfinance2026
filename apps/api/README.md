@@ -41,7 +41,7 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/demo/overview` | Lecture du contexte fictif DynamoDB |
 | GET | `/v1/simulation/assets` | Univers historique configuré et ses limites |
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
-| GET | `/v1/simulation/regulations?topic=...` | Documents Federal Register récents avec dates et liens officiels associés |
+| GET | `/v1/simulation/regulations?topic=...&page=1` | Documents Federal Register dans une période datée, paginés par date de publication, avec liens officiels associés |
 | GET | `/v1/simulation/filings/{ticker}?start_date=YYYY-MM-DD` | Déclarations EDGAR récentes et historiques depuis le début de la série visible; nécessite `SEC_USER_AGENT` côté serveur |
 | GET | `/v1/simulation/news/{ticker}` | Couverture secondaire récente indexée par GDELT; cache positif et pause après erreur ou limitation |
 | GET | `/v1/simulation/social/{ticker}?accounts=handle1,handle2` | Publications X publiques des sept derniers jours; connecteur désactivé par défaut; filtre facultatif sur cinq comptes fournis par l’utilisateur |
@@ -74,11 +74,16 @@ causaux ni des prévisions. Le jeu fourni couvre le 12 novembre 2021 au
 ni publications sociales, ni fondamentaux, ni données ESG. Une relation entre une
 date d’événement et un mouvement de prix ne démontre pas la causalité.
 
-La route `/v1/simulation/regulations` recherche à la demande des documents
-récents du Federal Register pour quatre sujets bornés (tarifs, chaîne logistique,
-contrôles export, énergie). Elle retourne les dates de publication et d’entrée en
-vigueur lorsqu’elles sont fournies, les agences, le résumé disponible et les liens
-vers la page de document et le PDF govinfo. Les documents sont des pistes
+La route `/v1/simulation/regulations` recherche à la demande des documents du
+Federal Register sur une fenêtre de cinq ans par défaut (modifiable par `start_date`
+et `end_date`) pour quatre sujets bornés (tarifs, chaîne logistique, contrôles
+export, énergie). `page` parcourt les résultats de 20 documents triés du plus récent au
+plus ancien; `count` et `total_pages` de la source rendent la couverture restante
+visible. L’interface permet de charger les pages historiques et ne projette sur le
+graphique que les documents dans la période de cours affichée. Elle retourne les
+dates de publication et d’entrée en vigueur lorsqu’elles sont fournies, les
+agences, le résumé disponible et les liens vers la page de document et le PDF
+govinfo. Les documents sont des pistes
 réglementaires; leur présence ne prouve pas leur application à un émetteur ni
 leur effet sur son cours. Le site avertit que sa représentation XML est
 informative; vérifier l’édition officielle liée avant une lecture juridique.
