@@ -6,12 +6,13 @@ Ce stack crée le frontend statique InvestorOS dans `ca-central-1` : bucket S3 p
 
 Le rôle AWS utilisé pour la première installation doit pouvoir créer les ressources Terraform. L’environnement courant peut interdire ces actions avec une SCP; dans ce cas, exécuter ces commandes avec un rôle autorisé dans le compte du projet.
 
-1. Créer le bucket d’état et migrer son état local vers S3 :
+1. Créer le bucket d’état avec l’état local temporaire, puis migrer cet état dans le bucket :
 
    ```bash
    cd infrastructure/terraform/bootstrap
-   terraform init -backend=false
+   terraform init
    terraform apply
+   cp backend.tf.example backend.tf
    terraform init -migrate-state
    ```
 
