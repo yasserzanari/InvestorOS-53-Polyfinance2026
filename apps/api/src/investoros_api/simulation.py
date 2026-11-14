@@ -23,6 +23,8 @@ REGULATION_TERMS = {
 }
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
+GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+GDELT_DOCS_URL = "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/"
 
 
 class ScenarioBranch(BaseModel):
@@ -56,6 +58,7 @@ class ScenarioProjectionRequest(BaseModel):
 
 
 _SEC_CACHE: dict[str, tuple[float, Any]] = {}
+_NEWS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 def _data_dir() -> Path:
@@ -363,6 +366,89 @@ def issuer_filings(ticker: str, limit: int = 30) -> dict[str, Any]:
         "filings": filings,
         "limitations": ["Les dépôts sont les déclarations de l’émetteur, pas une vérification indépendante.", "Un formulaire, une date de dépôt et son cours postérieur ne prouvent pas que le dépôt a causé ce mouvement."],
     }
+
+
+@router.get("/news/{ticker}")
+def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
+    """Return recent secondary news coverage as leads, never as verified issuer facts."""
+    normalized = ticker.upper()
+    if limit < 1 or limit > 25:
+        raise HTTPException(status_code=422, detail="La limite doit être comprise entre 1 et 25.")
+    asset = _assets().get(normalized)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
+
+    cache_key = f"{normalized}:{limit}"
+    now = datetime.now(timezone.utc).timestamp()
+    cached = _NEWS_CACHE.get(cache_key)
+    if cached and now - cached[0] < (600 if cached[1]["available"] else 120):
+        return cached[1]
+
+    # GDELT is discovery coverage, not a primary source or an issuer-identity check.
+    # Keep the query bounded and escape user-visible company text through urlencode.
+    query = f'"{asset["name"]}" OR {normalized}'
+    params = urlencode({
+        "query": query,
+        "mode": "ArtList",
+        "format": "json",
+        "sort": "DateDesc",
+        "maxrecords": limit,
+        "timespan": "30d",
+    })
+    request = Request(
+        f"{GDELT_DOC_URL}?{params}",
+        headers={"Accept": "application/json", "User-Agent": "InvestorOS Simulation/1.0"},
+    )
+    reason = "La couverture médiatique est temporairement indisponible."
+    documents: list[dict[str, str]] = []
+    try:
+        with urlopen(request, timeout=7) as response:
+            payload = json.loads(response.read(2_000_001))
+        articles = payload.get("articles", []) if isinstance(payload, dict) else []
+        for item in articles:
+            if not isinstance(item, dict):
+                continue
+            url = item.get("url")
+            title = item.get("title")
+            seen = item.get("seendate")
+            if not isinstance(url, str) or not url.startswith("https://") or not isinstance(title, str) or not title.strip():
+                continue
+            if not isinstance(seen, str) or len(seen) < 8:
+                continue
+            try:
+                published_at = datetime.strptime(seen[:15], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc).isoformat()
+            except ValueError:
+                continue
+            documents.append({
+                "id": url,
+                "title": title.strip()[:400],
+                "url": url,
+                "domain": str(item.get("domain") or "Source externe")[:200],
+                "publishedAt": published_at,
+            })
+        result = {
+            "ticker": normalized,
+            "company": asset["name"],
+            "available": True,
+            "source": "GDELT DOC 2.0 · index de couverture secondaire",
+            "sourceUrl": GDELT_DOCS_URL,
+            "asOf": datetime.now(timezone.utc).isoformat(),
+            "articles": documents,
+            "limitations": [
+                "Les résultats sont des pistes de couverture, pas des faits vérifiés ni des sources primaires.",
+                "La correspondance nom/ticker peut inclure des homonymes ou des mentions indirectes.",
+                "Une date d’indexation ne prouve ni l’heure exacte de publication ni un effet sur le cours.",
+            ],
+        }
+    except HTTPError as error:
+        reason = "La source de couverture limite ou refuse temporairement la recherche."
+        if error.code == 429:
+            reason = "La source de couverture est temporairement limitée; réessayez plus tard."
+        result = {"ticker": normalized, "company": asset["name"], "available": False, "reason": reason, "source": "GDELT DOC 2.0", "sourceUrl": GDELT_DOCS_URL, "articles": []}
+    except (URLError, TimeoutError, json.JSONDecodeError, OSError, AttributeError):
+        result = {"ticker": normalized, "company": asset["name"], "available": False, "reason": reason, "source": "GDELT DOC 2.0", "sourceUrl": GDELT_DOCS_URL, "articles": []}
+    _NEWS_CACHE[cache_key] = (now, result)
+    return result
 
 
 @router.get("/regulations")

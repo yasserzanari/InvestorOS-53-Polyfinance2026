@@ -6,6 +6,7 @@ from io import BytesIO
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from fastapi import HTTPException
 
@@ -31,11 +32,13 @@ class SimulationHistoryTests(unittest.TestCase):
         self.patcher.start()
         simulation._assets.cache_clear()
         simulation._SEC_CACHE.clear()
+        simulation._NEWS_CACHE.clear()
 
     def tearDown(self):
         self.patcher.stop()
         simulation._assets.cache_clear()
         simulation._SEC_CACHE.clear()
+        simulation._NEWS_CACHE.clear()
         self.temp.cleanup()
 
     def write_csv(self, filename, rows):
@@ -155,3 +158,33 @@ class SimulationHistoryTests(unittest.TestCase):
             result = simulation.issuer_filings("ABC")
         self.assertFalse(result["available"])
         self.assertIn("SEC_USER_AGENT", result["reason"])
+
+    @patch("investoros_api.simulation.urlopen")
+    def test_news_returns_secondary_links_with_indexed_dates(self, open_url):
+        open_url.return_value = BytesIO(json.dumps({"articles": [{
+            "url": "https://news.example/story",
+            "title": "Example Corp market coverage",
+            "domain": "news.example",
+            "seendate": "20251114T153000Z",
+        }, {
+            "url": "javascript:alert(1)",
+            "title": "Unsafe URL",
+            "seendate": "20251114T153000Z",
+        }]}).encode())
+
+        result = simulation.issuer_news("abc")
+
+        self.assertTrue(result["available"])
+        self.assertEqual(len(result["articles"]), 1)
+        self.assertEqual(result["articles"][0]["publishedAt"], "2025-11-14T15:30:00+00:00")
+        self.assertIn("secondaire", result["source"])
+        self.assertIn("pas des faits vérifiés", " ".join(result["limitations"]))
+
+    @patch("investoros_api.simulation.urlopen", side_effect=HTTPError("https://example", 429, "rate limited", {}, None))
+    def test_news_rate_limit_is_visible_and_cached(self, open_url):
+        first = simulation.issuer_news("ABC")
+        second = simulation.issuer_news("ABC")
+        self.assertFalse(first["available"])
+        self.assertIn("limitée", first["reason"])
+        self.assertEqual(second, first)
+        self.assertEqual(open_url.call_count, 1)

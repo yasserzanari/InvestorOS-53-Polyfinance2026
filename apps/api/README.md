@@ -41,6 +41,7 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
 | GET | `/v1/simulation/regulations?topic=...` | Documents Federal Register récents avec dates et liens officiels associés |
 | GET | `/v1/simulation/filings/{ticker}` | Déclarations EDGAR de l’émetteur; nécessite `SEC_USER_AGENT` côté serveur |
+| GET | `/v1/simulation/news/{ticker}` | Couverture secondaire récente indexée par GDELT; cache positif et pause après erreur ou limitation |
 | POST | `/v1/simulation/scenarios` | Quantiles de rendements historiques et chocs conditionnels saisis par l’utilisateur |
 | GET | `/v1/profiles/status` | Configuration déclarée du modèle Bedrock (ne vérifie pas les permissions) |
 | GET | `/v1/profiles/sources/{source_id}` | Notes de méthode exactes du catalogue produit |
@@ -91,11 +92,19 @@ par jalon sont marginaux et ne forment pas des chemins historiques individuels;
 la réponse inclut la date source, la méthode et les limites. Ce calcul n’est ni
 une prévision, ni une probabilité de scénario, ni une recommandation.
 
-Les publications de sociétés et les publications sociales ne sont pas encore
-connectées à ces routes. Il faut les ingérer avec leur source primaire, heure de
-publication, lien direct et méthode de vérification d’identité. L’API X demande
-un jeton configuré côté serveur et facture ses usages; le frontend ne doit jamais
-appeler X directement ni afficher des publications simulées.
+La couverture médiatique n’alimente pas le calcul des cours; `/v1/simulation/news/{ticker}`
+ajoute une recherche GDELT DOC 2.0 sur les 30 derniers jours. Ces liens
+sont des pistes secondaires de couverture, pas des déclarations vérifiées de
+l’émetteur : les homonymes et les mentions indirectes sont possibles. La route
+retourne l’heure d’indexation quand elle est fournie, garde seulement les URLs
+HTTPS et met en cache les réponses pendant 10 minutes (2 minutes après échec,
+incluant HTTP 429) pour limiter les appels. Une source indisponible est affichée
+comme telle, sans articles inventés. Les articles ne sont jamais utilisés comme
+événements de prix ni pour attribuer un mouvement à une nouvelle.
+
+Les publications X ne sont pas intégrées. Leur API est payante et exige un jeton
+configuré côté serveur; n’ajouter ce connecteur qu’après validation du budget et
+des règles de conservation. Le frontend ne doit jamais appeler X directement.
 
 ## Ce qui n’est pas encore branché
 
