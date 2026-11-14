@@ -6,7 +6,7 @@
 
 `loadDemoOverview(persona)` distingue les états `connected`, `not_configured`, `rate_limited` et `unavailable`. La page lui transmet l’identifiant du persona sélectionné. Lorsque l’API est accessible, elle utilise le profil, les positions et les analyses reçus pour afficher le résumé et adapter les suggestions. Si la lecture échoue ou si le service n’est pas configuré, elle montre un état explicite et ne remplace pas les données par des chiffres simulés. Les positions descriptives ne sont pas liées à des tickers de Simulation sans correspondance fournie.
 
-Le Dashboard est un point de départ, pas un écran d’exécution pour chaque module. Les espaces Analyses et Réseaux restent des destinations préparatoires tant qu’ils n’ont pas de flux et de données propres. Sources et méthode documente les fournisseurs utilisés et charge le statut du jeu Simulation; cette page n’affirme pas que chaque fournisseur est disponible pour chaque titre.
+Le Dashboard est un point de départ, pas un écran d’exécution pour chaque module. Analyses lit les enregistrements fictifs disponibles dans DynamoDB, sans créer de nouvelles lignes. Réseaux reste une destination préparatoire car aucune relation fournisseur vérifiable n’est configurée. Sources et méthode documente les fournisseurs utilisés et charge le statut du jeu Simulation; cette page n’affirme pas que chaque fournisseur est disponible pour chaque titre.
 
 ## Saisie et continuité du chat
 
@@ -16,7 +16,7 @@ L’envoi ouvre `/app/assistant` avec le texte de départ. La route utilise le m
 
 ## Modules et navigation
 
-La navigation latérale est dérivée du catalogue `productModules`. Pour ajouter un module, renseigner son libellé, son icône, son groupe et sa route dans `apps/web/src/app/modules.tsx`, puis enregistrer une page dédiée dans `apps/web/src/app/App.tsx` lorsqu’il possède un flux de travail. L’écran Sources et méthode est décrit dans `apps/web/src/features/evidence/README.md`. Un lien ou une tâche d’Assistant vers un module est un relais de navigation; il ne constitue pas à lui seul une opération dans ce module.
+La navigation latérale est dérivée du catalogue `productModules`. Pour ajouter un module, renseigner son libellé, son icône, son groupe et sa route dans `apps/web/src/app/modules.tsx`, puis enregistrer une page dédiée dans `apps/web/src/app/App.tsx` lorsqu’il possède un flux de travail. Les écrans Analyses et Sources et méthode sont décrits dans leurs README respectifs. Un lien ou une tâche d’Assistant vers un module est un relais de navigation; il ne constitue pas à lui seul une opération dans ce module.
 
 ## Présentation des preuves
 

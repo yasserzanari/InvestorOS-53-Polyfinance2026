@@ -91,8 +91,19 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
 
           <section className="dashboard-panel analysis-empty-panel" aria-labelledby="analysis-empty-title">
             <span className="analysis-empty-icon"><ChartNoAxesCombined size={19} /></span>
-            <div><h2 id="analysis-empty-title">Aucune analyse enregistrée</h2><p>Formulez une question pour préparer votre première analyse.</p></div>
-            <button type="button" className="text-action" onClick={() => onStartChat('Aidez-moi à préparer une première analyse.')}>Préparer une analyse <ArrowRight size={15} /></button>
+            <div>
+              <h2 id="analysis-empty-title">
+                {connected && api.overview.analyses.length > 0
+                  ? `${api.overview.analyses.length} analyse${api.overview.analyses.length === 1 ? '' : 's'} enregistrée${api.overview.analyses.length === 1 ? '' : 's'}`
+                  : api.status === 'connected' ? 'Aucune analyse enregistrée' : 'Analyses indisponibles'}
+              </h2>
+              <p>{connected && api.overview.analyses.length > 0
+                ? 'Les enregistrements du compte de démonstration sont consultables.'
+                : api.status === 'connected' ? 'Formulez une question pour préparer votre première analyse.' : 'Vérifiez la connexion avant de consulter les analyses AWS.'}</p>
+            </div>
+            {connected && api.overview.analyses.length > 0
+              ? <Link className="text-action" to="/app/analyses">Consulter les analyses <ArrowRight size={15} /></Link>
+              : <button type="button" className="text-action" onClick={() => onStartChat('Aidez-moi à préparer une première analyse à partir des données réellement disponibles.')}>Préparer une analyse <ArrowRight size={15} /></button>}
           </section>
           {children}
         </div>

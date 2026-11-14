@@ -1,0 +1,34 @@
+.workspace-content:has(.analyses-page){height:calc(100dvh - 62px);min-height:0;overflow:auto;padding:clamp(20px,3vw,38px)}
+.analyses-page{width:min(1120px,100%);min-height:100%;margin:0 auto;display:flex;flex-direction:column;gap:20px;color:var(--text)}
+.analyses-header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding-bottom:3px}
+.analyses-eyebrow{display:flex;align-items:center;gap:7px;color:#5274a1;font-size:10px;font-weight:720;letter-spacing:.09em}
+.analyses-header h1{margin:9px 0 6px;font-size:clamp(24px,2vw,30px);font-weight:680;letter-spacing:-.045em;line-height:1.15}
+.analyses-header p{max-width:650px;margin:0;color:var(--muted);font-size:13px;line-height:1.55}
+.analyses-assistant-link,.analyses-empty a{display:inline-flex;min-height:36px;flex:none;align-items:center;justify-content:center;gap:7px;padding:0 11px;border:1px solid #d9e4f4;border-radius:8px;background:#f7faff;color:#456cae;font-size:11px;font-weight:620;text-decoration:none}
+.analyses-assistant-link:hover,.analyses-empty a:hover{background:#edf4ff}
+.analyses-loading{margin:0;padding:24px;border:1px solid #e1e7ef;border-radius:11px;background:#fff;color:#78879a;font-size:12px}
+.analyses-source-status{display:flex;align-items:center;gap:11px;padding:14px;border:1px solid #cfe5d8;border-radius:10px;background:#f6fbf8}
+.analyses-source-status.is-connected .analyses-source-icon{display:grid;width:32px;height:32px;flex:none;place-items:center;border-radius:9px;background:#e5f3eb;color:#4c8967}
+.analyses-source-status>div{min-width:0;flex:1}
+.analyses-source-status strong{color:#395e4b;font-size:11px;font-weight:670}
+.analyses-source-status p{margin:3px 0 0;color:#71897b;font-size:10px;line-height:1.5}
+.analyses-status-badge{flex:none;padding:4px 8px;border:1px solid #d4e9dc;border-radius:999px;background:#fff;color:#568069;font-size:9px;font-weight:650}
+.analyses-record-list{display:grid;gap:10px}
+.analyses-record{display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid #e0e7ef;border-radius:11px;background:#fff;box-shadow:0 1px 2px #1c315008}
+.analyses-record-icon{display:grid;width:34px;height:34px;flex:none;place-items:center;border-radius:9px;background:#edf2ff;color:#5d78af}
+.analyses-record-content{min-width:0;flex:1}
+.analyses-record-meta{display:flex;align-items:center;gap:8px;color:#8290a1;font-size:9px}
+.analyses-record-meta time{margin-left:auto;font-variant-numeric:tabular-nums}
+.analyses-record h2{margin:5px 0;color:#344a68;font-size:13px;font-weight:670;line-height:1.45}
+.analyses-record p{margin:0;color:#6f7f95;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.analyses-record .analyses-record-fallback{color:#8995a5;font-size:10px}
+.analyses-record-details{margin-top:11px;border-top:1px solid #edf0f4;padding-top:9px}
+.analyses-record-details summary{display:inline-flex;align-items:center;gap:5px;color:#6f82a0;font-size:9px;font-weight:610;cursor:pointer}
+.analyses-record-details pre{max-height:320px;overflow:auto;margin:9px 0 0;padding:11px;border:1px solid #e6ebf2;border-radius:7px;background:#f8fafc;color:#62738b;font-size:10px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.analyses-empty{display:flex;flex-direction:column;align-items:center;padding:clamp(28px,6vw,64px) 24px;border:1px solid #e1e7ef;border-radius:12px;background:#fff;text-align:center}
+.analyses-empty>span{display:grid;width:42px;height:42px;place-items:center;border-radius:12px;background:#f0f4fa;color:#7588a7}
+.analyses-empty h2{margin:13px 0 6px;color:#344a68;font-size:17px;font-weight:660;letter-spacing:-.02em}
+.analyses-empty p{max-width:62ch;margin:0 0 16px;color:#718097;font-size:11px;line-height:1.65}
+.analyses-empty.is-unavailable{border-color:#e7e9ee;background:#fcfcfd}
+.analyses-empty.is-unavailable>span{background:#f2f4f7;color:#8a95a3}
+@media(max-width:680px){.analyses-header{align-items:flex-start;flex-direction:column}.analyses-source-status{align-items:flex-start;flex-wrap:wrap}.analyses-status-badge{margin-left:43px}}
