@@ -82,7 +82,9 @@ lit les métadonnées de dépôts EDGAR (8-K, 10-K, 10-Q et formulaires étrange
 et un contact maintenu par l’exploitant; les requêtes sont limitées et mises en
 cache côté API. Les heures et dates déposées sont des dates de document, pas des
 mesures de causalité. Les rendements postérieurs restent absents lorsque le jeu
-de prix finit avant le dépôt.
+de prix finit avant le dépôt. Dans le graphique, les dépôts situés dans la période
+de prix visible ont un marqueur sélectionnable; les dépôts plus récents restent
+ouvrables depuis la liste sans être projetés artificiellement sur la courbe.
 
 `POST /v1/simulation/scenarios` accepte un ticker configuré, un horizon de 20,
 60 ou 120 séances et deux à quatre branches. Chaque branche exige un texte de
