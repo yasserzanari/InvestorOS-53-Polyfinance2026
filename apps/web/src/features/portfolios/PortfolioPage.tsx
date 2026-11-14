@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useDemoAccount } from '../../shared/DemoAccountContext';
+import { loadDemoOverview, type DemoApiConnection } from '../../shared/api';
 import { AllocationPanel } from './components/AllocationPanel';
+import { DemoPortfolioSource } from './components/DemoPortfolioSource';
 import { MonthlyReturnsPanel } from './components/MonthlyReturnsPanel';
 import { PortfolioChartPanel } from './components/PortfolioChartPanel';
 import { PortfolioToolbar } from './components/PortfolioToolbar';
@@ -11,6 +14,14 @@ import './styles/portfolio.css';
 export function PortfolioPage() {
   const { activeAccount } = useDemoAccount();
   const replay = usePortfolioReplay(activeAccount.name);
+  const [api, setApi] = useState<DemoApiConnection | { status: 'loading' }>({ status: 'loading' });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setApi({ status: 'loading' });
+    loadDemoOverview(activeAccount.id, controller.signal).then(setApi).catch(() => undefined);
+    return () => controller.abort();
+  }, [activeAccount.id]);
 
   function toggleRebalancePreview() {
     replay.setPreviewingRebalance((current) => !current);
@@ -21,7 +32,6 @@ export function PortfolioPage() {
     <section className="portfolio-page" aria-label="Portefeuille modèle">
       <PortfolioToolbar
         snapshot={replay.snapshot}
-        accountName={activeAccount.name}
         speed={replay.speed}
         isPlaying={replay.isPlaying}
         exportComplete={replay.exportComplete}
@@ -30,6 +40,8 @@ export function PortfolioPage() {
         onReset={replay.resetReplay}
         onExport={replay.exportCurrentSnapshot}
       />
+
+      <DemoPortfolioSource accountName={activeAccount.name} connection={api} />
 
       <div className="portfolio-dashboard-grid">
         <PortfolioChartPanel snapshot={replay.snapshot} />

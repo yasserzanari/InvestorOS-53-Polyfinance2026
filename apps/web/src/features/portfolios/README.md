@@ -60,7 +60,9 @@ portfolios/
 
 ## Données et limites
 
-Le modèle génère une série déterministe pour la démonstration. Les valeurs, titres, dates, rendements, volatilités, ratios, repères et rééquilibrages sont fictifs; ils ne viennent pas d’AWS, d’un compte de courtage, d’un flux de marché ou d’une prévision. La page et le CSV le signalent. Un rééquilibrage prévisualisé ou appliqué change uniquement cette simulation locale et ne transmet aucun ordre.
+La page lit aussi le portefeuille fictif configuré pour le compte actif depuis `/v1/demo/overview` (DynamoDB AWS). Le panneau source affiche la valeur et les positions effectivement renvoyées par l’API, leur provenance fictive et un lien pour demander une analyse à l’assistant. Cette lecture est en lecture seule.
+
+La relecture de marché reste une simulation locale distincte. Ses valeurs, titres, dates, rendements, volatilités, ratios, repères et rééquilibrages sont fictifs; ils ne viennent pas d’AWS, d’un compte de courtage, d’un flux de marché ou d’une prévision. La page et le CSV le signalent. Un rééquilibrage prévisualisé ou appliqué change uniquement cette simulation locale et ne transmet aucun ordre.
 
 L’API de démo actuelle fournit un instantané mais pas de série temporelle ni les conventions requises pour calculer un rendement de compte. Remplacer le modèle par des données connectées seulement lorsque leur provenance, devise, date de valorisation, apports, frais et définition du benchmark sont documentés. Garder les calculs purs dans `model/` et l’adaptation des données séparée des composants.
 
