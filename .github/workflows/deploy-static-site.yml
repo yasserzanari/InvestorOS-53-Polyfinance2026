@@ -14,16 +14,16 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: investoros-web-dist
           path: apps/web/dist/
@@ -39,17 +39,17 @@ jobs:
         vars.AWS_SITE_BUCKET != '' &&
         vars.AWS_CLOUDFRONT_DISTRIBUTION_ID != ''
       }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: investoros-web-dist
           path: apps/web/dist/
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'ca-central-1' }}
@@ -74,7 +74,7 @@ jobs:
         github.ref == 'refs/heads/main' &&
         (vars.AWS_DEPLOY_ROLE_ARN == '' || vars.AWS_SITE_BUCKET == '' || vars.AWS_CLOUDFRONT_DISTRIBUTION_ID == '')
       }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Explain the skipped deployment
         run: echo "::notice::Build succeeded; AWS deploy is waiting for Terraform outputs to be added as repository variables."
