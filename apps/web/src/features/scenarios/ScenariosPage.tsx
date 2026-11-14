@@ -79,6 +79,8 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
   const futureMedianPath = futureMedian !== undefined ? `M1000 ${currentY} L1080 ${yFor(futureMedian)}` : '';
   const shownEvents = data.events.filter((event) => event.date >= (visible[0]?.date ?? '') && event.date <= (visible.at(-1)?.date ?? ''));
   const shownRegulations = regulations.filter((event) => event.publishedAt >= (visible[0]?.date ?? '') && event.publishedAt <= (visible.at(-1)?.date ?? ''));
+  const shownFilings = filings.filter((event) => event.filedAt >= (visible[0]?.date ?? '') && event.filedAt <= (visible.at(-1)?.date ?? ''));
+  const shownMarkerCount = shownEvents.length + shownRegulations.length + shownFilings.length;
   const selected = data.events.find((event) => event.id === selectedId);
   const selectedRegulation = regulations.find((event) => `reg:${event.id}` === selectedId);
   const selectedFiling = filings.find((event) => `sec:${event.id}` === selectedId);
@@ -96,7 +98,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
             {RANGE_OPTIONS.map((years) => <button type="button" key={years} aria-pressed={range === years} onClick={() => setRange(years)}>{years} an{years > 1 ? 's' : ''}</button>)}
           </div>
         </div>
-        <div className="simulation-chart-legend"><span><i /> Prix ajusté, base 100 au début de la période</span><span><b /> Événement daté</span><span><em /> Référence historique</span><span className="simulation-currency">{data.currency}</span></div>
+        <div className="simulation-chart-legend"><span><i /> Prix ajusté, base 100 au début de la période</span><span><b /> Événement d’entreprise</span><span><strong className="simulation-regulation-marker-key" /> Federal Register</span><span><em /> Référence historique</span><span><strong className="simulation-filing-marker-key" /> Dépôt SEC</span><span className="simulation-currency">{data.currency}</span></div>
         <div className="simulation-chart-plot" role="group" aria-label={`Historique de ${data.asset.name}, repères d’événements sélectionnables`}>
           <div className="simulation-y-labels"><span>{high.toFixed(0)}</span><span>{((high + low) / 2).toFixed(0)}</span><span>{low.toFixed(0)}</span></div>
           <svg viewBox="0 0 1100 320" preserveAspectRatio="none" aria-hidden="true">
@@ -119,6 +121,11 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
             if (!point) return null;
             return <button key={event.id} type="button" className={`simulation-event-marker is-regulation${selectedId === `reg:${event.id}` ? ' is-selected' : ''}`} style={{ left: `${point.x / 11}%`, top: `${point.y / 3.2}%` }} aria-label={`Document réglementaire, ${event.title}, publié le ${dateLabel(event.publishedAt)}. Afficher le contexte`} aria-pressed={selectedId === `reg:${event.id}`} onClick={() => onSelect(`reg:${event.id}`)}><span /></button>;
           })}
+          {shownFilings.map((filing) => {
+            const point = eventPosition(filing.filedAt);
+            if (!point) return null;
+            return <button key={filing.id} type="button" className={`simulation-event-marker is-filing${selectedId === `sec:${filing.id}` ? ' is-selected' : ''}`} style={{ left: `${point.x / 11}%`, top: `${point.y / 3.2}%` }} aria-label={`Dépôt SEC ${filing.form}, ${filing.title}, déposé le ${dateLabel(filing.filedAt)}. Afficher le contexte`} aria-pressed={selectedId === `sec:${filing.id}`} onClick={() => onSelect(`sec:${filing.id}`)}><span /></button>;
+          })}
           {!normalized.length && <span className="simulation-chart-empty">Aucun cours sur cette période</span>}
         </div>
         <div className="simulation-x-labels"><span>{visible[0] ? dateLabel(visible[0].date) : ''}</span><span>{visible.at(-1) ? dateLabel(visible.at(-1)!.date) : ''}</span><span>+{horizon} séances</span></div>
@@ -130,7 +137,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
       </section>
 
       <aside className="simulation-event-panel" aria-labelledby="simulation-events-title">
-        <div className="simulation-panel-heading"><span><CalendarDays size={15} /></span><div><h2 id="simulation-events-title">Événements et réactions</h2><p>{shownEvents.length} événement{shownEvents.length === 1 ? '' : 's'} dans la période</p></div></div>
+        <div className="simulation-panel-heading"><span><CalendarDays size={15} /></span><div><h2 id="simulation-events-title">Événements et réactions</h2><p>{shownMarkerCount} repère{shownMarkerCount === 1 ? '' : 's'} daté{shownMarkerCount === 1 ? '' : 's'} dans la période</p></div></div>
         {selected ? (
           <article className="simulation-selected-event">
             <div className="simulation-event-title"><span>{eventNames[selected.kind] ?? selected.kind}</span><time>{dateLabel(selected.date)}</time></div>
