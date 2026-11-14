@@ -1,25 +1,32 @@
+import { lazy, Suspense } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AppShell } from '../shared/AppShell';
+import { DashboardPage, ModuleLanding } from '../features/overview/DashboardPage';
+import { productModules } from './modules';
+
+const LandingPage = lazy(() => import('../features/landing/LandingPage').then(({ LandingPage: Page }) => ({ default: Page })));
+const LoginPage = lazy(() => import('../features/auth/LoginPage').then(({ LoginPage: Page }) => ({ default: Page })));
+
 export function App() {
   return (
-    <main className="app-frame">
-      <header className="app-header">
-        <a className="wordmark" href="/" aria-label="InvestorOS, accueil">InvestorOS</a>
-        <span className="environment-label">Espace de préparation</span>
-      </header>
-      <section className="welcome-panel" aria-labelledby="welcome-title">
-        <div className="welcome-copy">
-          <p className="eyebrow">Polyfinance · Hackathon 2026</p>
-          <h1 id="welcome-title">Comprendre avant de décider.</h1>
-          <p className="welcome-description">
-            L’espace InvestorOS est prêt à accueillir le parcours de profil, l’analyse
-            de portefeuille et les explications sourcées.
-          </p>
-          <p className="connection-state">
-            Le frontend est initialisé. Les analyses apparaîtront ici une fois l’API AWS connectée.
-          </p>
-        </div>
-        <div className="orbit" aria-hidden="true"><span /><span /><span /></div>
-      </section>
-      <footer className="app-footer">Prototype éducatif · Données et analyses simulées</footer>
-    </main>
+    <BrowserRouter>
+      <Suspense fallback={<div className="app-loading" role="status">InvestorOS</div>}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/app" element={<AppShell />}>
+            <Route index element={<DashboardPage />} />
+            {productModules.filter(({ id }) => id !== 'overview').map((module) => (
+              <Route
+                key={module.id}
+                path={module.href.replace('/app/', '')}
+                element={<ModuleLanding moduleId={module.id} />}
+              />
+            ))}
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
   );
 }
