@@ -13,6 +13,16 @@ variable "github_repository" {
   type        = string
 }
 
+variable "github_repository_owner_id" {
+  description = "Identifiant GitHub immuable du propriétaire du dépôt."
+  type        = string
+}
+
+variable "github_repository_id" {
+  description = "Identifiant GitHub immuable du dépôt."
+  type        = string
+}
+
 variable "common_tags" {
   description = "Étiquettes communes des ressources."
   type        = map(string)
