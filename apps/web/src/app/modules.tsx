@@ -49,8 +49,8 @@ export const productModules: ProductModule[] = [
     description: 'Cartographier les dépendances et leurs sources vérifiables.', icon: GitBranch, group: 'Explorer',
   },
   {
-    id: 'scenarios', label: 'Scénarios', shortLabel: 'Scénarios', href: '/app/scenarios',
-    description: 'Comparer des trajectoires conditionnelles, jamais certaines.', icon: Compass, group: 'Explorer',
+    id: 'scenarios', label: 'Simulation', shortLabel: 'Simulation', href: '/app/scenarios',
+    description: 'Étudier les cours historiques, les événements datés et des trajectoires conditionnelles.', icon: Compass, group: 'Explorer',
   },
   {
     id: 'evidence', label: 'Sources et méthode', shortLabel: 'Sources', href: '/app/evidence',

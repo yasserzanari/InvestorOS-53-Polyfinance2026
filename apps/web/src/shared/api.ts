@@ -48,6 +48,46 @@ export type PortfolioScenarioImpact = {
   provenance: { portfolio: string; assumptions: string; limitations: string[]; moduleUrl: string };
 };
 
+export type SimulationAsset = {
+  asset_id: string;
+  ticker: string;
+  name: string;
+  asset_class: string;
+  market: string;
+  currency: string;
+  sector: string;
+};
+export type SimulationAssetList = { assets: SimulationAsset[]; source: string; sourceAsOf: string; limitations: string[] };
+export type SimulationHistory = {
+  asset: SimulationAsset;
+  prices: Array<{ date: string; adjustedClose: number; volume: number }>;
+  events: Array<{ id: string; date: string; kind: string; value: number | null; unit: string | null; observedPriceDate: string | null; observedReturnsPct: Record<string, number | null> }>;
+  currency: string;
+  source: string;
+  sourceAsOf: string;
+  method: string;
+  limitations: string[];
+};
+export type SimulationRegulation = {
+  id: string;
+  title: string;
+  type: string;
+  publishedAt: string;
+  effectiveOn: string | null;
+  summary: string;
+  agencies: string[];
+  url: string;
+  officialPdfUrl: string | null;
+};
+export type SimulationRegulations = {
+  topic: string;
+  query: string;
+  source: string;
+  sourceUrl: string;
+  legalStatus: string;
+  documents: SimulationRegulation[];
+};
+
 const getApiBase = (): string | null => {
   if (import.meta.env.DEV && import.meta.env.VITE_API_TARGET) return '/api';
   const base = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, '');
@@ -104,3 +144,24 @@ export async function calculateDemoScenario(
   }
   return result;
 }
+
+async function getSimulation<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
+  if (!base) throw new Error('La connexion à l’API de Simulation n’est pas configurée.');
+  const response = await fetch(`${base}/v1/simulation/${path}`, { headers: { Accept: 'application/json' }, signal });
+  if (!response.ok) {
+    let message = 'Les données historiques sont indisponibles.';
+    try {
+      const error = await response.json() as { detail?: string };
+      if (typeof error.detail === 'string') message = error.detail;
+    } catch { /* Keep a stable error when the server response is not JSON. */ }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
+}
+
+export const loadSimulationAssets = (signal?: AbortSignal) => getSimulation<SimulationAssetList>('assets', signal);
+export const loadSimulationHistory = (ticker: string, signal?: AbortSignal) =>
+  getSimulation<SimulationHistory>(`history/${encodeURIComponent(ticker)}`, signal);
+export const loadSimulationRegulations = (topic: string, signal?: AbortSignal) =>
+  getSimulation<SimulationRegulations>(`regulations?topic=${encodeURIComponent(topic)}`, signal);
