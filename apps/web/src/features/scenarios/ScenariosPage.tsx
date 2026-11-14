@@ -10,6 +10,12 @@ type Horizon = 20 | 60 | 120;
 const HORIZONS: Horizon[] = [20, 60, 120];
 const eventNames: Record<string, string> = { dividend: 'Dividende', split: 'Fractionnement', stock_split: 'Fractionnement' };
 const dateLabel = (value: string) => new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
+const dateWindow = (years: number) => {
+  const end = new Date().toISOString().slice(0, 10);
+  const startDate = new Date(`${end}T00:00:00Z`);
+  startDate.setUTCFullYear(startDate.getUTCFullYear() - years);
+  return { start: startDate.toISOString().slice(0, 10), end };
+};
 const pctLabel = (value: number | null | undefined) => value === null || value === undefined ? '—' : `${value > 0 ? '+' : ''}${value.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} %`;
 const quantile = (input: number[], fraction: number) => {
   if (!input.length) return undefined;
@@ -41,8 +47,7 @@ function returnsAfterDate(data: SimulationHistory, eventDate: string) {
   })) as Record<'1'|'5'|'20', number|null>;
 }
 
-function HistoricalChart({ data, regulations = [], filings = [], filingsMessage, filingsLimitations = [], news, socialPosts, projection, selectedId, onSelect, selectedBranchId, onSelectBranch, onSearchAccounts }: { data: SimulationHistory; regulations?: SimulationRegulation[]; filings?: SimulationFiling[]; filingsMessage?: string; filingsLimitations?: string[]; news?: SimulationNews; socialPosts?: SimulationSocialPosts; projection?: SimulationProjection; selectedId?: string; onSelect: (id: string) => void; selectedBranchId?: string; onSelectBranch: (id: string) => void; onSearchAccounts: (accounts: string[]) => void }) {
-  const [range, setRange] = useState<Range>(3);
+function HistoricalChart({ data, regulations = [], filings = [], filingsMessage, filingsLimitations = [], news, socialPosts, projection, selectedId, onSelect, selectedBranchId, onSelectBranch, onSearchAccounts, range = 3, onRangeChange, visibleRegulationCount = 8, onShowMoreRegulations, hasMoreRegulations = false, regulationTotalDocuments, regulationPagesCapped = false, regulationsLoading = false }: { data: SimulationHistory; regulations?: SimulationRegulation[]; filings?: SimulationFiling[]; filingsMessage?: string; filingsLimitations?: string[]; news?: SimulationNews; socialPosts?: SimulationSocialPosts; projection?: SimulationProjection; selectedId?: string; onSelect: (id: string) => void; selectedBranchId?: string; onSelectBranch: (id: string) => void; onSearchAccounts: (accounts: string[]) => void; range?: Range; onRangeChange?: (range: Range) => void; visibleRegulationCount?: number; onShowMoreRegulations?: () => void; hasMoreRegulations?: boolean; regulationTotalDocuments?: number | null; regulationPagesCapped?: boolean; regulationsLoading?: boolean }) {
   const [horizon, setHorizon] = useState<Horizon>(60);
   const [accountsInput, setAccountsInput] = useState('');
   const [accountsError, setAccountsError] = useState('');
@@ -126,7 +131,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
         <div className="simulation-chart-heading">
           <div><span className="simulation-eyebrow"><Activity size={13} /> TRAJECTOIRE HISTORIQUE</span><h2 id="simulation-chart-title">{data.asset.name} <small>{data.asset.ticker}</small></h2></div>
           <div className="simulation-range" role="group" aria-label="Période du graphique">
-            {RANGE_OPTIONS.map((years) => <button type="button" key={years} aria-pressed={range === years} onClick={() => setRange(years)}>{years} an{years > 1 ? 's' : ''}</button>)}
+            {RANGE_OPTIONS.map((years) => <button type="button" key={years} aria-pressed={range === years} onClick={() => onRangeChange?.(years)}>{years} an{years > 1 ? 's' : ''}</button>)}
           </div>
         </div>
         <div className="simulation-chart-legend"><span><i /> Prix ajusté, base 100 au début de la période</span><span><b /> Événement d’entreprise</span><span><strong className="simulation-regulation-marker-key" /> Federal Register</span><span><strong className="simulation-news-marker-key" /> Index GDELT</span><span><em /> Référence historique</span><span><strong className="simulation-filing-marker-key" /> Dépôt SEC</span><span className="simulation-currency">{data.currency}</span></div>
@@ -245,8 +250,13 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
           {!shownEvents.length && <p>Aucun événement d’entreprise daté dans cette fenêtre.</p>}
         </div>
         {regulations.length > 0 && <div className="simulation-regulation-list">
-          <div className="simulation-regulation-heading"><strong>Réglementation récente</strong><span>{shownRegulations.length}</span></div>
-          {shownRegulations.slice(0, 8).map((event) => <button type="button" key={event.id} aria-pressed={selectedId === `reg:${event.id}`} onClick={() => onSelect(`reg:${event.id}`)}><span className="simulation-regulation-icon"><CalendarDays size={12} /></span><span><strong>{event.title}</strong><small>{dateLabel(event.publishedAt)} · {event.agencies[0] ?? event.type}</small></span></button>)}
+          <div className="simulation-regulation-heading"><strong>Documents réglementaires</strong><span>{shownRegulations.length}</span></div>
+          {shownRegulations.slice(0, visibleRegulationCount).map((event) => <button type="button" key={event.id} aria-pressed={selectedId === `reg:${event.id}`} onClick={() => onSelect(`reg:${event.id}`)}><span className="simulation-regulation-icon"><CalendarDays size={12} /></span><span><strong>{event.title}</strong><small>{dateLabel(event.publishedAt)} · {event.agencies[0] ?? event.type}</small></span></button>)}
+          {!shownRegulations.length && <p className="simulation-filings-status">Aucun document de cette page ne tombe dans la période visible du graphique.</p>}
+          {shownRegulations.length > visibleRegulationCount && <button type="button" className="simulation-load-more" disabled={regulationsLoading} onClick={onShowMoreRegulations}>Afficher les documents déjà chargés</button>}
+          {shownRegulations.length <= visibleRegulationCount && hasMoreRegulations && <button type="button" className="simulation-load-more" disabled={regulationsLoading} onClick={onShowMoreRegulations}>{regulationsLoading ? 'Chargement des documents…' : 'Charger la page suivante de documents historiques'}</button>}
+          {regulationTotalDocuments !== undefined && regulationTotalDocuments !== null && <p className="simulation-filings-status">{regulations.length} documents chargés sur {regulationTotalDocuments.toLocaleString('fr-CA')} dans la fenêtre de cinq ans. Le graphique n’affiche que ceux dans sa plage visible.</p>}
+          {regulationPagesCapped && <p className="simulation-filings-status">La source dépasse la limite de 500 pages; choisissez une période plus courte pour parcourir ses résultats.</p>}
         </div>}
         <div className="simulation-regulation-list">
           <div className="simulation-regulation-heading"><strong>Déclarations de l’émetteur</strong><span>{filings.length}</span></div>
@@ -300,6 +310,9 @@ export function ScenariosPage() {
   const [ticker, setTicker] = useState('');
   const [history, setHistory] = useState<SimulationHistory>();
   const [regulations, setRegulations] = useState<SimulationRegulations>();
+  const [regulationsLoading, setRegulationsLoading] = useState(false);
+  const [regulationPage, setRegulationPage] = useState(1);
+  const [visibleRegulationCount, setVisibleRegulationCount] = useState(8);
   const [filings, setFilings] = useState<SimulationFilings>();
   const [filingsMessage, setFilingsMessage] = useState('');
   const [news, setNews] = useState<SimulationNews>();
@@ -316,6 +329,8 @@ export function ScenariosPage() {
   const [projectionBusy, setProjectionBusy] = useState(false);
   const [projectionError, setProjectionError] = useState('');
   const [regulationTopic, setRegulationTopic] = useState('tariff');
+  const [chartRange, setChartRange] = useState<Range>(3);
+  const regulationWindow = useMemo(() => dateWindow(chartRange), [chartRange]);
   const [regulationError, setRegulationError] = useState('');
   const [selectedId, setSelectedId] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -323,6 +338,7 @@ export function ScenariosPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    setRegulationsLoading(true);
     loadSimulationAssets(controller.signal).then((result) => {
       setAssetList(result);
       const requested = searchParams.get('ticker')?.toUpperCase();
@@ -340,13 +356,23 @@ export function ScenariosPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setRegulations(undefined);
+    if (regulationPage === 1) setRegulations(undefined);
     setRegulationError('');
-    loadSimulationRegulations(regulationTopic, controller.signal).then(setRegulations).catch((cause) => {
+    loadSimulationRegulations(regulationTopic, regulationPage, regulationWindow.start, regulationWindow.end, controller.signal).then((result) => {
+      setRegulations((current) => {
+        if (regulationPage === 1 || !current || current.topic !== result.topic) return result;
+        const documents = [...current.documents];
+        const known = new Set(documents.map((document) => document.id));
+        result.documents.forEach((document) => { if (!known.has(document.id)) documents.push(document); });
+        return { ...result, documents };
+      });
+    }).catch((cause) => {
       if (!controller.signal.aborted) setRegulationError(cause instanceof Error ? cause.message : 'La source réglementaire est indisponible.');
+    }).finally(() => {
+      if (!controller.signal.aborted) setRegulationsLoading(false);
     });
     return () => controller.abort();
-  }, [regulationTopic]);
+  }, [regulationTopic, regulationPage, regulationWindow]);
 
   useEffect(() => {
     if (!ticker || !history || history.asset.ticker !== ticker) return;
@@ -435,6 +461,20 @@ export function ScenariosPage() {
     }
   };
 
+  const showMoreRegulations = () => {
+    if (regulationsLoading) return;
+    const nextCount = visibleRegulationCount + 8;
+    setVisibleRegulationCount(nextCount);
+    if (nextCount >= (regulations?.documents.length ?? 0) && (regulations?.totalPages ?? 0) > regulationPage) {
+      setRegulationPage((page) => page + 1);
+    }
+  };
+  const changeChartRange = (range: Range) => {
+    setChartRange(range);
+    setRegulationPage(1);
+    setVisibleRegulationCount(8);
+  };
+
   return (
     <section className="simulation-page" aria-labelledby="simulation-title">
       <header className="simulation-header">
@@ -448,8 +488,8 @@ export function ScenariosPage() {
       {history ? (
         <>
           <div className="simulation-source-note"><ShieldCheck size={16} /><span><strong>{history.source}</strong> · cours jusqu’au {dateLabel(history.sourceAsOf)} · {history.prices.length.toLocaleString('fr-CA')} observations · devise {history.currency}</span><a className="simulation-source-link" href={`https://finance.yahoo.com/quote/${encodeURIComponent(history.asset.ticker)}/history/`} target="_blank" rel="noopener noreferrer">Source Yahoo Finance <ExternalLink size={11}/></a><span className="simulation-source-badge"><Database size={13} /> Données historiques</span></div>
-          <div className="simulation-regulation-toolbar"><span><CalendarDays size={14} /> Filtrer les actes réglementaires</span><div role="group" aria-label="Thème de recherche réglementaire">{[['tariff','Tarifs'],['supply-chain','Chaîne logistique'],['export-controls','Contrôles export'],['energy','Énergie']].map(([id,label])=><button type="button" key={id} aria-pressed={regulationTopic===id} onClick={()=>setRegulationTopic(id)}>{label}</button>)}</div>{regulationError&&<small role="status">{regulationError}</small>}</div>
-          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} filingsLimitations={filings?.limitations} news={news} socialPosts={socialPosts} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} onSearchAccounts={setSocialAccounts} /></div>
+          <div className="simulation-regulation-toolbar"><span><CalendarDays size={14} /> Actes réglementaires · {chartRange} ans</span><div role="group" aria-label="Thème de recherche réglementaire">{[['tariff','Tarifs'],['supply-chain','Chaîne logistique'],['export-controls','Contrôles export'],['energy','Énergie']].map(([id,label])=><button type="button" key={id} aria-pressed={regulationTopic===id} onClick={()=>{setRegulationTopic(id);setRegulationPage(1);setVisibleRegulationCount(8);}}>{label}</button>)}</div>{regulationsLoading&&<small role="status">Chargement des documents datés…</small>}{regulationError&&<small role="status">{regulationError}</small>}</div>
+          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} filingsLimitations={filings?.limitations} news={news} socialPosts={socialPosts} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} onSearchAccounts={setSocialAccounts} range={chartRange} onRangeChange={changeChartRange} visibleRegulationCount={visibleRegulationCount} onShowMoreRegulations={showMoreRegulations} hasMoreRegulations={regulationPage<Math.min(regulations?.totalPages??0,regulations?.pageLimit??500)} regulationTotalDocuments={regulations?.totalDocuments} regulationPagesCapped={(regulations?.totalPages??0)>(regulations?.pageLimit??500)} regulationsLoading={regulationsLoading} /></div>
           <section className="simulation-scenario-builder" aria-labelledby="scenario-builder-title">
             <div className="simulation-scenario-heading"><span className="simulation-panel-icon"><GitBranch size={16} /></span><div><span className="simulation-eyebrow">HYPOTHÈSES EXPLICITES</span><h2 id="scenario-builder-title">Construire des trajectoires conditionnelles</h2><p>Choisissez les événements et les chocs à comparer. Aucun choc n’est estimé par le modèle.</p></div><label><span>Horizon</span><select value={horizon} onChange={(event) => setHorizon(Number(event.target.value) as Horizon)}>{HORIZONS.map((value) => <option key={value} value={value}>{value} séances</option>)}</select></label><button type="button" className="simulation-add-branch" disabled={branches.length >= 4} onClick={() => setBranches((current) => [...current, { id: globalThis.crypto?.randomUUID?.() ?? `branch-${Date.now()}`, title: `Hypothèse ${current.length + 1}`, event: '', shockPct: '', eventAfterObservations: 10 }])}><Plus size={13}/>Ajouter</button></div>
             {selectedEventLabel && <div className="simulation-use-event"><span>Événement sélectionné : <strong>{selectedEventLabel}</strong></span><button type="button" onClick={() => setBranches((current) => current.map((branch) => ({ ...branch, event: selectedEventLabel })))}>Utiliser dans les hypothèses</button></div>}

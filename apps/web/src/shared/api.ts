@@ -82,6 +82,12 @@ export type SimulationRegulation = {
 export type SimulationRegulations = {
   topic: string;
   query: string;
+  page: number;
+  startDate: string;
+  endDate: string;
+  totalDocuments: number | null;
+  totalPages: number | null;
+  pageLimit: number;
   source: string;
   sourceUrl: string;
   legalStatus: string;
@@ -245,8 +251,12 @@ async function getSimulation<T>(path: string, signal?: AbortSignal): Promise<T> 
 export const loadSimulationAssets = (signal?: AbortSignal) => getSimulation<SimulationAssetList>('assets', signal);
 export const loadSimulationHistory = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationHistory>(`history/${encodeURIComponent(ticker)}`, signal);
-export const loadSimulationRegulations = (topic: string, signal?: AbortSignal) =>
-  getSimulation<SimulationRegulations>(`regulations?topic=${encodeURIComponent(topic)}`, signal);
+export const loadSimulationRegulations = (topic: string, page = 1, startDate?: string, endDate?: string, signal?: AbortSignal) => {
+  const params = new URLSearchParams({ topic, page: String(page) });
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+  return getSimulation<SimulationRegulations>(`regulations?${params.toString()}`, signal);
+};
 export const loadSimulationFilings = (ticker: string, startDate?: string, signal?: AbortSignal) =>
   getSimulation<SimulationFilings>(`filings/${encodeURIComponent(ticker)}${startDate ? `?start_date=${encodeURIComponent(startDate)}` : ''}`, signal);
 export const loadSimulationNews = (ticker: string, signal?: AbortSignal) =>

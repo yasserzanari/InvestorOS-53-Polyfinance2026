@@ -680,17 +680,30 @@ def _x_api_bearer_token() -> str:
 
 
 @router.get("/regulations")
-def regulations(topic: str = Query(default="tariff")) -> dict[str, Any]:
-    """Find current Federal Register documents; they are leads, not issuer impact claims."""
+def regulations(
+    topic: str = Query(default="tariff"),
+    page: int = 1,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict[str, Any]:
+    """Find dated Federal Register documents; they are leads, not issuer impact claims."""
     term = REGULATION_TERMS.get(topic)
     if not term:
         raise HTTPException(status_code=422, detail="Thème réglementaire non pris en charge.")
+    if page < 1 or page > 500:
+        raise HTTPException(status_code=422, detail="La page doit être comprise entre 1 et 500.")
     today = date.today().isoformat()
+    window_start = start_date or (date.today() - timedelta(days=365 * 5))
+    window_end = min(end_date or date.today(), date.today())
+    if window_start > window_end:
+        raise HTTPException(status_code=422, detail="La date de début doit précéder la date de fin.")
     query = urlencode({
         "per_page": 20,
+        "page": page,
         "order": "newest",
         "conditions[term]": term,
-        "conditions[publication_date][lte]": today,
+        "conditions[publication_date][gte]": window_start.isoformat(),
+        "conditions[publication_date][lte]": window_end.isoformat(),
     })
     request = Request(
         f"https://www.federalregister.gov/api/v1/documents.json?{query}",
@@ -729,6 +742,12 @@ def regulations(topic: str = Query(default="tariff")) -> dict[str, Any]:
     return {
         "topic": topic,
         "query": term,
+        "page": page,
+        "startDate": window_start.isoformat(),
+        "endDate": window_end.isoformat(),
+        "totalDocuments": payload.get("count") if isinstance(payload.get("count"), int) else None,
+        "totalPages": payload.get("total_pages") if isinstance(payload.get("total_pages"), int) else None,
+        "pageLimit": 500,
         "source": "Federal Register API",
         "sourceUrl": "https://www.federalregister.gov/developers/documentation/api/v1",
         "legalStatus": "La version XML du site est un service informatif; vérifier l’édition officielle liée avant toute interprétation juridique.",

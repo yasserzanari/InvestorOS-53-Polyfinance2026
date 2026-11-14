@@ -85,18 +85,34 @@ class SimulationHistoryTests(unittest.TestCase):
 
     @patch("investoros_api.simulation.urlopen")
     def test_regulation_search_returns_dated_primary_links_and_excludes_future(self, open_url):
-        open_url.return_value = BytesIO(json.dumps({"results": [
+        open_url.return_value = BytesIO(json.dumps({"count": 43, "total_pages": 3, "results": [
             {"document_number": "2025-1", "title": "Trade rule", "type": "Rule", "publication_date": "2025-02-01", "html_url": "https://www.federalregister.gov/documents/2025-1", "pdf_url": "https://www.govinfo.gov/documents/2025-1", "abstract": "Published rule", "agencies": [{"name": "Commerce"}]},
             {"document_number": "future", "title": "Scheduled rule", "publication_date": "2999-01-01", "html_url": "https://www.federalregister.gov/documents/future"},
         ]}).encode())
 
-        result = simulation.regulations("tariff")
+        result = simulation.regulations("tariff", page=2, start_date=date(2025, 1, 1), end_date=date(2025, 12, 31))
 
         self.assertEqual([item["id"] for item in result["documents"]], ["2025-1"])
         self.assertEqual(result["documents"][0]["agencies"], ["Commerce"])
         self.assertEqual(result["documents"][0]["officialPdfUrl"], "https://www.govinfo.gov/documents/2025-1")
         self.assertIn("informatif", result["legalStatus"])
         self.assertIn("Federal Register API", result["source"])
+        self.assertEqual(result["totalDocuments"], 43)
+        self.assertEqual(result["totalPages"], 3)
+        query = parse_qs(urlsplit(open_url.call_args.args[0].full_url).query)
+        self.assertEqual(query["page"], ["2"])
+        self.assertEqual(query["conditions[publication_date][gte]"], ["2025-01-01"])
+        self.assertEqual(query["conditions[publication_date][lte]"], ["2025-12-31"])
+
+    def test_regulation_search_rejects_reversed_date_range(self):
+        with self.assertRaises(HTTPException) as raised:
+            simulation.regulations("tariff", start_date=date(2025, 2, 1), end_date=date(2025, 1, 1))
+        self.assertEqual(raised.exception.status_code, 422)
+
+    def test_regulation_search_rejects_out_of_range_pages(self):
+        with self.assertRaises(HTTPException) as raised:
+            simulation.regulations("tariff", page=501)
+        self.assertEqual(raised.exception.status_code, 422)
 
     def test_regulation_search_only_accepts_supported_topics(self):
         with self.assertRaises(HTTPException) as raised:
