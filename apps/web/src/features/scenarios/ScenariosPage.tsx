@@ -19,6 +19,18 @@ const quantile = (input: number[], fraction: number) => {
   const blend = at - low;
   return values[low] + (values[Math.min(low + 1, values.length - 1)] - values[low]) * blend;
 };
+function NewsThumbnail({ article }: { article: SimulationNews['articles'][number] }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  return (
+    <span className="simulation-news-thumbnail" aria-hidden="true">
+      {article.imageUrl && !imageFailed ? (
+        <img src={article.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setImageFailed(true)} />
+      ) : (
+        <Newspaper size={14} />
+      )}
+    </span>
+  );
+}
 function returnsAfterDate(data: SimulationHistory, eventDate: string) {
   const index = data.prices.findIndex((point) => point.date >= eventDate);
   if (index < 0) return { '1': null, '5': null, '20': null };
@@ -204,8 +216,9 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
         </div>
         <div className="simulation-regulation-list simulation-news-list">
           <div className="simulation-regulation-heading"><strong><Newspaper size={12} /> Couverture récente</strong><span>{news?.articles.length ?? '…'}</span></div>
-          {news?.articles.map((article) => <a key={article.id} href={article.url} target="_blank" rel="noopener noreferrer"><span className="simulation-regulation-icon"><Newspaper size={12} /></span><span><strong>{article.title}</strong><small>{article.domain} · indexé le {new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(article.publishedAt))}</small></span><ExternalLink size={11} /></a>)}
+          {news?.articles.map((article) => <a key={article.id} href={article.url} target="_blank" rel="noopener noreferrer"><NewsThumbnail article={article} /><span><strong>{article.title}</strong><small>{article.domain} · indexé le {new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(article.publishedAt))}</small></span><ExternalLink size={11} /></a>)}
           {news && !news.articles.length && <p className="simulation-filings-status">{news.available ? 'Aucun article récent trouvé.' : news.reason}</p>}
+          {news?.articles.some((article) => article.imageUrl) && <p className="simulation-filings-status">Vignettes de partage fournies avec les articles : elles peuvent montrer un logo et ne vérifient pas le contenu de l’image.</p>}
           {news?.limitations?.[0] && <p className="simulation-filings-status">{news.limitations[0]}</p>}
           <a className="simulation-news-doc-link" href={news?.sourceUrl ?? 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/'} target="_blank" rel="noopener noreferrer">À propos de l’index GDELT ↗</a>
         </div>
