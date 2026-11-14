@@ -51,6 +51,17 @@ class SimulationHistoryTests(unittest.TestCase):
             writer.writeheader()
             writer.writerows(rows)
 
+    def test_data_dir_prefers_dataset_bundled_with_lambda_module(self):
+        from pathlib import Path
+
+        package_root = os.path.join(self.directory, "lambda", "investoros_api")
+        data_dir = os.path.join(package_root, "data")
+        os.makedirs(data_dir)
+        with patch.dict(os.environ, {}, clear=True), patch.object(
+            simulation, "__file__", os.path.join(package_root, "simulation.py")
+        ):
+            self.assertEqual(simulation._data_dir(), Path(data_dir))
+
     def test_history_returns_adjusted_prices_and_observed_event_windows(self):
         result = simulation.history("abc", start=None, end=None)
         self.assertEqual([point["adjustedClose"] for point in result["prices"]], [100, 110, 99, 121])
