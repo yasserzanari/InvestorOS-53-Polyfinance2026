@@ -73,7 +73,7 @@ export function AppShell() {
           <div className="topbar-context"><span>InvestorOS</span><span className="context-slash">/</span><strong>{productModules.find((module) => module.href === location.pathname)?.shortLabel ?? 'Espace'}</strong></div>
           <div className="topbar-actions"><span className="topbar-simulation">Espace de démonstration</span><Link to="/" className="topbar-public-link">Site public</Link></div>
         </header>
-        <main className="workspace-content"><Outlet /></main>
+        <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}`}><Outlet /></main>
       </div>
     </div>
   );

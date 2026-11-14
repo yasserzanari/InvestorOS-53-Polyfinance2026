@@ -13,10 +13,11 @@
 .investor-landing .animate-fade-slide-in-3 { animation-delay: 190ms; }
 .investor-landing .animate-fade-slide-in-4 { animation-delay: 280ms; }
 .investor-landing .investoros-hero > header { display: none; }
-.investor-landing .investoros-hero { min-height: min(780px, calc(100svh - 76px)); }
+.investor-landing .landing-header { -webkit-backdrop-filter: blur(24px) saturate(145%); backdrop-filter: blur(24px) saturate(145%); }
+.investor-landing .investoros-hero { min-height: min(780px, 100svh); }
 .investor-landing .investoros-hero > img { object-position: center 58%; }
 .investor-landing .investoros-hero > div:last-child { position: relative; z-index: 2; }
-.investor-landing .investoros-hero .max-w-7xl { padding-top: clamp(96px, 14vh, 160px); }
+.investor-landing .investoros-hero .max-w-7xl { padding-top: clamp(132px, 17vh, 180px); }
 .investor-landing .investor-dropdown { min-height: auto; padding: 0; }
 .investor-landing .investor-dropdown ul { gap: .15rem; }
 .investor-landing .investor-dropdown [class*="w-max"] { z-index: 70; box-shadow: 0 24px 64px rgba(15, 35, 72, .12); }

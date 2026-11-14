@@ -1,6 +1,6 @@
 # Environnement dev
 
-Ce stack crée le frontend statique InvestorOS dans `ca-central-1` : bucket S3 privé, accès CloudFront OAC, distribution HTTPS et rôle de déploiement GitHub Actions limité au dépôt et à la branche `main`.
+Ce stack crée le frontend statique InvestorOS dans `us-east-1` : bucket S3 privé, accès CloudFront OAC, distribution HTTPS et rôle de déploiement GitHub Actions limité au dépôt et à la branche `main`.
 
 ## Première installation
 
@@ -34,7 +34,7 @@ Dans les variables du dépôt GitHub, enregistrer les sorties Terraform suivante
 - `AWS_DEPLOY_ROLE_ARN` ← `github_deploy_role_arn`
 - `AWS_SITE_BUCKET` ← `site_bucket_name`
 - `AWS_CLOUDFRONT_DISTRIBUTION_ID` ← `cloudfront_distribution_id`
-- `AWS_REGION` ← `ca-central-1`
+- `AWS_REGION` ← `us-east-1`
 
 Le workflow `.github/workflows/deploy-static-site.yml` publie sur S3 après chaque push sur `main`, puis invalide CloudFront. Il utilise GitHub OIDC; aucune clé AWS longue durée n’est stockée dans GitHub.
 
