@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+from datetime import date, timedelta
 from io import BytesIO
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from investoros_api import simulation
+from investoros_api.simulation import ScenarioBranch, ScenarioProjectionRequest
 
 
 class SimulationHistoryTests(unittest.TestCase):
@@ -28,10 +30,12 @@ class SimulationHistoryTests(unittest.TestCase):
         self.patcher = patch.dict(os.environ, {"SIMULATION_DATA_DIR": self.directory})
         self.patcher.start()
         simulation._assets.cache_clear()
+        simulation._SEC_CACHE.clear()
 
     def tearDown(self):
         self.patcher.stop()
         simulation._assets.cache_clear()
+        simulation._SEC_CACHE.clear()
         self.temp.cleanup()
 
     def write_csv(self, filename, rows):
@@ -79,3 +83,75 @@ class SimulationHistoryTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as raised:
             simulation.regulations("anything")
         self.assertEqual(raised.exception.status_code, 422)
+
+    def test_projection_applies_only_explicit_shocks_to_empirical_quantiles(self):
+        self.write_csv("prices_daily.csv", [
+            {"date": observed.isoformat(), "ticker": "ABC", "adj_close": str(100 + i), "volume": "100", "currency": "USD"}
+            for i in range(151)
+            for observed in [date(2025, 1, 1) + timedelta(days=i)]
+        ])
+        request = ScenarioProjectionRequest(
+            ticker="ABC",
+            horizonObservations=20,
+            branches=[
+                ScenarioBranch(id="down", title="Baisse", event="Tarif", shockPct=-10, eventAfterObservations=0),
+                ScenarioBranch(id="base", title="Stable", event="Tarif", shockPct=0, eventAfterObservations=10),
+            ],
+        )
+
+        result = simulation.project_scenarios(request)
+
+        self.assertEqual(result["asOf"], "2025-05-31")
+        self.assertEqual(result["branches"][0]["path"][0]["medianPrice"], 225.0)
+        base_path = result["branches"][1]["path"]
+        self.assertFalse(base_path[0]["eventApplied"])
+        self.assertTrue(any(point["eventApplied"] for point in base_path))
+        self.assertIn("pas une prévision", " ".join(result["limitations"]))
+
+    def test_projection_rejects_duplicate_branch_ids_and_offsets_after_horizon(self):
+        with self.assertRaises(ValueError):
+            ScenarioProjectionRequest(
+                ticker="ABC", horizonObservations=20,
+                branches=[
+                    ScenarioBranch(id="same", title="A", event="E", shockPct=0, eventAfterObservations=0),
+                    ScenarioBranch(id="same", title="B", event="E", shockPct=1, eventAfterObservations=0),
+                ],
+            )
+        with self.assertRaises(ValueError):
+            ScenarioProjectionRequest(
+                ticker="ABC", horizonObservations=20,
+                branches=[
+                    ScenarioBranch(id="a", title="A", event="E", shockPct=0, eventAfterObservations=21),
+                    ScenarioBranch(id="b", title="B", event="E", shockPct=1, eventAfterObservations=0),
+                ],
+            )
+
+    @patch.dict(os.environ, {"SEC_USER_AGENT": "InvestorOS test contact test@example.com"})
+    @patch.object(simulation, "_fetch_json")
+    def test_sec_filings_use_official_cik_mapping_and_primary_document_links(self, fetch):
+        fetch.side_effect = [
+            {"0": {"ticker": "ABC", "cik_str": 123, "title": "Example Corp"}},
+            {"filings": {"recent": {
+                "accessionNumber": ["0000000123-25-000001", "0000000123-25-000002"],
+                "form": ["8-K", "4"],
+                "filingDate": ["2025-01-15", "2025-01-14"],
+                "reportDate": ["2025-01-14", ""],
+                "acceptanceDateTime": ["2025-01-15T12:00:00.000Z", ""],
+                "primaryDocument": ["report.htm", "form4.xml"],
+                "primaryDocDescription": ["Current report", ""],
+            }}}
+        ]
+
+        result = simulation.issuer_filings("abc")
+
+        self.assertTrue(result["available"])
+        self.assertEqual(len(result["filings"]), 1)
+        self.assertEqual(result["filings"][0]["form"], "8-K")
+        self.assertEqual(result["filings"][0]["url"], "https://www.sec.gov/Archives/edgar/data/123/000000012325000001/report.htm")
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_sec_filings_report_server_contact_configuration_requirement(self):
+        with patch.dict(os.environ, {"SEC_USER_AGENT": ""}):
+            result = simulation.issuer_filings("ABC")
+        self.assertFalse(result["available"])
+        self.assertIn("SEC_USER_AGENT", result["reason"])

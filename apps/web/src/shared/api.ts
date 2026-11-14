@@ -87,6 +87,46 @@ export type SimulationRegulations = {
   legalStatus: string;
   documents: SimulationRegulation[];
 };
+export type SimulationFiling = {
+  id: string;
+  form: string;
+  filedAt: string;
+  reportedAt: string | null;
+  acceptedAt: string | null;
+  title: string;
+  url: string;
+  accessionNumber: string;
+};
+export type SimulationFilings = {
+  ticker: string;
+  company?: string;
+  cik?: string;
+  available: boolean;
+  reason?: string;
+  source: string;
+  sourceUrl: string;
+  asOf?: string;
+  filings: SimulationFiling[];
+  limitations?: string[];
+};
+export type ScenarioBranchInput = {
+  id: string;
+  title: string;
+  event: string;
+  shockPct: number;
+  eventAfterObservations: number;
+};
+export type SimulationProjection = {
+  ticker: string;
+  horizonObservations: number;
+  asOf: string;
+  startingPrice: number;
+  currency: string;
+  source: string;
+  branches: Array<ScenarioBranchInput & { path: Array<{ observations: number; eventApplied: boolean; lowerPrice: number; medianPrice: number; upperPrice: number }> }>;
+  method: string;
+  limitations: string[];
+};
 
 const getApiBase = (): string | null => {
   if (import.meta.env.DEV && import.meta.env.VITE_API_TARGET) return '/api';
@@ -165,3 +205,28 @@ export const loadSimulationHistory = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationHistory>(`history/${encodeURIComponent(ticker)}`, signal);
 export const loadSimulationRegulations = (topic: string, signal?: AbortSignal) =>
   getSimulation<SimulationRegulations>(`regulations?topic=${encodeURIComponent(topic)}`, signal);
+export const loadSimulationFilings = (ticker: string, signal?: AbortSignal) =>
+  getSimulation<SimulationFilings>(`filings/${encodeURIComponent(ticker)}`, signal);
+export async function runSimulationProjection(input: {
+  ticker: string;
+  horizonObservations: number;
+  branches: ScenarioBranchInput[];
+}, signal?: AbortSignal): Promise<SimulationProjection> {
+  const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
+  if (!base) throw new Error('La connexion à l’API de Simulation n’est pas configurée.');
+  const response = await fetch(`${base}/v1/simulation/scenarios`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+    signal,
+  });
+  if (!response.ok) {
+    let message = 'Le calcul de scénario est indisponible.';
+    try {
+      const error = await response.json() as { detail?: string };
+      if (typeof error.detail === 'string') message = error.detail;
+    } catch { /* Keep a stable error when the server response is not JSON. */ }
+    throw new Error(message);
+  }
+  return response.json() as Promise<SimulationProjection>;
+}

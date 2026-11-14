@@ -3,7 +3,7 @@
 import csv
 import json
 import os
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 router = APIRouter(prefix="/v1/simulation", tags=["simulation"])
 REGULATION_TERMS = {
@@ -20,6 +21,41 @@ REGULATION_TERMS = {
     "export-controls": "export controls",
     "energy": "energy",
 }
+SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
+SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
+
+
+class ScenarioBranch(BaseModel):
+    id: str = Field(min_length=1, max_length=40, pattern=r"^[a-zA-Z0-9_-]+$")
+    title: str = Field(min_length=1, max_length=80)
+    event: str = Field(min_length=1, max_length=160)
+    shockPct: float = Field(ge=-80, le=100)
+    eventAfterObservations: int = Field(ge=0, le=120)
+
+
+class ScenarioProjectionRequest(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    horizonObservations: int = Field(ge=20, le=120)
+    branches: list[ScenarioBranch] = Field(min_length=2, max_length=4)
+
+    @field_validator("horizonObservations")
+    @classmethod
+    def supported_horizon(cls, value: int) -> int:
+        if value not in (20, 60, 120):
+            raise ValueError("Horizon must be 20, 60 or 120 observations")
+        return value
+
+    @model_validator(mode="after")
+    def unique_branch_ids_and_valid_offsets(self):
+        ids = [branch.id for branch in self.branches]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Branch ids must be unique")
+        if any(branch.eventAfterObservations > self.horizonObservations for branch in self.branches):
+            raise ValueError("An event cannot occur after the selected horizon")
+        return self
+
+
+_SEC_CACHE: dict[str, tuple[float, Any]] = {}
 
 
 def _data_dir() -> Path:
@@ -142,6 +178,190 @@ def history(
             "Les rendements postérieurs peuvent intégrer d’autres nouvelles et conditions de marché.",
             "Les cours ajustés sont révisables par leur fournisseur et restent dans la devise de cotation.",
         ],
+    }
+
+
+def _quantile(values: list[float], fraction: float) -> float:
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
+
+
+@router.post("/scenarios")
+def project_scenarios(request: ScenarioProjectionRequest) -> dict[str, Any]:
+    """Calculate user-specified event shocks against empirical historical return ranges."""
+    ticker = request.ticker.upper()
+    if ticker not in _assets():
+        raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
+    historical = history(ticker, start=None, end=None)
+    prices = historical["prices"]
+    starting_price = prices[-1]["adjustedClose"]
+    as_of = prices[-1]["date"]
+    if len(prices) < 22:
+        raise HTTPException(status_code=422, detail="Il faut au moins 22 observations historiques pour calculer une référence.")
+
+    horizons = sorted(set([0, request.horizonObservations, *(round(request.horizonObservations * i / 6) for i in range(1, 6))] + [branch.eventAfterObservations for branch in request.branches]))
+    baseline = []
+    for horizon in horizons:
+        if horizon == 0:
+            baseline.append({"observations": 0, "p10Pct": 0.0, "p50Pct": 0.0, "p90Pct": 0.0})
+            continue
+        returns = [
+            prices[index + horizon]["adjustedClose"] / prices[index]["adjustedClose"] - 1
+            for index in range(len(prices) - horizon)
+        ]
+        if len(returns) < 20:
+            raise HTTPException(status_code=422, detail="Pas assez de fenêtres historiques pour cet horizon.")
+        baseline.append({
+            "observations": horizon,
+            "p10Pct": round(_quantile(returns, 0.10) * 100, 4),
+            "p50Pct": round(_quantile(returns, 0.50) * 100, 4),
+            "p90Pct": round(_quantile(returns, 0.90) * 100, 4),
+        })
+
+    branches = []
+    for branch in request.branches:
+        event_factor = 1 + branch.shockPct / 100
+        event_time = branch.eventAfterObservations
+        path = []
+        for point in baseline:
+            event_applied = point["observations"] >= event_time
+            factor = event_factor if event_applied else 1.0
+            path.append({
+                "observations": point["observations"],
+                "eventApplied": event_applied,
+                "lowerPrice": round(starting_price * (1 + point["p10Pct"] / 100) * factor, 4),
+                "medianPrice": round(starting_price * (1 + point["p50Pct"] / 100) * factor, 4),
+                "upperPrice": round(starting_price * (1 + point["p90Pct"] / 100) * factor, 4),
+            })
+        branches.append({
+            "id": branch.id,
+            "title": branch.title,
+            "event": branch.event,
+            "shockPct": branch.shockPct,
+            "eventAfterObservations": event_time,
+            "path": path,
+        })
+
+    return {
+        "ticker": ticker,
+        "horizonObservations": request.horizonObservations,
+        "asOf": as_of,
+        "startingPrice": starting_price,
+        "currency": historical["currency"],
+        "source": historical["source"],
+        "branches": branches,
+        "method": "À chaque jalon, les percentiles 10/50/90 sont calculés sur toutes les fenêtres historiques du même titre et de même durée disponibles dans le jeu. Le choc indiqué par l’utilisateur est appliqué au jalon choisi, puis multiplié aux percentiles historiques suivants. Les points intermédiaires sont des quantiles marginaux, pas des trajectoires individuelles cohérentes.",
+        "limitations": [
+            "Les pourcentages de choc sont des hypothèses saisies par l’utilisateur; ils ne sont pas estimés par le modèle.",
+        "Cette projection conditionnelle n’est pas une prévision et n’établit ni probabilité de scénario ni causalité événement-cours.",
+            "Le cours de départ est le dernier cours du paquet configuré; il peut être différé par rapport au marché actuel.",
+            "Les quantiles historiques ne tiennent pas compte d’un changement de régime, de volatilité future, d’impôts ou des positions d’un portefeuille.",
+        ],
+    }
+
+
+def _fetch_json(url: str, user_agent: str, timeout: float = 7) -> Any:
+    request = Request(url, headers={"Accept": "application/json", "User-Agent": user_agent})
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read(5_000_001))
+    except HTTPError as error:
+        if error.code == 404:
+            raise HTTPException(status_code=404, detail="Le document SEC demandé est introuvable.") from error
+        raise HTTPException(status_code=502, detail="La SEC a refusé la recherche de dépôts.") from error
+    except (URLError, TimeoutError, json.JSONDecodeError, OSError) as error:
+        raise HTTPException(status_code=503, detail="Les dépôts SEC sont temporairement indisponibles.") from error
+
+
+def _cached_sec_json(key: str, url: str, user_agent: str, ttl_seconds: int) -> Any:
+    now = datetime.now(timezone.utc).timestamp()
+    cached = _SEC_CACHE.get(key)
+    if cached and now - cached[0] < ttl_seconds:
+        return cached[1]
+    payload = _fetch_json(url, user_agent)
+    _SEC_CACHE[key] = (now, payload)
+    return payload
+
+
+@router.get("/filings/{ticker}")
+def issuer_filings(ticker: str, limit: int = 30) -> dict[str, Any]:
+    """Return recent primary-source SEC filings; never infer their market impact."""
+    normalized = ticker.upper()
+    if limit < 1 or limit > 50:
+        raise HTTPException(status_code=422, detail="La limite doit être comprise entre 1 et 50.")
+    asset = _assets().get(normalized)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
+    user_agent = os.getenv("SEC_USER_AGENT", "").strip()
+    if not user_agent:
+        return {
+            "ticker": normalized,
+            "available": False,
+            "reason": "Configurez SEC_USER_AGENT avec le nom de l’application et un contact valide.",
+            "source": "SEC EDGAR Submissions API",
+            "sourceUrl": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+            "filings": [],
+        }
+
+    try:
+        ticker_index = _cached_sec_json("tickers", SEC_TICKERS_URL, user_agent, 24 * 60 * 60)
+    except HTTPException:
+        return {"ticker": normalized, "available": False, "reason": "Impossible de lire l’index public des émetteurs SEC.", "source": "SEC EDGAR Submissions API", "sourceUrl": SEC_TICKERS_URL, "filings": []}
+    values = list(ticker_index.values()) if isinstance(ticker_index, dict) else ticker_index if isinstance(ticker_index, list) else []
+    issuer = next((item for item in values if isinstance(item, dict) and str(item.get("ticker", "")).upper() == normalized), None)
+    if not issuer:
+        return {"ticker": normalized, "available": False, "reason": "Aucun CIK SEC associé à ce symbole dans l’index public.", "source": "SEC EDGAR Submissions API", "sourceUrl": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces", "filings": []}
+
+    cik = str(issuer.get("cik_str", "")).zfill(10)
+    company = str(issuer.get("title") or asset["name"])
+    try:
+        submissions = _cached_sec_json(f"submissions:{cik}", SEC_SUBMISSIONS_URL.format(cik=cik), user_agent, 15 * 60)
+    except HTTPException:
+        return {"ticker": normalized, "company": company, "available": False, "reason": "L’historique des dépôts est temporairement indisponible.", "source": "SEC EDGAR Submissions API", "sourceUrl": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces", "filings": []}
+
+    recent = submissions.get("filings", {}).get("recent", {}) if isinstance(submissions, dict) else {}
+    accessions = recent.get("accessionNumber", []) if isinstance(recent, dict) else []
+
+    def field(name: str, index: int, default: Any = "") -> Any:
+        values = recent.get(name, []) if isinstance(recent, dict) else []
+        return values[index] if isinstance(values, list) and index < len(values) else default
+
+    filings = []
+    for index, accession in enumerate(accessions):
+        form = field("form", index)
+        if form not in {"8-K", "10-K", "10-Q", "6-K", "20-F", "40-F"}:
+            continue
+        filing_date = field("filingDate", index)
+        if not filing_date:
+            continue
+        accession_path = accession.replace("-", "")
+        primary_document = field("primaryDocument", index)
+        document_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_path}/{primary_document}" if primary_document else f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_path}/"
+        filings.append({
+            "id": f"sec:{accession}",
+            "form": form,
+            "filedAt": filing_date,
+            "reportedAt": field("reportDate", index) or None,
+            "acceptedAt": field("acceptanceDateTime", index) or None,
+            "title": field("primaryDocDescription", index) or f"Dépôt {form}",
+            "url": document_url,
+            "accessionNumber": accession,
+        })
+        if len(filings) >= limit:
+            break
+    return {
+        "ticker": normalized,
+        "company": company,
+        "cik": cik,
+        "available": True,
+        "source": "SEC EDGAR Submissions API",
+        "sourceUrl": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+        "asOf": datetime.now(timezone.utc).isoformat(),
+        "filings": filings,
+        "limitations": ["Les dépôts sont les déclarations de l’émetteur, pas une vérification indépendante.", "Un formulaire, une date de dépôt et son cours postérieur ne prouvent pas que le dépôt a causé ce mouvement."],
     }
 
 

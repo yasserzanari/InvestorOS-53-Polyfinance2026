@@ -1,0 +1,18 @@
+# Assistant partagé
+
+`AssistantChatPanel` est la surface de conversation réutilisée par `/app/assistant` et `/app/profiles`. Les deux écrans s’appuient sur `useProfileWorkspace` : messages, réponses du profil, tâches, sources et onglets sont enregistrés ensemble par compte de démonstration dans le navigateur. L’onglet actif est lui aussi commun et conserve les anciennes sélections par écran lors de sa première lecture.
+
+## Navigation et orchestration
+
+L’entrée **Assistant** apparaît juste après le **Dashboard** dans la navigation. Les suggestions du Dashboard et les actions des modules transmettent leur contexte à `/app/assistant`; la conversation déjà enregistrée pour le compte est reprise, puis le contexte est joint au nouveau message.
+
+L’API décrit les modules connus à Amazon Bedrock. L’assistant peut appeler les outils réellement autorisés par l’API (analyse du portefeuille fictif, calcul conditionnel du scénario lorsque les chocs viennent de l’utilisateur, mise à jour de faits du profil, consultation de spécialistes Bedrock, lecture des notes méthodologiques, questions interactives et suggestions de suivi). Il peut gérer les onglets partagés et y créer une liste de tâches avec des liens vers les modules.
+
+Créer une tâche avec un lien ne signifie pas qu’une action a été exécutée dans le module lié. Les modules qui ne fournissent pas d’outil d’écriture ou d’analyse au backend restent des destinations de relais : l’assistant doit le dire et ne jamais annoncer une opération qu’il n’a pas exécutée. Les données de démonstration restent identifiées comme fictives.
+
+## Stockage
+
+- Clé de conversation : `investoros.workspace.v2.<accountId>`.
+- Clé de sélection partagée : `investoros.workspace.active-tab.v2.<accountId>`.
+- Les anciennes clés de sélection propres à chaque écran sont lues en secours, puis remplacées par la clé partagée au prochain changement d’onglet.
+- Les conversations et comptes ne sont pas envoyés à une base de données persistante; la conversation est transmise à Bedrock au fil des demandes depuis l’API.
