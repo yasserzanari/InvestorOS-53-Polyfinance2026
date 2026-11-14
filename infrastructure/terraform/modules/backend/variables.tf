@@ -48,6 +48,15 @@ variable "demo_portfolio_id" {
   type        = string
 }
 
+variable "demo_contexts" {
+  description = "Association fixe persona-compte-profil-portefeuille pour les trois fixtures."
+  type = map(object({
+    account_id   = string
+    profile_id   = string
+    portfolio_id = string
+  }))
+}
+
 variable "common_tags" {
   description = "Tags communs du projet."
   type        = map(string)

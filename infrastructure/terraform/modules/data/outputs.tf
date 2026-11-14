@@ -19,3 +19,14 @@ output "demo_profile_id" {
 output "demo_portfolio_id" {
   value = var.demo_portfolio_id
 }
+
+output "demo_contexts" {
+  description = "Association fixe persona-compte-profil-portefeuille pour les requêtes de démo."
+  value = {
+    for persona, fixture in var.demo_personas : persona => {
+      account_id   = fixture.account_id
+      profile_id   = fixture.profile_id
+      portfolio_id = fixture.portfolio_id
+    }
+  }
+}

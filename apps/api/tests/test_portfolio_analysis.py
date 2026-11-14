@@ -66,7 +66,7 @@ class PortfolioAnalysisTests(unittest.TestCase):
             "payload": {"S": json.dumps({**self.portfolio, "profile_id": "demo-profile"})},
         }
         client = DynamoStub(item)
-        loaded = load_demo_portfolio(client)
+        loaded = load_demo_portfolio(client=client)
         self.assertEqual(loaded["display_name"], "Portefeuille fictif")
         self.assertEqual(
             client.request["Key"],
@@ -88,7 +88,7 @@ class PortfolioAnalysisTests(unittest.TestCase):
             "payload": {"S": json.dumps({**self.portfolio, "profile_id": "different-profile"})},
         }
         with self.assertRaises(HTTPException) as raised:
-            load_demo_portfolio(DynamoStub(item))
+            load_demo_portfolio(client=DynamoStub(item))
         self.assertEqual(raised.exception.status_code, 403)
 
 

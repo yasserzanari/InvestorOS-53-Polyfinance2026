@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { productModules } from '../../app/modules';
+import { useDemoAccount } from '../../shared/DemoAccountContext';
 import { DashboardOverview } from './DashboardOverview';
 import { DashboardPrompt } from './DashboardPrompt';
 import { getPromptSuggestions } from './prompt-suggestions';
@@ -15,13 +16,14 @@ export function DashboardPage() {
   const reduceMotion = useReducedMotion();
   const [prompt, setPrompt] = useState('');
   const [api, setApi] = useState<DemoApiConnection>({ status: 'not_configured' });
+  const { activeAccount } = useDemoAccount();
   const { isListening, notice, toggle } = useSpeechInput();
 
   useEffect(() => {
     const controller = new AbortController();
-    loadDemoOverview(controller.signal).then(setApi).catch(() => undefined);
+    loadDemoOverview(activeAccount.id, controller.signal).then(setApi).catch(() => undefined);
     return () => controller.abort();
-  }, []);
+  }, [activeAccount.id]);
 
   const sendPrompt = (initialQuestion?: string) => {
     const text = (initialQuestion ?? prompt).trim();

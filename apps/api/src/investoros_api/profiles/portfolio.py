@@ -9,6 +9,8 @@ from typing import Any
 import boto3
 from fastapi import HTTPException
 
+from investoros_api.demo_contexts import PersonaId, context_for
+
 
 def _plain_value(value: Any) -> Any:
     if isinstance(value, Decimal):
@@ -33,13 +35,14 @@ def _portfolio_payload(item: dict[str, Any] | None) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
-def load_demo_portfolio(client=None) -> dict[str, Any]:
+def load_demo_portfolio(client=None, persona: PersonaId = "mateo") -> dict[str, Any]:
     """Fetch the fixed portfolio configured for this deployment, never a client-selected key."""
-    account_id = os.getenv("DEMO_ACCOUNT_ID", "")
-    profile_id = os.getenv("DEMO_PROFILE_ID", "")
-    portfolio_id = os.getenv("DEMO_PORTFOLIO_ID", "")
+    context = context_for(persona)
+    account_id = context["account_id"]
+    profile_id = context["profile_id"]
+    portfolio_id = context["portfolio_id"]
     table_name = os.getenv("PORTFOLIOS_TABLE_NAME", "")
-    if not all((account_id, profile_id, portfolio_id, table_name)):
+    if not table_name:
         raise HTTPException(status_code=503, detail="Demo portfolio is not configured")
 
     dynamodb = client or boto3.client("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
@@ -144,5 +147,8 @@ def summarize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def analyze_configured_portfolio(client=None) -> dict[str, Any]:
-    return summarize_portfolio(load_demo_portfolio(client))
+def analyze_configured_portfolio(client=None, persona: PersonaId = "mateo") -> dict[str, Any]:
+    result = summarize_portfolio(load_demo_portfolio(client=client, persona=persona))
+    result["persona"] = persona
+    result["provenance"]["moduleUrl"] = f"/app/portfolios?persona={persona}"
+    return result

@@ -64,6 +64,7 @@ resource "aws_lambda_function" "api" {
       DEMO_ACCOUNT_ID         = var.demo_account_id
       DEMO_PROFILE_ID         = var.demo_profile_id
       DEMO_PORTFOLIO_ID       = var.demo_portfolio_id
+      DEMO_CONTEXTS           = jsonencode(var.demo_contexts)
       POWERTOOLS_SERVICE_NAME = "investoros-api"
       ENVIRONMENT             = var.environment
     }

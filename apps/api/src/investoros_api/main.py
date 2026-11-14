@@ -3,8 +3,10 @@ import os
 from typing import Any
 
 import boto3
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from mangum import Mangum
+
+from investoros_api.demo_contexts import PersonaId, context_for
 from investoros_api.profiles.router import router as profiles_router
 
 app = FastAPI(title="InvestorOS API", version="0.1.0")
@@ -46,13 +48,12 @@ def health() -> dict[str, str]:
 
 
 @app.get("/v1/demo/overview")
-def demo_overview() -> dict[str, Any]:
-    """Read only the fixed, fictional demo account configured for this environment."""
-    account_id = os.getenv("DEMO_ACCOUNT_ID", "")
-    profile_id = os.getenv("DEMO_PROFILE_ID", "")
-    portfolio_id = os.getenv("DEMO_PORTFOLIO_ID", "")
-    if not all((account_id, profile_id, portfolio_id)):
-        raise HTTPException(status_code=503, detail="Demo context is not configured")
+def demo_overview(persona: PersonaId = Query(default="mateo")) -> dict[str, Any]:
+    """Read one fictional persona using only its server-configured DynamoDB keys."""
+    context = context_for(persona)
+    account_id = context["account_id"]
+    profile_id = context["profile_id"]
+    portfolio_id = context["portfolio_id"]
 
     dynamodb = _client()
 
@@ -103,6 +104,7 @@ def demo_overview() -> dict[str, Any]:
     return {
         "mode": "demo",
         "source": "aws-dynamodb",
+        "persona": persona,
         "account": account["payload"],
         "profile": profile_payload,
         "portfolio": portfolio_payload,

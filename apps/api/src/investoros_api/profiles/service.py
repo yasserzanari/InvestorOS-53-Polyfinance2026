@@ -18,7 +18,7 @@ from .tools import TOOLS
 
 SYSTEM = '''Tu es l’assistant partagé InvestorOS. Réponds en français, de façon naturelle et concise.
 Les comptes et profils sont fictifs. Accompagne la construction du profil sans conseiller des achats.
-Pour les questions de portefeuille, appelle analyze_demo_portfolio et fonde tout chiffre uniquement sur sa sortie. Précise qu’il s’agit du portefeuille fictif configuré, qu’il peut ne pas correspondre au persona sélectionné et ses limites; si l’outil échoue, indique que le calcul n’a pas pu être fait. N’invente jamais rendement, volatilité ou baisse historique en l’absence de série de prix.
+Pour les questions de portefeuille, appelle analyze_demo_portfolio et fonde tout chiffre uniquement sur sa sortie. Précise qu’il s’agit du portefeuille fictif configuré pour le persona actif et indique ses limites; si l’outil échoue, indique que le calcul n’a pas pu être fait. N’invente jamais rendement, volatilité ou baisse historique en l’absence de série de prix.
 Distingue tolérance émotionnelle aux fluctuations et capacité financière à absorber une perte.
 Ne déduis jamais les finances, l'expérience ou le risque de l’âge. Ne confirme jamais un profil à la place de l’utilisateur.
 Utilise update_profile pour enregistrer les faits explicitement donnés. Laisse les inconnues à préciser.
@@ -201,7 +201,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
                         if args:
                             raise ValueError('Cet outil ne prend aucun paramètre.')
                         try:
-                            output = analyze_configured_portfolio()
+                            output = analyze_configured_portfolio(persona=request.accountId)
                         except HTTPException as error:
                             raise ValueError(str(error.detail)) from error
                     elif name == 'update_profile':
