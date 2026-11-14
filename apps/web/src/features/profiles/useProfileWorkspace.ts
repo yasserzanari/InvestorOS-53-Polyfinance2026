@@ -4,15 +4,15 @@ import { fieldOrder, initialProfiles, type Profile } from './profile-model';
 import { createLocalId, sourceUrl, streamProfile, type AgentEvent, type Citation, type FollowUp, type ToolEvent, type WorkspaceTab } from './profile-api';
 export type ChatMessage={id:string;role:'user'|'assistant';text:string;citations:Citation[];followUps:FollowUp[];tools:ToolEvent[];agents:AgentEvent[];versions:string[];version:number;feedback?:string|null;error?:string;questionRequest?:AskUserRequest;questionAnswer?:AskUserAnswer;questionDismissed?:boolean};
 type Workspace={profile:Profile;tabs:WorkspaceTab[];messages:ChatMessage[]};
-const activeTabKey=(id:string)=>`investoros.workspace.active-tab.v1.${id}`;
+const activeTabKey=(id:string,view:string)=>`investoros.workspace.active-tab.v1.${id}.${view}`;
 const initial=(id:string):Workspace=>({profile:initialProfiles[id],tabs:[{id:'profile',title:'Profil',kind:'profile',content:''},{id:'tasks',title:'Tâches',kind:'tasks',content:'Les tâches de l’assistant apparaîtront ici.'},{id:'agents',title:'Agents',kind:'agents',content:''}],messages:[]});
 function read(id:string):Workspace {try {const raw=JSON.parse(localStorage.getItem(`investoros.workspace.v2.${id}`)||'null'); if(raw?.profile&&Array.isArray(raw.tabs)&&Array.isArray(raw.messages))return raw;}catch{} return initial(id);}
-function readActiveTab(id:string,workspace:Workspace) {try {const stored=localStorage.getItem(activeTabKey(id));if(stored&&workspace.tabs.some(tab=>tab.id===stored))return stored;}catch{}return workspace.tabs[0]?.id??'profile';}
-export function useProfileWorkspace(accountId:string) {
-  const [workspace,setWorkspace]=useState(()=>read(accountId)); const [busy,setBusy]=useState(false); const [activity,setActivity]=useState(''); const [error,setError]=useState(''); const [activeTab,setActiveTabState]=useState(()=>readActiveTab(accountId,read(accountId)));
+function readActiveTab(id:string,workspace:Workspace,view:string) {try {const stored=localStorage.getItem(activeTabKey(id,view));if(stored&&workspace.tabs.some(tab=>tab.id===stored))return stored;}catch{}return workspace.tabs.find(tab=>tab.id===(view==='assistant'?'tasks':'profile'))?.id??workspace.tabs[0]?.id??'profile';}
+export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'='profiles') {
+  const [workspace,setWorkspace]=useState(()=>read(accountId)); const [busy,setBusy]=useState(false); const [activity,setActivity]=useState(''); const [error,setError]=useState(''); const [activeTab,setActiveTabState]=useState(()=>readActiveTab(accountId,read(accountId),view));
   const abort=useRef<AbortController|null>(null); const currentAccount=useRef(accountId); const requestBusy=useRef(false);
-  const setActiveTab=useCallback((id:string)=>{setActiveTabState(id);try{localStorage.setItem(activeTabKey(currentAccount.current),id);}catch{}},[]);
-  useEffect(()=>{abort.current?.abort(); requestBusy.current=false; currentAccount.current=accountId; const next=read(accountId);setWorkspace(next);setBusy(false);setError('');setActiveTabState(readActiveTab(accountId,next)); return ()=>abort.current?.abort();},[accountId]);
+  const setActiveTab=useCallback((id:string)=>{setActiveTabState(id);try{localStorage.setItem(activeTabKey(currentAccount.current,view),id);}catch{}},[view]);
+  useEffect(()=>{abort.current?.abort(); requestBusy.current=false; currentAccount.current=accountId; const next=read(accountId);setWorkspace(next);setBusy(false);setError('');setActiveTabState(readActiveTab(accountId,next,view)); return ()=>abort.current?.abort();},[accountId,view]);
   const update=(fn:(w:Workspace)=>Workspace)=>setWorkspace(w=>{const next=fn(w);try{localStorage.setItem(`investoros.workspace.v2.${currentAccount.current}`,JSON.stringify(next));}catch{}return next;});
   const send=async(text:string,regenerateId?:string,questionReply?:{messageId:string;request:AskUserRequest;answer:AskUserAnswer})=>{
     if(requestBusy.current||!text.trim()) return; requestBusy.current=true; setBusy(true);setError('');setActivity('Connexion à Bedrock');
@@ -38,5 +38,5 @@ export function useProfileWorkspace(accountId:string) {
     });}catch(e){if(currentAccount.current===owner){const message=controller.signal.aborted?'Génération arrêtée.':(e instanceof Error?e.message:'Connexion interrompue.');setError(message);patch(m=>({...m,error:message}));}}finally{if(currentAccount.current===owner){requestBusy.current=false;setBusy(false);setActivity('');}}
     return completed;
   };
-  return {workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab('profile');}};
+  return {workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab(view==='assistant'?'tasks':'profile');}};
 }
