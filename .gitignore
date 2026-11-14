@@ -22,6 +22,7 @@ __pycache__/
 
 # Terraform
 **/.terraform/*
+infrastructure/terraform/bootstrap/backend.tf
 *.tfstate
 *.tfstate.*
 *.tfplan
