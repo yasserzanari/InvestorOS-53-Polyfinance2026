@@ -21,7 +21,7 @@ function readActiveTab(id:string,workspace:Workspace,view:string) {
       return legacy;
     }
   } catch {}
-  const fallback=workspace.tabs.find(tab=>tab.id===(view==='assistant'?'tasks':'profile'))?.id??workspace.tabs[0]?.id??'profile';
+  const fallback=workspace.tabs.find(tab=>tab.id==='profile')?.id??workspace.tabs[0]?.id??'profile';
   try {localStorage.setItem(activeTabKey(id),fallback);} catch {}
   return fallback;
 }
@@ -55,5 +55,5 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     });}catch(e){if(currentAccount.current===owner){const message=controller.signal.aborted?'Génération arrêtée.':(e instanceof Error?e.message:'Connexion interrompue.');setError(message);patch(m=>({...m,error:message}));}}finally{if(currentAccount.current===owner){requestBusy.current=false;setBusy(false);setActivity('');}}
     return completed;
   };
-  return {workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab(view==='assistant'?'tasks':'profile');}};
+  return {workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab('profile');}};
 }
