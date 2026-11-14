@@ -14,7 +14,12 @@ This module owns `/v1/profiles/*`. It calls **Amazon Bedrock** with the server c
 
 Set `BEDROCK_MODEL_ID` to an accessible model or inference profile supporting ConverseStream tool use, plus `AWS_REGION`. Local credentials come from the normal boto3 chain. Use a workload role in AWS with `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` scoped to the configured model/inference profile and its destination model ARNs. The API status route reports configuration presence, **not** a verified permission or model availability check.
 
-The local dev API can run with `PYTHONPATH=apps/api/src uvicorn investoros_api.main:app --host 127.0.0.1 --port 8010`. Configure Vite's `/api` proxy to this server.
+The local dev API launcher sets `DEMO_PORTFOLIO_MODE=local_fixture` and uses the
+same versioned persona fixture that Terraform seeds into DynamoDB. Portfolio tools
+therefore work with explicitly labeled fictional data during local Bedrock
+conversations. AWS Lambda sets `DEMO_PORTFOLIO_MODE=dynamodb`; local fixtures are
+rejected whenever the Lambda runtime marker is present. Configure Vite's `/api`
+proxy to this server.
 
 ## HTTP contract (v1)
 
@@ -50,7 +55,17 @@ An HTTP 200 does not imply the model succeeded: consumers must require `done` an
 
 ## Runtime behavior and limits
 
-`analyze_demo_portfolio` resolves the active demo persona through the deployment-owned `DEMO_CONTEXTS` map, reads only that fixed portfolio and deterministically computes position weights and concentration. It validates the stated total and position values, returns its fixture provenance and links to the portfolio module. It does not calculate returns or historical risk without a price history. `update_profile` updates only allowlisted fields. `upsert_tab` creates or replaces by id. `read_sources` returns verbatim notes from the catalog; the model can reference their stable per-turn `[index]`. `suggest_followups` publishes up to three questions. `run_specialist` performs an actual separate Bedrock call limited to two consultations per turn. There is no browser agent, image capture or invented browser preview. The UI should show the actual specialist result when no browser tool has run.
+`analyze_demo_portfolio` resolves the active persona from the shared fictional
+fixture file in local development or from deployment-owned `DEMO_CONTEXTS` and
+DynamoDB in AWS. It deterministically computes position weights and concentration,
+validates totals, and returns the source classification. It does not calculate
+returns or historical risk without a price history. `update_profile` updates only
+allowlisted fields. `upsert_tab` creates or replaces by id. `read_sources` returns
+verbatim notes from the catalog; the model can reference their stable per-turn
+`[index]`. `suggest_followups` publishes up to three questions. `run_specialist`
+performs an actual separate Bedrock call limited to two consultations per turn.
+There is no browser agent, image capture or invented browser preview. The UI
+should show the actual specialist result when no browser tool has run.
 
 The orchestrator allows six model rounds and explicitly caps output tokens per call. Configuration, AWS denial, throttling and incomplete responses produce explicit errors. Prompt data and tool outputs are untrusted; all changes are validated server-side and there is no arbitrary network access or code execution.
 

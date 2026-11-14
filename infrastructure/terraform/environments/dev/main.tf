@@ -3,83 +3,12 @@ provider "aws" {
 }
 
 locals {
-  name_prefix = "investoros-${var.environment}"
+  name_prefix   = "investoros-${var.environment}"
+  demo_personas = jsondecode(file("${path.root}/../../../../apps/api/src/investoros_api/demo_personas.json"))
   demo = {
-    account_id   = "demo-account-001"
-    profile_id   = "demo-profile-balanced"
-    portfolio_id = "demo-portfolio-001"
-  }
-  demo_personas = {
-    amira = {
-      account_id      = "demo-account-amira"
-      profile_id      = "demo-profile-amira"
-      portfolio_id    = "demo-portfolio-amira"
-      account_name    = "Amira · Démo"
-      age             = 26
-      objective       = "Croissance à long terme"
-      horizon_years   = 15
-      risk_tolerance  = "high"
-      loss_capacity   = "unknown"
-      liquidity_needs = "unknown"
-      preferences     = ["IA et technologies", "crypto", "diversification"]
-      knowledge       = "unknown"
-      constraints     = []
-      unknown_fields  = ["Capacité financière à absorber une perte", "Besoins de liquidité"]
-      portfolio_name  = "Portefeuille croissance diversifié (démo)"
-      positions = [
-        { id = "amira-tech", label = "Technologies et IA (fixture)", weight_pct = 35, value = 35000 },
-        { id = "amira-global", label = "Actions mondiales diversifiées (fixture)", weight_pct = 30, value = 30000 },
-        { id = "amira-crypto", label = "Crypto-actifs (fixture)", weight_pct = 10, value = 10000 },
-        { id = "amira-bonds", label = "Obligations diversifiées (fixture)", weight_pct = 15, value = 15000 },
-        { id = "amira-cash", label = "Liquidités (fixture)", weight_pct = 10, value = 10000 }
-      ]
-    }
-    mateo = {
-      account_id      = local.demo.account_id
-      profile_id      = local.demo.profile_id
-      portfolio_id    = local.demo.portfolio_id
-      account_name    = "Mateo · Démo"
-      age             = 41
-      objective       = "Croissance équilibrée à moyen et long terme"
-      horizon_years   = 10
-      risk_tolerance  = "moderate"
-      loss_capacity   = "unknown"
-      liquidity_needs = "medium"
-      preferences     = ["Critères ESG documentés", "Éviter les controverses importantes"]
-      knowledge       = "unknown"
-      constraints     = []
-      unknown_fields  = ["Capacité financière à absorber une perte", "Méthode ESG souhaitée"]
-      portfolio_name  = "Portefeuille équilibré (démo)"
-      positions = [
-        { id = "holding-001", label = "Actions mondiales (indice fictif)", weight_pct = 40, value = 40000 },
-        { id = "holding-002", label = "Obligations diversifiées (indice fictif)", weight_pct = 25, value = 25000 },
-        { id = "holding-003", label = "Actions canadiennes (indice fictif)", weight_pct = 20, value = 20000 },
-        { id = "holding-004", label = "Liquidités (fixture)", weight_pct = 15, value = 15000 }
-      ]
-    }
-    robert = {
-      account_id      = "demo-account-robert"
-      profile_id      = "demo-profile-robert"
-      portfolio_id    = "demo-portfolio-robert"
-      account_name    = "Robert · Démo"
-      age             = 59
-      objective       = "Préservation du capital et croissance"
-      horizon_years   = 4
-      risk_tolerance  = "low_to_moderate"
-      loss_capacity   = "unknown"
-      liquidity_needs = "unknown"
-      preferences     = ["Peu attiré par la crypto"]
-      knowledge       = "unknown"
-      constraints     = []
-      unknown_fields  = ["Capacité financière à absorber une perte", "Besoin de liquidité à court terme"]
-      portfolio_name  = "Portefeuille préservation et croissance (démo)"
-      positions = [
-        { id = "robert-bonds", label = "Obligations court terme (fixture)", weight_pct = 40, value = 40000 },
-        { id = "robert-cash", label = "Liquidités (fixture)", weight_pct = 30, value = 30000 },
-        { id = "robert-equity", label = "Actions diversifiées (fixture)", weight_pct = 20, value = 20000 },
-        { id = "robert-hyped", label = "Titre médiatisé à forte volatilité (fixture)", weight_pct = 10, value = 10000 }
-      ]
-    }
+    account_id   = local.demo_personas.mateo.account_id
+    profile_id   = local.demo_personas.mateo.profile_id
+    portfolio_id = local.demo_personas.mateo.portfolio_id
   }
   common_tags = {
     Project     = "InvestorOS"

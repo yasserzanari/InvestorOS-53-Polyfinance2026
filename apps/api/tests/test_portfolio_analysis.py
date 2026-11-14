@@ -116,6 +116,27 @@ class PortfolioAnalysisTests(unittest.TestCase):
             {"account_id": {"S": "demo-account"}, "portfolio_id": {"S": "demo-portfolio"}},
         )
 
+    @patch.dict(os.environ, {"DEMO_PORTFOLIO_MODE": "local_fixture"}, clear=True)
+    def test_local_fixture_mode_loads_the_selected_persona_and_marks_its_source(self):
+        portfolio = load_demo_portfolio(persona="amira")
+        result = summarize_portfolio(portfolio)
+
+        self.assertEqual(portfolio["display_name"], "Portefeuille croissance diversifié (démo)")
+        self.assertEqual(result["weightTotalPct"], 100)
+        self.assertEqual(result["topThreeWeightPct"], 80)
+        self.assertEqual(result["provenance"]["classification"], "local_fictional_fixture")
+        self.assertEqual(result["provenance"]["source"], "Local fictional persona fixture")
+
+    @patch.dict(
+        os.environ,
+        {"DEMO_PORTFOLIO_MODE": "local_fixture", "AWS_LAMBDA_FUNCTION_NAME": "investoros-api"},
+        clear=True,
+    )
+    def test_local_fixtures_are_rejected_in_lambda(self):
+        with self.assertRaises(HTTPException) as raised:
+            load_demo_portfolio(persona="mateo")
+        self.assertEqual(raised.exception.status_code, 503)
+
     @patch.dict(
         os.environ,
         {

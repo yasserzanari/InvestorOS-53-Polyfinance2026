@@ -70,6 +70,7 @@ resource "aws_lambda_function" "api" {
       DEMO_PROFILE_ID               = var.demo_profile_id
       DEMO_PORTFOLIO_ID             = var.demo_portfolio_id
       DEMO_CONTEXTS                 = jsonencode(var.demo_contexts)
+      DEMO_PORTFOLIO_MODE           = "dynamodb"
       POWERTOOLS_SERVICE_NAME       = "investoros-api"
       ENVIRONMENT                   = var.environment
       SIMULATION_X_SEARCH_ENABLED   = tostring(var.simulation_x_search_enabled)

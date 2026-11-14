@@ -20,6 +20,8 @@ uvicorn investoros_api.main:app --app-dir src --reload --port 8000
 
 Le contrôle de vie est `http://localhost:8000/health`. Pour appeler l’API distante depuis le frontend, copier `apps/web/.env.aws.example` vers `apps/web/.env.aws`, mettre l’URL API fournie par Terraform dans `VITE_API_TARGET`, puis lancer `npm run dev:aws` depuis `apps/web`. Le navigateur ne reçoit aucun credential AWS : c’est le rôle Lambda qui lit les tables. Ne stocker aucune clé dans le frontend ou dans un fichier versionné.
 
+Le script `scripts/dev-profile-api.sh` active explicitement `DEMO_PORTFOLIO_MODE=local_fixture` pour les parcours de chat locaux. Ces portefeuilles fictifs partagent la source JSON que Terraform utilise pour initialiser DynamoDB. L’environnement Lambda force `DEMO_PORTFOLIO_MODE=dynamodb`; le mode local est refusé dans Lambda.
+
 ## Paquet Lambda
 
 Depuis la racine du dépôt :
