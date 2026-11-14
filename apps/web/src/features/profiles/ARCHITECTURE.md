@@ -152,11 +152,17 @@ Un message libre peut reprendre la conversation sans remplir la carte; les carte
 précédentes non répondues deviennent alors inactives. Les anciens messages de
 questionnaire rédigés avant cette évolution restent du texte dans l’historique.
 
-## Onglet Agents réservé
+## Onglet Agents
 
-L’onglet Agents reste vide en attendant sa prochaine définition visuelle. Aucun
-outil, entrée/sortie technique ni aperçu de consultation ne s’affiche dans ce
-panneau. Les événements d’exécution continuent d’alimenter la conversation.
+L’onglet Agents agrège les événements `agent` émis par les appels réels à
+`run_specialist`. Il affiche le coordinateur, la mission confiée, l’état,
+la durée et le résumé effectivement transmis. Il n’affiche pas les outils,
+leurs entrées/sorties ni d’aperçu navigateur. Un état vide précise qu’aucun
+spécialiste n’a encore été appelé.
+
+Assistant et Profils partagent les messages, les onglets, le profil et le
+transport Bedrock par compte. Seul l’onglet sélectionné est mémorisé par espace
+de navigation : Assistant ouvre les Tâches par défaut et Profils ouvre la fiche.
 
 ### Position des questions en attente
 
