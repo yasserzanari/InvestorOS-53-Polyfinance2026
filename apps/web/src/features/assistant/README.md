@@ -10,6 +10,8 @@ L’API décrit les modules connus à Amazon Bedrock. L’assistant peut appeler
 
 Créer une tâche avec un lien ne signifie pas qu’une action a été exécutée dans le module lié. Les modules qui ne fournissent pas d’outil d’écriture ou d’analyse au backend restent des destinations de relais : l’assistant doit le dire et ne jamais annoncer une opération qu’il n’a pas exécutée. Les données de démonstration restent identifiées comme fictives.
 
+Quand `project_market_scenarios` termine un calcul avec des chocs explicites, son résultat validé est aussi conservé dans un onglet **Trajectoires · TICKER** du même workspace. Cet onglet rend les branches, leurs fourchettes de quantiles, le cours de départ, la date d’arrêt, la méthode, les limites et les liens source/module. Le résultat peut être rouvert depuis Assistant ou Profils; il est remplacé par le calcul suivant du même ticker et reste associé au compte de démonstration dans ce navigateur.
+
 ## Stockage
 
 - Clé de conversation : `investoros.workspace.v2.<accountId>`.

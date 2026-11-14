@@ -17,7 +17,7 @@ class WorkspaceTab(BaseModel):
     model_config = ConfigDict(extra='forbid')
     id: str = Field(min_length=1, max_length=80, pattern=r'^[a-zA-Z0-9_-]+$')
     title: str = Field(min_length=1, max_length=80)
-    kind: Literal['profile', 'note', 'tasks', 'agents', 'sources']
+    kind: Literal['profile', 'note', 'tasks', 'agents', 'sources', 'simulation']
     content: str = Field(default='', max_length=16000)
     items: list[TabItem] = Field(default_factory=list, max_length=40)
 

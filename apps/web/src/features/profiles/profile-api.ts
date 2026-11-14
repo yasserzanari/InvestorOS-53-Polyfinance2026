@@ -1,6 +1,6 @@
 export type Citation = { id: string; index: number; title: string; url: string; snippet?: string };
 export type FollowUp = { id: string; label: string };
-export type WorkspaceTab = { id: string; title: string; kind: 'profile'|'note'|'tasks'|'agents'|'sources'; content: string; items?: {id: string; title: string; status?: string; url?: string}[] };
+export type WorkspaceTab = { id: string; title: string; kind: 'profile'|'note'|'tasks'|'agents'|'sources'|'simulation'; content: string; items?: {id: string; title: string; status?: string; url?: string}[] };
 export type ToolEvent = { id: string; name: string; status: 'running'|'done'|'failed'; input?: unknown; output?: unknown; error?: string };
 export type AgentEvent = { id: string; name: string; status: 'running'|'done'|'failed'; task: string; summary?: string; startedAt?: number; durationMs?: number };
 export type ProfileEvent = {type: string; [key: string]: unknown};
