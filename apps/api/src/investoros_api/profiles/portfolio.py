@@ -10,6 +10,7 @@ import boto3
 from fastapi import HTTPException
 
 from investoros_api.demo_contexts import PersonaId, context_for
+from .models import ScenarioAnalysisInput
 
 
 def _plain_value(value: Any) -> Any:
@@ -151,4 +152,68 @@ def analyze_configured_portfolio(client=None, persona: PersonaId = "mateo") -> d
     result = summarize_portfolio(load_demo_portfolio(client=client, persona=persona))
     result["persona"] = persona
     result["provenance"]["moduleUrl"] = f"/app/portfolios?persona={persona}"
+    return result
+
+
+def calculate_portfolio_scenario(
+    portfolio: dict[str, Any], scenario: ScenarioAnalysisInput
+) -> dict[str, Any]:
+    """Apply user-supplied percentage shocks to named fixture positions; this is not a forecast."""
+    summary = summarize_portfolio(portfolio)
+    positions = portfolio["positions"]
+    by_id = {position.get("id"): position for position in positions if isinstance(position, dict)}
+    shocks = {item.positionId: item.shockPct for item in scenario.shocks}
+    unknown = set(shocks) - set(by_id)
+    if unknown:
+        raise ValueError("Le scénario contient une position absente du portefeuille.")
+
+    results = []
+    total_change = 0.0
+    for position in positions:
+        position_id = position.get("id")
+        if not isinstance(position_id, str) or not position_id:
+            raise ValueError("Une position du portefeuille n’a pas d’identifiant stable.")
+        baseline = position["value"]
+        shock_pct = shocks.get(position_id, 0.0)
+        change = baseline * shock_pct / 100
+        scenario_value = baseline + change
+        total_change += change
+        results.append({
+            "positionId": position_id,
+            "label": position["label"],
+            "baselineValue": round(float(baseline), 2),
+            "shockPct": round(float(shock_pct), 2),
+            "changeValue": round(float(change), 2),
+            "scenarioValue": round(float(scenario_value), 2),
+        })
+
+    baseline_total = summary["totalValue"]
+    scenario_total = baseline_total + total_change
+    return {
+        "name": scenario.name,
+        "currency": summary["currency"],
+        "baselineValue": round(baseline_total, 2),
+        "scenarioValue": round(scenario_total, 2),
+        "changeValue": round(total_change, 2),
+        "changePct": round(total_change / baseline_total * 100, 2),
+        "positions": results,
+        "provenance": {
+            "portfolio": "fictional_fixture",
+            "assumptions": "user_supplied_conditional_shocks",
+            "limitations": [
+                "Conditional arithmetic only; not a price forecast, return estimate, or investment recommendation.",
+                "Positions without a supplied shock are held unchanged.",
+                "Does not model correlations, liquidity, fees, taxes, distributions, or rebalancing.",
+            ],
+        },
+    }
+
+
+def analyze_configured_scenario(
+    scenario: ScenarioAnalysisInput, persona: PersonaId = "mateo", client=None
+) -> dict[str, Any]:
+    portfolio = load_demo_portfolio(client=client, persona=persona)
+    result = calculate_portfolio_scenario(portfolio, scenario)
+    result["persona"] = persona
+    result["provenance"]["moduleUrl"] = f"/app/scenarios?persona={persona}"
     return result

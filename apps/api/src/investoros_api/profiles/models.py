@@ -123,3 +123,22 @@ class ChatRequest(BaseModel):
             if question.required and not selected and not item.text:
                 raise ValueError('Répondez aux questions obligatoires avant l’envoi.')
         return self
+
+
+class PositionShock(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    positionId: str = Field(min_length=1, max_length=100)
+    shockPct: float = Field(ge=-100, le=200)
+
+
+class ScenarioAnalysisInput(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=120)
+    shocks: list[PositionShock] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode='after')
+    def validate_positions_are_unique(self):
+        ids = [shock.positionId for shock in self.shocks]
+        if len(set(ids)) != len(ids):
+            raise ValueError('Chaque position doit apparaître une seule fois.')
+        return self

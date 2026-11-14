@@ -7,6 +7,8 @@ from fastapi import FastAPI, HTTPException, Query
 from mangum import Mangum
 
 from investoros_api.demo_contexts import PersonaId, context_for
+from investoros_api.profiles.models import ScenarioAnalysisInput
+from investoros_api.profiles.portfolio import analyze_configured_scenario
 from investoros_api.profiles.router import router as profiles_router
 
 app = FastAPI(title="InvestorOS API", version="0.1.0")
@@ -110,6 +112,17 @@ def demo_overview(persona: PersonaId = Query(default="mateo")) -> dict[str, Any]
         "portfolio": portfolio_payload,
         "analyses": [record["payload"] for record in analysis_records if record],
     }
+
+
+@app.post("/v1/demo/scenarios/impact")
+def demo_scenario_impact(
+    scenario: ScenarioAnalysisInput, persona: PersonaId = Query(default="mateo")
+) -> dict[str, Any]:
+    """Calculate a conditional, user-assumed impact against one configured demo portfolio."""
+    try:
+        return analyze_configured_scenario(scenario, persona=persona, client=_client())
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 handler = Mangum(app)

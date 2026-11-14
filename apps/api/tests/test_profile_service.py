@@ -64,6 +64,30 @@ class ProfileServiceTests(unittest.TestCase):
         analyze.assert_called_once_with(persona='robert')
 
     @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
+    @patch('investoros_api.profiles.service.analyze_configured_scenario')
+    def test_scenario_tool_uses_only_supplied_assumptions_for_active_persona(self, analyze):
+        result = {
+            'name': 'Repli', 'persona': 'amira', 'changeValue': -3500,
+            'provenance': {'assumptions': 'user_supplied_conditional_shocks'},
+        }
+        analyze.return_value = result
+        runtime = RuntimeStub(stream_tool('analyze_demo_scenario', {
+            'name': 'Repli', 'shocks': [{'positionId': 'technology', 'shockPct': -10}],
+        }))
+
+        events = list(run_chat(ChatRequest(accountId='amira', message='Applique cette hypothèse'), runtime))
+
+        tool_event = [event for event in events if event['type'] == 'tool' and event['name'] == 'analyze_demo_scenario'][-1]
+        self.assertEqual(tool_event['status'], 'done')
+        self.assertEqual(tool_event['output'], result)
+        self.assertEqual(runtime.calls[1]['messages'][-1]['content'][0]['toolResult']['content'][0]['json'], result)
+        analyze.assert_called_once()
+        scenario, = analyze.call_args.args
+        self.assertEqual(scenario.name, 'Repli')
+        self.assertEqual(scenario.shocks[0].shockPct, -10)
+        self.assertEqual(analyze.call_args.kwargs, {'persona': 'amira'})
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
     def test_untrusted_tool_fields_are_rejected_without_mutating_profile(self):
         runtime = RuntimeStub(stream_tool('update_profile', {'fields': {'admin': 'true'}}))
         events = list(run_chat(ChatRequest(message='Bonjour'), runtime))

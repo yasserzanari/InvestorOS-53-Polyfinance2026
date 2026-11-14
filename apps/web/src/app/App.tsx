@@ -9,6 +9,7 @@ import { productModules } from './modules';
 const LandingPage = lazy(() => import('../features/landing/LandingPage').then(({ LandingPage: Page }) => ({ default: Page })));
 const LoginPage = lazy(() => import('../features/auth/LoginPage').then(({ LoginPage: Page }) => ({ default: Page })));
 const PortfolioPage = lazy(() => import('../features/portfolios').then(({ PortfolioPage: Page }) => ({ default: Page })));
+const ScenariosPage = lazy(() => import('../features/scenarios/ScenariosPage').then(({ ScenariosPage: Page }) => ({ default: Page })));
 
 export function App() {
   return (
@@ -23,7 +24,8 @@ export function App() {
               <Route path="assistant" element={<AssistantPage />} />
               <Route path="profiles" element={<ProfilesPage />} />
               <Route path="portfolios" element={<PortfolioPage />} />
-              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios'].includes(id)).map((module) => (
+              <Route path="scenarios" element={<ScenariosPage />} />
+              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios'].includes(id)).map((module) => (
                 <Route
                   key={module.id}
                   path={module.href.replace('/app/', '')}

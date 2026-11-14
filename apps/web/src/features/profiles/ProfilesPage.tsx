@@ -22,12 +22,13 @@ import './profiles.css';
 type ProfilesWorkspaceProps = { assistantMode?: boolean; initialPrompt?: string };
 
 function toolSources(tool: ToolEvent) {
-  if (tool.name !== 'analyze_demo_portfolio' || !tool.output || typeof tool.output !== 'object') return undefined;
+  if (!['analyze_demo_portfolio', 'analyze_demo_scenario'].includes(tool.name) || !tool.output || typeof tool.output !== 'object') return undefined;
   const output = tool.output as { portfolioName?: string; provenance?: { moduleUrl?: string } };
   const url = output.provenance?.moduleUrl;
   if (!url) return undefined;
   const safeUrl = safeSourceUrl(url);
-  return safeUrl === '#' ? undefined : [{ name: `${output.portfolioName ?? 'Portefeuille'} · ouvrir`, url: safeUrl }];
+  const label = tool.name === 'analyze_demo_scenario' ? 'Scénarios · ouvrir' : `${output.portfolioName ?? 'Portefeuille'} · ouvrir`;
+  return safeUrl === '#' ? undefined : [{ name: label, url: safeUrl }];
 }
 
 function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWorkspaceProps) {

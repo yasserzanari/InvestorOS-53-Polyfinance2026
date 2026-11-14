@@ -11,14 +11,15 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import ValidationError
 
-from .models import AskUserInput, ChatRequest, PROFILE_FIELDS, WorkspaceTab
-from .portfolio import analyze_configured_portfolio
+from .models import AskUserInput, ChatRequest, PROFILE_FIELDS, ScenarioAnalysisInput, WorkspaceTab
+from .portfolio import analyze_configured_portfolio, analyze_configured_scenario
 from .sources import SOURCES, citations
 from .tools import TOOLS
 
 SYSTEM = '''Tu es l’assistant partagé InvestorOS. Réponds en français, de façon naturelle et concise.
 Les comptes et profils sont fictifs. Accompagne la construction du profil sans conseiller des achats.
 Pour les questions de portefeuille, appelle analyze_demo_portfolio et fonde tout chiffre uniquement sur sa sortie. Précise qu’il s’agit du portefeuille fictif configuré pour le persona actif et indique ses limites; si l’outil échoue, indique que le calcul n’a pas pu être fait. N’invente jamais rendement, volatilité ou baisse historique en l’absence de série de prix.
+Pour un scénario de choc, appelle analyze_demo_scenario seulement si l’utilisateur a donné ou choisi explicitement chaque pourcentage appliqué. Sinon, clarifie le ou les chocs avec ask_user. Présente le résultat comme une arithmétique conditionnelle selon ces hypothèses, jamais comme une prévision ni un conseil.
 Distingue tolérance émotionnelle aux fluctuations et capacité financière à absorber une perte.
 Ne déduis jamais les finances, l'expérience ou le risque de l’âge. Ne confirme jamais un profil à la place de l’utilisateur.
 Utilise update_profile pour enregistrer les faits explicitement donnés. Laisse les inconnues à préciser.
@@ -202,6 +203,14 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
                             raise ValueError('Cet outil ne prend aucun paramètre.')
                         try:
                             output = analyze_configured_portfolio(persona=request.accountId)
+                        except HTTPException as error:
+                            raise ValueError(str(error.detail)) from error
+                    elif name == 'analyze_demo_scenario':
+                        scenario = ScenarioAnalysisInput.model_validate(args)
+                        try:
+                            output = analyze_configured_scenario(
+                                scenario, persona=request.accountId
+                            )
                         except HTTPException as error:
                             raise ValueError(str(error.detail)) from error
                     elif name == 'update_profile':
