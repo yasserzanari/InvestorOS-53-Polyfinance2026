@@ -10,3 +10,12 @@ locals {
     ManagedBy   = "Terraform"
   }
 }
+
+module "frontend" {
+  source = "../../modules/frontend"
+
+  aws_region        = var.aws_region
+  name_prefix       = local.name_prefix
+  github_repository = "yasserzanari/InvestorOS-53-Polyfinance2026"
+  common_tags       = local.common_tags
+}
