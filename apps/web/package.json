@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:aws": "vite --host 0.0.0.0 --mode aws",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit"
   },

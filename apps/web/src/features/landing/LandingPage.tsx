@@ -1,14 +1,11 @@
-import { lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowDownRight, ArrowRight, BookOpenCheck, ChartNoAxesCombined, Compass, ShieldCheck } from "lucide-react";
+import { ArrowDownRight, ArrowRight, BookOpenCheck, ChartNoAxesCombined, Compass, LogIn, ShieldCheck } from "lucide-react";
 import { appRoutes } from "../../app/routes";
 import ResponsiveHeroBanner from "./components/ResponsiveHeroBanner";
 import { DropdownNavigation } from "./components/DropdownNavigation";
 import { Features } from "./components/Features";
 import BeamWordmarkFooter from "./components/BeamWordmarkFooter";
 import "./landing.css";
-
-const GlassReveal21st = lazy(() => import("./components/GlassReveal21st").then((module) => ({ default: module.GlassReveal21st })));
 
 const navItems = [
   {
@@ -38,31 +35,24 @@ export function LandingPage() {
 
   return (
     <main className="investor-landing min-h-screen bg-white text-slate-950">
-      <header className="landing-header sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="relative mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 sm:px-8">
-          <a className="inline-flex h-12 w-36 items-center" href="/" aria-label="InvestorOS, accueil">
-            <Suspense fallback={<img src="/brand/investoros-logo.png" className="h-10 w-full object-contain" alt="InvestorOS" />}>
-              <GlassReveal21st logo="/brand/investoros-logo.png" label="InvestorOS" tileSize={256} logoScale={0.54} finalScale={0.84} loop={false} className="size-full" />
-            </Suspense>
-          </a>
-          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center md:flex" aria-label="Navigation principale">
-            <DropdownNavigation navItems={navItems} />
-          </nav>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => navigate(appRoutes.login)} className="hidden rounded-full px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 sm:inline-flex">Connexion</button>
-            <button type="button" onClick={() => navigate(appRoutes.dashboard)} className="inline-flex items-center gap-2 rounded-full bg-[#101c35] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1e3155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600">
-              Explorer le prototype <ArrowRight size={15} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-        <nav className="flex items-center justify-center gap-6 border-t border-slate-100 px-4 py-2.5 text-xs font-medium text-slate-600 md:hidden" aria-label="Navigation mobile">
-          <a href="#approche" className="hover:text-cyan-800">Approche</a>
-          <a href="#transparence" className="hover:text-cyan-800">Transparence</a>
-          <button type="button" onClick={() => navigate(appRoutes.login)} className="hover:text-cyan-800">Connexion</button>
-        </nav>
-      </header>
-
       <div className="landing-hero-wrap relative">
+        <header className="landing-header absolute inset-x-0 top-0 z-50 border-b border-white/35 bg-white/35 backdrop-blur-2xl">
+          <div className="relative mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-8">
+            <a className="inline-flex shrink-0 items-center" href="/" aria-label="InvestorOS, accueil">
+              <img src="/brand/investoros-logo.png" className="h-auto w-[104px] object-contain sm:w-[148px]" alt="" />
+            </a>
+            <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center md:flex" aria-label="Navigation principale">
+              <DropdownNavigation navItems={navItems} />
+            </nav>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <button type="button" onClick={() => navigate(appRoutes.login)} aria-label="Connexion" className="inline-flex size-8 items-center justify-center rounded-full text-[#17233d] transition hover:bg-white/35 sm:hidden"><LogIn size={16} aria-hidden="true" /></button>
+              <button type="button" onClick={() => navigate(appRoutes.login)} className="hidden rounded-full px-3 py-2 text-sm font-medium text-[#17233d] transition hover:bg-white/35 sm:inline-flex">Connexion</button>
+              <button type="button" onClick={() => navigate(appRoutes.dashboard)} className="inline-flex items-center gap-1.5 rounded-full bg-[#101c35]/95 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1e3155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm">
+                Explorer le prototype <ArrowRight size={15} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </header>
         <ResponsiveHeroBanner
           className="investoros-hero"
           onNavigate={navigate}

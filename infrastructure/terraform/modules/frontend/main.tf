@@ -2,7 +2,7 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 locals {
-  site_bucket_name    = "${var.name_prefix}-${data.aws_caller_identity.current.account_id}-web-${var.aws_region}"
+  site_bucket_name    = "polyfinance2026-${var.name_prefix}-${data.aws_caller_identity.current.account_id}-web-${var.aws_region}"
   distribution_arn    = "arn:${data.aws_partition.current.partition}:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_distribution.site.id}"
   github_oidc_subject = "repo:${split("/", var.github_repository)[0]}@${var.github_repository_owner_id}/${split("/", var.github_repository)[1]}@${var.github_repository_id}:ref:refs/heads/main"
 }
