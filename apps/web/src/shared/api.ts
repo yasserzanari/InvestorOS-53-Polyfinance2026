@@ -109,6 +109,24 @@ export type SimulationFilings = {
   filings: SimulationFiling[];
   limitations?: string[];
 };
+export type SimulationNewsArticle = {
+  id: string;
+  title: string;
+  url: string;
+  domain: string;
+  publishedAt: string;
+};
+export type SimulationNews = {
+  ticker: string;
+  company?: string;
+  available: boolean;
+  reason?: string;
+  source: string;
+  sourceUrl: string;
+  asOf?: string;
+  articles: SimulationNewsArticle[];
+  limitations?: string[];
+};
 export type ScenarioBranchInput = {
   id: string;
   title: string;
@@ -207,6 +225,8 @@ export const loadSimulationRegulations = (topic: string, signal?: AbortSignal) =
   getSimulation<SimulationRegulations>(`regulations?topic=${encodeURIComponent(topic)}`, signal);
 export const loadSimulationFilings = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationFilings>(`filings/${encodeURIComponent(ticker)}`, signal);
+export const loadSimulationNews = (ticker: string, signal?: AbortSignal) =>
+  getSimulation<SimulationNews>(`news/${encodeURIComponent(ticker)}`, signal);
 export async function runSimulationProjection(input: {
   ticker: string;
   horizonObservations: number;
