@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Database, ExternalLink, GitBranch, LoaderCircle, MessageCircle, Newspaper, Plus, ShieldCheck, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { loadSimulationAssets, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ScenarioBranchInput, type SimulationAssetList, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
 import './scenarios.css';
 
@@ -295,6 +295,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
 }
 
 export function ScenariosPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [assetList, setAssetList] = useState<SimulationAssetList>();
   const [ticker, setTicker] = useState('');
   const [history, setHistory] = useState<SimulationHistory>();
@@ -324,7 +325,13 @@ export function ScenariosPage() {
     const controller = new AbortController();
     loadSimulationAssets(controller.signal).then((result) => {
       setAssetList(result);
-      setTicker(result.assets.find((asset) => asset.ticker === 'AAPL')?.ticker ?? result.assets[0]?.ticker ?? '');
+      const requested = searchParams.get('ticker')?.toUpperCase();
+      setTicker(
+        result.assets.find((asset) => asset.ticker === requested)?.ticker
+          ?? result.assets.find((asset) => asset.ticker === 'AAPL')?.ticker
+          ?? result.assets[0]?.ticker
+          ?? '',
+      );
     }).catch((cause) => {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Les données de Simulation sont indisponibles.');
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -432,7 +439,7 @@ export function ScenariosPage() {
     <section className="simulation-page" aria-labelledby="simulation-title">
       <header className="simulation-header">
         <div><span className="simulation-eyebrow"><Activity size={14} /> OBSERVATIONS ET HYPOTHÈSES</span><h1 id="simulation-title">Simulation</h1><p>Explorez l’historique d’un actif et mesurez les mouvements observés après des événements datés.</p></div>
-        <label className="simulation-asset-select"><span>Titre</span><select value={ticker} onChange={(event) => setTicker(event.target.value)} disabled={!assetList}><option value="" disabled>Choisir un actif</option>{assetList?.assets.map((asset) => <option key={asset.ticker} value={asset.ticker}>{asset.ticker} · {asset.name}</option>)}</select></label>
+        <label className="simulation-asset-select"><span>Titre</span><select value={ticker} onChange={(event) => { const nextTicker = event.target.value; setTicker(nextTicker); setSearchParams((current) => { const next = new URLSearchParams(current); next.set('ticker', nextTicker); return next; }, { replace: true }); }} disabled={!assetList}><option value="" disabled>Choisir un actif</option>{assetList?.assets.map((asset) => <option key={asset.ticker} value={asset.ticker}>{asset.ticker} · {asset.name}</option>)}</select></label>
       </header>
 
       {loading && !history ? <div className="simulation-state" role="status"><LoaderCircle size={17} className="simulation-spinner" />Chargement des séries historiques…</div> : null}
@@ -440,7 +447,7 @@ export function ScenariosPage() {
 
       {history ? (
         <>
-          <div className="simulation-source-note"><ShieldCheck size={16} /><span><strong>{history.source}</strong> · extraction au {dateLabel(history.sourceAsOf)} · {history.prices.length.toLocaleString('fr-CA')} observations · devise {history.currency}</span><span className="simulation-source-badge"><Database size={13} /> Données historiques</span></div>
+          <div className="simulation-source-note"><ShieldCheck size={16} /><span><strong>{history.source}</strong> · cours jusqu’au {dateLabel(history.sourceAsOf)} · {history.prices.length.toLocaleString('fr-CA')} observations · devise {history.currency}</span><a className="simulation-source-link" href={`https://finance.yahoo.com/quote/${encodeURIComponent(history.asset.ticker)}/history/`} target="_blank" rel="noopener noreferrer">Source Yahoo Finance <ExternalLink size={11}/></a><span className="simulation-source-badge"><Database size={13} /> Données historiques</span></div>
           <div className="simulation-regulation-toolbar"><span><CalendarDays size={14} /> Filtrer les actes réglementaires</span><div role="group" aria-label="Thème de recherche réglementaire">{[['tariff','Tarifs'],['supply-chain','Chaîne logistique'],['export-controls','Contrôles export'],['energy','Énergie']].map(([id,label])=><button type="button" key={id} aria-pressed={regulationTopic===id} onClick={()=>setRegulationTopic(id)}>{label}</button>)}</div>{regulationError&&<small role="status">{regulationError}</small>}</div>
           <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} filingsLimitations={filings?.limitations} news={news} socialPosts={socialPosts} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} onSearchAccounts={setSocialAccounts} /></div>
           <section className="simulation-scenario-builder" aria-labelledby="scenario-builder-title">

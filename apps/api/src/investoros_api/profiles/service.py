@@ -6,12 +6,21 @@ import uuid
 from collections.abc import Iterator
 
 import boto3
-from fastapi import HTTPException
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import HTTPException
 from pydantic import ValidationError
 
-from .models import AskUserInput, ChatRequest, PROFILE_FIELDS, ScenarioAnalysisInput, WorkspaceTab
+from ..simulation import ScenarioProjectionRequest, project_scenarios
+from ..simulation import history as simulation_history
+from .models import (
+    AskUserInput,
+    ChatRequest,
+    PROFILE_FIELDS,
+    ScenarioAnalysisInput,
+    SimulationHistoryInput,
+    WorkspaceTab,
+)
 from .portfolio import analyze_configured_portfolio, analyze_configured_scenario
 from .sources import SOURCES, citations
 from .tools import TOOLS
@@ -20,6 +29,7 @@ SYSTEM = '''Tu es l’assistant partagé InvestorOS. Réponds en français, de f
 Les comptes et profils sont fictifs. Accompagne la construction du profil sans conseiller des achats.
 Pour les questions de portefeuille, appelle analyze_demo_portfolio et fonde tout chiffre uniquement sur sa sortie. Précise qu’il s’agit du portefeuille fictif configuré pour le persona actif et indique ses limites; si l’outil échoue, indique que le calcul n’a pas pu être fait. N’invente jamais rendement, volatilité ou baisse historique en l’absence de série de prix.
 Pour un scénario de choc, appelle analyze_demo_scenario seulement si l’utilisateur a donné ou choisi explicitement chaque pourcentage appliqué. Sinon, clarifie le ou les chocs avec ask_user. Présente le résultat comme une arithmétique conditionnelle selon ces hypothèses, jamais comme une prévision ni un conseil.
+Pour toute question sur les cours historiques ou des événements d’entreprise d’un titre, appelle inspect_simulation_history et utilise seulement ses observations, dates, rendements et limites. Ces données ne sont pas en temps réel et une coïncidence de date ne prouve pas la causalité. Pour projeter des scénarios d’un titre, appelle project_market_scenarios uniquement après que l’utilisateur a fourni explicitement chaque choc, son jalon et l’horizon; sinon demande les hypothèses avec ask_user. Ne transforme jamais un article, un acte réglementaire ou un post en choc estimé. Explique que les quantiles marginaux ne sont ni des probabilités ni une prévision.
 Distingue tolérance émotionnelle aux fluctuations et capacité financière à absorber une perte.
 Ne déduis jamais les finances, l'expérience ou le risque de l’âge. Ne confirme jamais un profil à la place de l’utilisateur.
 Utilise update_profile pour enregistrer les faits explicitement donnés. Laisse les inconnues à préciser.
@@ -136,7 +146,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
                 {'id': 'portfolios', 'label': 'Portefeuilles', 'url': '/app/portfolios', 'capabilities': 'positions, répartition, rendement et risques du portefeuille fictif'},
                 {'id': 'analyses', 'label': 'Analyses', 'url': '/app/analyses', 'capabilities': 'espace de préparation des analyses'},
                 {'id': 'network', 'label': 'Réseaux', 'url': '/app/network', 'capabilities': 'cartographie des entreprises'},
-                {'id': 'scenarios', 'label': 'Scénarios', 'url': '/app/scenarios', 'capabilities': 'comparaison de trajectoires conditionnelles'},
+                {'id': 'scenarios', 'label': 'Simulation', 'url': '/app/scenarios', 'capabilities': 'lecture de prix historiques et rendements observés; comparaison de trajectoires conditionnelles seulement après saisie explicite des chocs'},
                 {'id': 'evidence', 'label': 'Sources et méthode', 'url': '/app/evidence', 'capabilities': 'méthodes et sources vérifiables'},
             ],
         }, ensure_ascii=False)
@@ -198,7 +208,48 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
                 try:
                     if not isinstance(args, dict):
                         raise ValueError('Paramètres d’outil invalides.')
-                    if name == 'analyze_demo_portfolio':
+                    if name == 'inspect_simulation_history':
+                        query = SimulationHistoryInput.model_validate(args)
+                        try:
+                            historical = simulation_history(
+                                query.ticker.upper(), start=query.startDate, end=query.endDate
+                            )
+                        except HTTPException as error:
+                            raise ValueError(str(error.detail)) from error
+                        prices = historical['prices']
+                        first, last = prices[0], prices[-1]
+                        output = {
+                            'ticker': historical['asset']['ticker'],
+                            'assetName': historical['asset']['name'],
+                            'currency': historical['currency'],
+                            'period': {'from': first['date'], 'to': last['date']},
+                            'priceObservationCount': len(prices),
+                            'firstAdjustedClose': first['adjustedClose'],
+                            'lastAdjustedClose': last['adjustedClose'],
+                            'totalObservedReturnPct': round((last['adjustedClose'] / first['adjustedClose'] - 1) * 100, 4) if len(prices) > 1 else None,
+                            'eventCount': len(historical['events']),
+                            'events': historical['events'][-12:],
+                            'method': historical['method'],
+                            'limitations': historical['limitations'],
+                            'provenance': {
+                                'source': historical['source'],
+                                'sourceAsOf': historical['sourceAsOf'],
+                                'sourceUrl': f"https://finance.yahoo.com/quote/{historical['asset']['ticker']}/history/",
+                                'moduleUrl': f"/app/scenarios?ticker={historical['asset']['ticker']}",
+                            },
+                        }
+                    elif name == 'project_market_scenarios':
+                        scenario = ScenarioProjectionRequest.model_validate(args)
+                        try:
+                            output = project_scenarios(scenario)
+                        except HTTPException as error:
+                            raise ValueError(str(error.detail)) from error
+                        output['provenance'] = {
+                            'source': output['source'],
+                            'sourceUrl': f"https://finance.yahoo.com/quote/{output['ticker']}/history/",
+                            'moduleUrl': f"/app/scenarios?ticker={output['ticker']}",
+                        }
+                    elif name == 'analyze_demo_portfolio':
                         if args:
                             raise ValueError('Cet outil ne prend aucun paramètre.')
                         try:

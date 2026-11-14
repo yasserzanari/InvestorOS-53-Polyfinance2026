@@ -1,6 +1,7 @@
 """Contract tests for tool validation and real stream event handling (no AWS calls)."""
 import os
 from copy import deepcopy
+from datetime import date
 import unittest
 from unittest.mock import patch
 
@@ -86,6 +87,65 @@ class ProfileServiceTests(unittest.TestCase):
         self.assertEqual(scenario.name, 'Repli')
         self.assertEqual(scenario.shocks[0].shockPct, -10)
         self.assertEqual(analyze.call_args.kwargs, {'persona': 'amira'})
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
+    @patch('investoros_api.profiles.service.simulation_history')
+    def test_simulation_history_tool_returns_real_observations_and_module_link(self, read_history):
+        read_history.return_value = {
+            'asset': {'ticker': 'ABC', 'name': 'Example Corp'},
+            'currency': 'USD',
+            'prices': [
+                {'date': '2025-01-01', 'adjustedClose': 100.0},
+                {'date': '2025-01-02', 'adjustedClose': 110.0},
+            ],
+            'events': [{'id': 'evt-1', 'date': '2025-01-02', 'kind': 'dividend', 'observedReturnsPct': {'1observations': 2.0}}],
+            'method': 'Observed adjusted closes only.',
+            'limitations': ['A date match does not prove causality.'],
+            'source': 'prices_daily.csv · adj_close; corporate_actions.csv',
+            'sourceAsOf': '2026-11-12',
+        }
+        runtime = RuntimeStub(stream_tool('inspect_simulation_history', {'ticker': 'abc', 'startDate': '2025-01-01'}))
+
+        events = list(run_chat(ChatRequest(message='Analyse abc dans l’historique'), runtime))
+
+        tool_event = [event for event in events if event['type'] == 'tool' and event['name'] == 'inspect_simulation_history'][-1]
+        self.assertEqual(tool_event['status'], 'done')
+        self.assertEqual(tool_event['output']['totalObservedReturnPct'], 10.0)
+        self.assertEqual(tool_event['output']['eventCount'], 1)
+        self.assertEqual(tool_event['output']['provenance']['moduleUrl'], '/app/scenarios?ticker=ABC')
+        self.assertEqual(
+            tool_event['output']['provenance']['sourceUrl'],
+            'https://finance.yahoo.com/quote/ABC/history/',
+        )
+        read_history.assert_called_once()
+        self.assertEqual(read_history.call_args.args, ('ABC',))
+        self.assertEqual(read_history.call_args.kwargs, {'start': date(2025, 1, 1), 'end': None})
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
+    @patch('investoros_api.profiles.service.project_scenarios')
+    def test_simulation_projection_tool_runs_only_with_valid_explicit_branches(self, project):
+        project.return_value = {
+            'ticker': 'ABC', 'asOf': '2025-01-02', 'source': 'prices_daily.csv',
+            'branches': [{'id': 'down', 'shockPct': -10}],
+            'method': 'Empirical marginal quantiles.', 'limitations': ['Not a forecast.'],
+        }
+        runtime = RuntimeStub(stream_tool('project_market_scenarios', {
+            'ticker': 'ABC', 'horizonObservations': 20,
+            'branches': [
+                {'id': 'down', 'title': 'Baisse', 'event': 'Tarif explicite', 'shockPct': -10, 'eventAfterObservations': 5},
+                {'id': 'up', 'title': 'Hausse', 'event': 'Tarif explicite', 'shockPct': 5, 'eventAfterObservations': 5},
+            ],
+        }))
+
+        events = list(run_chat(ChatRequest(message='Compare ces hypothèses explicites'), runtime))
+
+        tool_event = [event for event in events if event['type'] == 'tool' and event['name'] == 'project_market_scenarios'][-1]
+        self.assertEqual(tool_event['status'], 'done')
+        self.assertEqual(tool_event['output']['provenance']['moduleUrl'], '/app/scenarios?ticker=ABC')
+        project.assert_called_once()
+        request, = project.call_args.args
+        self.assertEqual(request.branches[0].shockPct, -10)
+        self.assertEqual(request.branches[1].shockPct, 5)
 
     @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
     def test_untrusted_tool_fields_are_rejected_without_mutating_profile(self):

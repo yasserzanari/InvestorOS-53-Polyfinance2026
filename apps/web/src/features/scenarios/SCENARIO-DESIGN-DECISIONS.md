@@ -23,7 +23,7 @@ Les captures locales se trouvent dans `docs/prep/references-visuelles/` et ne so
 4. X Recent Search est optionnel et désactivé par défaut. Quand l’exploitant l’active et configure son jeton, la recherche porte sur le nom et le symbole de l’émetteur pour les sept derniers jours. La personne peut aussi fournir jusqu’à cinq comptes à inclure; l’application ne valide pas leur identité et n’en découvre aucun. Une publication et ses médias sont des déclarations publiques à vérifier; ils ne sont ni un événement de prix ni un facteur de calcul.
 5. Les rendements postérieurs sont des comparaisons temporelles quand les observations existent. Ils ne mesurent pas un effet causal.
 6. Les trajectoires sont calculées par le backend à partir des rendements historiques du même titre et de chocs explicitement saisis. Les quantiles de chaque jalon sont marginaux; les courbes ne constituent pas des trajectoires conjointes, des probabilités ou des prévisions.
-7. L’Assistant reçoit uniquement la sélection et les résultats disponibles lors du relais. Il peut expliquer, demander une précision et préparer des tâches liées aux modules; il ne prétend pas exécuter une action que l’API ne prend pas en charge.
+7. Depuis le chat, l’Assistant peut lire le même historique de prix et événements du jeu Simulation, puis exécuter le calcul de trajectoires avec des chocs explicitement fournis. Chaque résultat conserve source, méthode, date d’arrêt et limites, avec un lien vers le ticker dans Simulation. Les recherches GDELT, Federal Register, EDGAR et X restent accessibles dans le module; l’Assistant ne prétend pas les avoir consultées sans outil qui le fasse.
 
 ## Recette réutilisable pour ajouter un scénario de démonstration
 
