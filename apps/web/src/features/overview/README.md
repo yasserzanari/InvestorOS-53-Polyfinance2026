@@ -1,6 +1,6 @@
 # Dashboard InvestorOS
 
-`DashboardPage` est la vue d’accueil de `/app`. Elle présente l’état des modules, les étapes suivantes et un accès au chat; l’envoi d’une question ouvre le chat avec une transition. Le panneau de contexte reste visible pendant la conversation.
+`DashboardPage` est la vue d’accueil de `/app`. Elle présente l’état des modules, les étapes suivantes et un accès au chat; l’envoi d’une question ouvre le chat avec une transition. Le panneau de contexte reste visible pendant la conversation. Les panneaux de l’aperçu gardent une hauteur adaptée à leur contenu.
 
 ## Données et limites
 
@@ -8,7 +8,7 @@ Cette vue ne branche pas encore de données de portefeuille ni de service d’an
 
 ## Saisie
 
-`DashboardPrompt` réutilise le composant `AdvancedChatInput` archivé depuis le skill `frontui`. Le bouton micro utilise l’API de reconnaissance vocale du navigateur si elle existe et affiche un message si elle n’est pas disponible. Le message utilisateur est affiché dans le chat; aucune réponse d’agent n’est fabriquée en attendant le branchement du backend.
+`DashboardPrompt` réutilise le composant `AdvancedChatInput` archivé depuis le skill `frontui`. La vue d’accueil masque son bouton d’envoi; Entrée envoie la question et Maj+Entrée ajoute une ligne. Le bouton Suggestions ouvre des questions qui se recalculent selon la saisie et l’état réel de l’aperçu API (profil, positions et analyses disponibles). Les sélectionner préremplit le prompt sans l’envoyer. Le bouton micro utilise l’API de reconnaissance vocale du navigateur si elle existe et affiche un message si elle n’est pas disponible. Le message utilisateur est affiché dans le chat; aucune réponse d’agent n’est fabriquée en attendant le branchement du backend.
 
 ## Graphiques et bookmarks component library
 

@@ -24,7 +24,8 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+  grid-template-rows: auto auto auto;
   gap: 14px;
 }
 
@@ -258,7 +259,7 @@
 .next-action-copy strong { overflow: hidden; color: #3a4b63; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .next-action-copy small { overflow: hidden; color: #7c8a9d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
-.dashboard-prompt-wrap { min-width: 0; }
+.dashboard-prompt-wrap { position: relative; min-width: 0; }
 .dashboard-prompt {
   max-width: none !important;
   gap: 4px !important;
@@ -267,8 +268,55 @@
   border-radius: 14px !important;
   background: var(--surface) !important;
   box-shadow: 0 6px 20px rgba(25, 47, 74, .07) !important;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease !important;
 }
-.dashboard-prompt:focus-within { border-color: #9fb9e1 !important; }
+.dashboard-prompt:focus-within { border-color: #9fb9e1 !important; box-shadow: 0 9px 26px rgba(44, 94, 181, .12) !important; transform: translateY(-1px); }
+.dashboard-prompt > div:last-child > div:first-child { width: 100%; flex: 1; }
+.dashboard-prompt-suggestions {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: min(620px, 100%);
+  max-height: min(330px, calc(100dvh - 150px));
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(210, 222, 238, .94);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 16px 42px rgba(32, 55, 91, .15), 0 3px 10px rgba(32, 55, 91, .05);
+  backdrop-filter: blur(16px);
+}
+.dashboard-suggestions-heading,
+.dashboard-suggestions-heading > span { display: flex; align-items: center; }
+.dashboard-suggestions-heading { justify-content: space-between; gap: 12px; padding: 2px 5px 8px; }
+.dashboard-suggestions-heading > span { gap: 7px; color: #465970; font-size: 11px; font-weight: 650; }
+.dashboard-suggestions-heading svg { color: #7385a2; }
+.dashboard-suggestions-heading > button { border: 0; background: transparent; color: #8793a4; font: inherit; font-size: 10px; cursor: pointer; }
+.dashboard-suggestions-heading > button:hover { color: #405d91; }
+.dashboard-suggestion-list { display: grid; gap: 4px; }
+.dashboard-suggestion-option {
+  display: flex;
+  min-height: 39px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #f7f9fc;
+  color: #3e5069;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+.dashboard-suggestion-option:hover { transform: translateX(2px); border-color: #dce6f4; background: #f0f5fc; }
+.dashboard-suggestion-option > svg { flex: 0 0 auto; color: #8192aa; }
+.dashboard-suggestion-option:focus-visible,
+.dashboard-suggestions-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .dashboard-prompt-textarea {
   min-height: 42px !important;
   max-height: 92px;
@@ -278,7 +326,27 @@
   line-height: 1.45 !important;
 }
 .dashboard-prompt-textarea::placeholder { color: #8997aa !important; }
-.dashboard-prompt-send { width: 38px !important; height: 38px !important; border-radius: 11px !important; }
+.dashboard-suggestions-toggle {
+  display: inline-flex;
+  min-height: 31px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #60748e;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 620;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+.dashboard-suggestions-toggle:hover,
+.dashboard-suggestions-toggle.is-open { border-color: #dce6f3; background: #f4f7fb; color: #365b98; }
+.dashboard-suggestions-toggle > svg:last-child { transition: transform .18s ease; }
+.dashboard-suggestions-toggle.is-open > svg:last-child { transform: rotate(180deg); }
+.dashboard-prompt-enter-hint { margin-left: auto; padding-right: 4px; color: #8995a6; font-size: 10px; white-space: nowrap; }
 .dashboard-microphone {
   display: grid;
   width: 38px;
@@ -420,7 +488,9 @@
   .next-action-copy small { font-size: 9px; }
   .dashboard-prompt { padding: 7px 9px !important; }
   .dashboard-prompt-textarea { min-height: 38px !important; font-size: 13px !important; }
-  .dashboard-microphone, .dashboard-prompt-send { width: 34px !important; height: 34px !important; }
+  .dashboard-microphone { width: 34px !important; height: 34px !important; }
+  .dashboard-suggestions-toggle { min-height: 29px; padding-inline: 6px; font-size: 10px; }
+  .dashboard-prompt-enter-hint { font-size: 9px; }
   .dashboard-prompt-note { font-size: 10px; }
   .dashboard-conversation { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 8px; }
   .chat-main-panel { padding: 11px; gap: 8px; }
@@ -442,5 +512,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .dashboard-status-card, .dashboard-primary-action, .dashboard-secondary-action,
-  .dashboard-module-card, .dashboard-microphone { transition: none; }
+  .dashboard-module-card, .dashboard-microphone, .dashboard-prompt,
+  .dashboard-suggestion-option, .dashboard-suggestions-toggle { transition: none !important; }
 }
