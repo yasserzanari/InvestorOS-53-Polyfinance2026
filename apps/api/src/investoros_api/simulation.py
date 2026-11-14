@@ -476,7 +476,7 @@ def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
                 "title": title.strip()[:400],
                 "url": url,
                 "domain": str(item.get("domain") or "Source externe")[:200],
-                "publishedAt": published_at,
+                "indexedAt": published_at,
             }
             # GDELT may return the article's social-sharing image. It can be an
             # outlet logo or an unrelated preview, so keep it optional and

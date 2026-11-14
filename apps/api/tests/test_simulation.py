@@ -228,7 +228,7 @@ class SimulationHistoryTests(unittest.TestCase):
 
         self.assertTrue(result["available"])
         self.assertEqual(len(result["articles"]), 2)
-        self.assertEqual(result["articles"][0]["publishedAt"], "2025-11-14T15:30:00+00:00")
+        self.assertEqual(result["articles"][0]["indexedAt"], "2025-11-14T15:30:00+00:00")
         self.assertEqual(result["articles"][0]["imageUrl"], "https://cdn.news.example/story-preview.jpg")
         self.assertNotIn("imageUrl", result["articles"][1])
         self.assertIn("secondaire", result["source"])

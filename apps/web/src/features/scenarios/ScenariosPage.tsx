@@ -101,13 +101,20 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
   }) ?? [];
   const futureArea = futureLow !== undefined && futureHigh !== undefined ? `M1000 ${currentY} L1080 ${yFor(futureHigh)} L1080 ${yFor(futureLow)} Z` : '';
   const futureMedianPath = futureMedian !== undefined ? `M1000 ${currentY} L1080 ${yFor(futureMedian)}` : '';
-  const shownEvents = data.events.filter((event) => event.date >= (visible[0]?.date ?? '') && event.date <= (visible.at(-1)?.date ?? ''));
-  const shownRegulations = regulations.filter((event) => event.publishedAt >= (visible[0]?.date ?? '') && event.publishedAt <= (visible.at(-1)?.date ?? ''));
-  const shownFilings = filings.filter((event) => event.filedAt >= (visible[0]?.date ?? '') && event.filedAt <= (visible.at(-1)?.date ?? ''));
-  const shownMarkerCount = shownEvents.length + shownRegulations.length + shownFilings.length;
+  const firstVisibleDate = visible[0]?.date ?? '';
+  const lastVisibleDate = visible.at(-1)?.date ?? '';
+  const shownEvents = data.events.filter((event) => event.date >= firstVisibleDate && event.date <= lastVisibleDate);
+  const shownRegulations = regulations.filter((event) => event.publishedAt >= firstVisibleDate && event.publishedAt <= lastVisibleDate);
+  const shownFilings = filings.filter((event) => event.filedAt >= firstVisibleDate && event.filedAt <= lastVisibleDate);
+  const shownNews = (news?.articles ?? []).filter((article) => {
+    const indexedDate = article.indexedAt.slice(0, 10);
+    return indexedDate >= firstVisibleDate && indexedDate <= lastVisibleDate;
+  });
+  const shownMarkerCount = shownEvents.length + shownRegulations.length + shownFilings.length + shownNews.length;
   const selected = data.events.find((event) => event.id === selectedId);
   const selectedRegulation = regulations.find((event) => `reg:${event.id}` === selectedId);
   const selectedFiling = filings.find((event) => `sec:${event.id}` === selectedId);
+  const selectedNews = news?.articles.find((article) => `news:${article.id}` === selectedId);
   const eventPosition = (eventDate: string) => {
     const index = xy.findIndex((point) => point.date >= eventDate);
     return index < 0 ? undefined : xy[index];
@@ -122,7 +129,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
             {RANGE_OPTIONS.map((years) => <button type="button" key={years} aria-pressed={range === years} onClick={() => setRange(years)}>{years} an{years > 1 ? 's' : ''}</button>)}
           </div>
         </div>
-        <div className="simulation-chart-legend"><span><i /> Prix ajusté, base 100 au début de la période</span><span><b /> Événement d’entreprise</span><span><strong className="simulation-regulation-marker-key" /> Federal Register</span><span><em /> Référence historique</span><span><strong className="simulation-filing-marker-key" /> Dépôt SEC</span><span className="simulation-currency">{data.currency}</span></div>
+        <div className="simulation-chart-legend"><span><i /> Prix ajusté, base 100 au début de la période</span><span><b /> Événement d’entreprise</span><span><strong className="simulation-regulation-marker-key" /> Federal Register</span><span><strong className="simulation-news-marker-key" /> Index GDELT</span><span><em /> Référence historique</span><span><strong className="simulation-filing-marker-key" /> Dépôt SEC</span><span className="simulation-currency">{data.currency}</span></div>
         <div className="simulation-chart-plot" role="group" aria-label={`Historique de ${data.asset.name}, repères d’événements sélectionnables`}>
           <div className="simulation-y-labels"><span>{high.toFixed(0)}</span><span>{((high + low) / 2).toFixed(0)}</span><span>{low.toFixed(0)}</span></div>
           <svg viewBox="0 0 1100 320" preserveAspectRatio="none" role="group" aria-label="Cours observés, repères d’événements et trajectoires conditionnelles">
@@ -153,6 +160,12 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
             const point = eventPosition(filing.filedAt);
             if (!point) return null;
             return <button key={filing.id} type="button" className={`simulation-event-marker is-filing${selectedId === `sec:${filing.id}` ? ' is-selected' : ''}`} style={{ left: `${point.x / 11}%`, top: `${point.y / 3.2}%` }} aria-label={`Dépôt SEC ${filing.form}, ${filing.title}, déposé le ${dateLabel(filing.filedAt)}. Afficher le contexte`} aria-pressed={selectedId === `sec:${filing.id}`} onClick={() => onSelect(`sec:${filing.id}`)}><span /></button>;
+          })}
+          {shownNews.map((article) => {
+            const indexedDate = article.indexedAt.slice(0, 10);
+            const point = eventPosition(indexedDate);
+            if (!point) return null;
+            return <button key={article.id} type="button" className={`simulation-event-marker is-news${selectedId === `news:${article.id}` ? ' is-selected' : ''}`} style={{ left: `${point.x / 11}%`, top: `${point.y / 3.2}%` }} aria-label={`Article de couverture secondaire, indexé le ${dateLabel(indexedDate)} : ${article.title}. Afficher le contexte`} aria-pressed={selectedId === `news:${article.id}`} onClick={() => onSelect(`news:${article.id}`)}><span /></button>;
           })}
           {!normalized.length && <span className="simulation-chart-empty">Aucun cours sur cette période</span>}
         </div>
@@ -210,6 +223,20 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
             <small>Les rendements ne sont affichés que si le jeu de prix contient des clôtures postérieures au dépôt. Une coïncidence temporelle ne prouve pas un effet du dépôt.</small>
             <a className="simulation-event-source" href={selectedFiling.url} target="_blank" rel="noreferrer">Ouvrir la déclaration SEC <ExternalLink size={11} /></a>
           </article>
+        ) : selectedNews ? (
+          <article className="simulation-selected-event is-regulation-card is-news-card">
+            <div className="simulation-event-title"><span>Index de couverture secondaire</span><time>{new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(selectedNews.indexedAt))}</time></div>
+            <div className="simulation-news-selected-heading"><NewsThumbnail article={selectedNews} /><h3>{selectedNews.title}</h3></div>
+            <small>{selectedNews.domain} · date de repérage dans GDELT, pas nécessairement l’heure de publication de l’article.</small>
+            <div className="simulation-return-grid">
+              {[[1, '1 séance'], [5, '5 séances'], [20, '20 séances']].map(([key, label]) => {
+                const value = returnsAfterDate(data, selectedNews.indexedAt.slice(0, 10))[String(key) as '1'|'5'|'20'];
+                return <div key={key}><span>{label}</span><strong>{pctLabel(value)}</strong></div>;
+              })}
+            </div>
+            <small>Ce sont des rendements observés après la date de repérage, sans attribution à cet article. GDELT est un index secondaire; vérifier le contenu de la source originale.</small>
+            <a className="simulation-event-source" href={selectedNews.url} target="_blank" rel="noreferrer">Ouvrir l’article source <ExternalLink size={11} /></a>
+          </article>
         ) : (
           <div className="simulation-event-empty"><CalendarDays size={20} /><strong>Sélectionnez un repère du graphique</strong><span>Rendements ajustés après la première clôture disponible à la date ex ou après.</span></div>
         )}
@@ -229,7 +256,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
         </div>
         <div className="simulation-regulation-list simulation-news-list">
           <div className="simulation-regulation-heading"><strong><Newspaper size={12} /> Couverture récente</strong><span>{news?.articles.length ?? '…'}</span></div>
-          {news?.articles.map((article) => <a key={article.id} href={article.url} target="_blank" rel="noopener noreferrer"><NewsThumbnail article={article} /><span><strong>{article.title}</strong><small>{article.domain} · indexé le {new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(article.publishedAt))}</small></span><ExternalLink size={11} /></a>)}
+          {news?.articles.map((article) => <a key={article.id} className={selectedId === `news:${article.id}` ? 'is-selected' : undefined} href={article.url} target="_blank" rel="noopener noreferrer" onClick={() => onSelect(`news:${article.id}`)}><NewsThumbnail article={article} /><span><strong>{article.title}</strong><small>{article.domain} · indexé le {new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(article.indexedAt))}</small></span><ExternalLink size={11} /></a>)}
           {news && !news.articles.length && <p className="simulation-filings-status">{news.available ? 'Aucun article récent trouvé.' : news.reason}</p>}
           {news?.articles.some((article) => article.imageUrl) && <p className="simulation-filings-status">Vignettes de partage fournies avec les articles : elles peuvent montrer un logo et ne vérifient pas le contenu de l’image.</p>}
           {news?.limitations?.[0] && <p className="simulation-filings-status">{news.limitations[0]}</p>}
@@ -366,7 +393,19 @@ export function ScenariosPage() {
   const selected = useMemo(() => history?.events.find((event) => event.id === selectedId), [history, selectedId]);
   const selectedRegulation = useMemo(() => regulations?.documents.find((event) => `reg:${event.id}` === selectedId), [regulations, selectedId]);
   const selectedFiling = useMemo(() => filings?.filings.find((event) => `sec:${event.id}` === selectedId), [filings, selectedId]);
-  const selectedEventLabel = selected ? `${eventNames[selected.kind] ?? selected.kind} du ${dateLabel(selected.date)}` : selectedRegulation ? `${selectedRegulation.type} du ${dateLabel(selectedRegulation.publishedAt)}` : selectedFiling ? `${selectedFiling.form} déposé le ${dateLabel(selectedFiling.filedAt)}` : '';
+  const selectedNews = news?.articles.find((article) => `news:${article.id}` === selectedId);
+  const selectedEventLabel = selected ? `${eventNames[selected.kind] ?? selected.kind} du ${dateLabel(selected.date)}` : selectedRegulation ? `${selectedRegulation.type} du ${dateLabel(selectedRegulation.publishedAt)}` : selectedFiling ? `${selectedFiling.form} déposé le ${dateLabel(selectedFiling.filedAt)}` : selectedNews ? `Couverture : ${selectedNews.title.slice(0, 100)} (indexée le ${dateLabel(selectedNews.indexedAt.slice(0, 10))})` : '';
+  const assistantPrompt = selected
+    ? `Analyse l’événement ${selected.kind} du ${selected.date} sur ${history?.asset.name} (${ticker}). Les rendements historiques calculés sont : une séance ${pctLabel(selected.observedReturnsPct['1observations'])}, cinq séances ${pctLabel(selected.observedReturnsPct['5observations'])}, vingt séances ${pctLabel(selected.observedReturnsPct['20observations'])}. Explique ce qu’ils mesurent, distingue corrélation et causalité, et indique ce qu’il faudrait comme sources supplémentaires avant d’en déduire une réaction à un événement futur.`
+    : selectedRegulation
+      ? `Évalue prudemment la pertinence possible du document réglementaire « ${selectedRegulation.title} », publié le ${selectedRegulation.publishedAt} par ${selectedRegulation.agencies.join(', ') || 'une agence fédérale'}, pour ${history?.asset.name} (${ticker}). La source primaire est ${selectedRegulation.url}. Les rendements ajustés observés après publication sont ${pctLabel(returnsAfterDate(history!, selectedRegulation.publishedAt)['1'])} à une séance, ${pctLabel(returnsAfterDate(history!, selectedRegulation.publishedAt)['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history!, selectedRegulation.publishedAt)['20'])} à vingt séances. Distingue le texte officiel, l’applicabilité à cette entreprise, la coïncidence et la causalité; n’infère pas une exposition qui n’est pas établie.`
+      : selectedFiling
+        ? `Examine le dépôt ${selectedFiling.form} « ${selectedFiling.title} » de ${history?.asset.name} (${ticker}), déposé le ${selectedFiling.filedAt}. Source EDGAR : ${selectedFiling.url}. Les rendements ajustés mesurables après dépôt sont ${pctLabel(returnsAfterDate(history!, selectedFiling.filedAt)['1'])} à une séance, ${pctLabel(returnsAfterDate(history!, selectedFiling.filedAt)['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history!, selectedFiling.filedAt)['20'])} à vingt séances. Si ces valeurs sont indisponibles, explique que le paquet s’arrête avant le dépôt. Distingue le contenu du document de toute causalité boursière.`
+        : selectedNews
+          ? `Examine prudemment l’article « ${selectedNews.title} » de ${selectedNews.domain} (${selectedNews.url}), repéré par GDELT le ${selectedNews.indexedAt}. Il s’agit d’une date d’indexation, pas nécessairement de l’heure de publication. Pour ${history?.asset.name} (${ticker}), les rendements après cette date sont ${pctLabel(returnsAfterDate(history!, selectedNews.indexedAt.slice(0, 10))['1'])} à une séance, ${pctLabel(returnsAfterDate(history!, selectedNews.indexedAt.slice(0, 10))['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history!, selectedNews.indexedAt.slice(0, 10))['20'])} à vingt séances. Résume ce que l’article affirme, cherche des sources primaires de corroboration et ne présente pas ces rendements comme une réaction à l’article.`
+          : projection
+            ? `Explique ces trajectoires conditionnelles calculées pour ${history?.asset.name} (${ticker}), au cours de départ ${projection.startingPrice} ${projection.currency} au ${projection.asOf}: ${projection.branches.map((branch) => `${branch.title}: ${branch.event}, choc ${branch.shockPct} %, médiane de fin ${branch.path.at(-1)?.medianPrice}`).join('; ')}. Méthode : ${projection.method} Limites : ${projection.limitations.join(' ')}`
+            : `Explique les limites de l’analyse historique de ${history?.asset.name} (${ticker}) et les sources nécessaires pour étudier un événement de marché.`;
 
   const calculateScenarios = async () => {
     if (!ticker || branches.some((branch) => !branch.event.trim() || branch.shockPct.trim() === '' || !Number.isFinite(Number(branch.shockPct)) || branch.eventAfterObservations > horizon)) {
@@ -413,7 +452,7 @@ export function ScenariosPage() {
             {projection && <div className="simulation-projection-results"><div className="simulation-projection-heading"><strong>Trajectoires calculées</strong><span>Point de départ : {projection.startingPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency} · {dateLabel(projection.asOf)}</span></div><div className="simulation-projection-grid">{projection.branches.map((branch, index) => { const end = branch.path.at(-1); return <article key={branch.id} className={selectedBranchId === branch.id ? 'is-selected' : undefined} style={{ borderTopColor: ['#4779d0', '#3c897b', '#a77a45', '#8e6ca7'][index % 4] }}><strong>{branch.title}</strong><p>{branch.event} · choc {pctLabel(branch.shockPct)} après {branch.eventAfterObservations} séances</p><div><span>Bas historique <b>{end?.lowerPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span><span>Médiane <b>{end?.medianPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span><span>Haut historique <b>{end?.upperPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span></div><button type="button" aria-pressed={selectedBranchId === branch.id} onClick={() => setSelectedBranchId(branch.id)}>Afficher cette trajectoire dans le graphique</button></article>; })}</div><p className="simulation-projection-method">{projection.method} {projection.limitations.join(' ')}</p><p className="simulation-projection-method">Source historique : {projection.source}. Données arrêtées au {dateLabel(projection.asOf)}.</p></div>}
           </section>
           <div className="simulation-method-note"><ShieldCheck size={15} /><span><strong>Méthode et limites.</strong> {history.method} {history.limitations.join(' ')} {regulations?.legalStatus}</span>{regulations?.sourceUrl && <a href={regulations.sourceUrl} target="_blank" rel="noreferrer">Documentation de l’API réglementaire ↗</a>}<Link to="/app/evidence">Sources et méthode</Link></div>
-          <Link className="simulation-assistant-link" to="/app/assistant" state={{ initialPrompt: selected ? `Analyse l’événement ${selected.kind} du ${selected.date} sur ${history.asset.name} (${history.asset.ticker}). Les rendements historiques calculés sont : une séance ${pctLabel(selected.observedReturnsPct['1observations'])}, cinq séances ${pctLabel(selected.observedReturnsPct['5observations'])}, vingt séances ${pctLabel(selected.observedReturnsPct['20observations'])}. Explique ce qu’ils mesurent, distingue corrélation et causalité, et indique ce qu’il faudrait comme sources supplémentaires avant d’en déduire une réaction à un événement futur.` : selectedRegulation ? `Évalue prudemment la pertinence possible du document réglementaire « ${selectedRegulation.title} », publié le ${selectedRegulation.publishedAt} par ${selectedRegulation.agencies.join(', ') || 'une agence fédérale'}, pour ${history.asset.name} (${history.asset.ticker}). La source primaire est ${selectedRegulation.url}. Les rendements ajustés observés après publication sont ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['1'])} à une séance, ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['20'])} à vingt séances. Distingue le texte officiel, l’applicabilité à cette entreprise, la coïncidence et la causalité; n’infère pas une exposition qui n’est pas établie.` : selectedFiling ? `Examine le dépôt ${selectedFiling.form} « ${selectedFiling.title} » de ${history.asset.name} (${history.asset.ticker}), déposé le ${selectedFiling.filedAt}. Source EDGAR : ${selectedFiling.url}. Les rendements ajustés mesurables après dépôt sont ${pctLabel(returnsAfterDate(history, selectedFiling.filedAt)['1'])} à une séance, ${pctLabel(returnsAfterDate(history, selectedFiling.filedAt)['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history, selectedFiling.filedAt)['20'])} à vingt séances. Si ces valeurs sont indisponibles, explique que le paquet s’arrête avant le dépôt. Distingue le contenu du document de toute causalité boursière.` : projection ? `Explique ces trajectoires conditionnelles calculées pour ${history.asset.name} (${history.asset.ticker}), au cours de départ ${projection.startingPrice} ${projection.currency} au ${projection.asOf}: ${projection.branches.map((branch) => `${branch.title}: ${branch.event}, choc ${branch.shockPct} %, médiane de fin ${branch.path.at(-1)?.medianPrice}`).join('; ')}. Méthode : ${projection.method} Limites : ${projection.limitations.join(' ')}` : `Explique les limites de l’analyse historique de ${history.asset.name} (${history.asset.ticker}) et les sources nécessaires pour étudier un événement de marché.` }}>Discuter de cette analyse avec l’Assistant →</Link>
+          <Link className="simulation-assistant-link" to="/app/assistant" state={{ initialPrompt: assistantPrompt }}>Discuter de cette analyse avec l’Assistant →</Link>
         </>
       ) : null}
       {!loading && !error && assetList && !history ? <div className="simulation-state" role="status"><LoaderCircle size={17} className="simulation-spinner" />Chargement de {ticker}…</div> : null}
