@@ -1,0 +1,10 @@
+{
+  "name": "investoros",
+  "private": true,
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "dev": "npm run dev -w @investoros/web",
+    "build": "npm run build -w @investoros/web",
+    "typecheck": "npm run typecheck -w @investoros/web"
+  }
+}

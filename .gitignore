@@ -1,12 +1,38 @@
-# Documentation de travail gardée localement
+# Documentation and supplied research files stay local
 /docs/
 
-# Dépendances et environnements locaux
+# JavaScript
 node_modules/
+apps/web/dist/
+.npm/
+
+# Python
 .venv/
 venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local configuration and secrets
 .env
 .env.*
 !.env.example
-__pycache__/
-*.py[cod]
+.aws/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+*.tfvars
+!*.example.tfvars
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+
+# TypeScript
+*.tsbuildinfo

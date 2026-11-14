@@ -1,0 +1,21 @@
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; }
+body { background: radial-gradient(ellipse at 75% 30%, #182641 0, var(--canvas) 52%); color: var(--text); }
+a { color: inherit; text-decoration: none; }
+.app-frame { min-height: 100dvh; display: flex; flex-direction: column; padding: 28px clamp(20px, 5vw, 80px) 20px; }
+.app-header { display: flex; align-items: center; justify-content: space-between; height: 48px; }
+.wordmark { font-size: 18px; font-weight: 700; letter-spacing: -.04em; }
+.environment-label, .app-footer { color: var(--muted); font-size: 12px; }
+.welcome-panel { flex: 1; min-height: 440px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .8fr); align-items: center; margin: 7vh auto; width: min(1080px, 100%); padding: clamp(32px, 7vw, 88px); overflow: hidden; border: 1px solid var(--line); border-radius: 28px; background: linear-gradient(145deg, var(--surface), rgba(12, 18, 31, .5)); box-shadow: 0 32px 100px #03050b80; }
+.welcome-copy { max-width: 620px; position: relative; z-index: 1; }
+.eyebrow { color: var(--accent); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+h1 { max-width: 570px; margin: 20px 0; font-size: clamp(42px, 6.2vw, 76px); line-height: .99; letter-spacing: -.065em; }
+.welcome-description { max-width: 510px; color: #c5cee0; font-size: clamp(16px, 1.7vw, 19px); line-height: 1.65; }
+.connection-state { margin-top: 34px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.orbit { width: min(30vw, 330px); aspect-ratio: 1; justify-self: center; position: relative; border: 1px solid #83d9d044; border-radius: 50%; box-shadow: 0 0 80px #83d9d018, inset 0 0 80px #83d9d010; }
+.orbit::before, .orbit::after { content: ""; position: absolute; inset: 15%; border: 1px solid #83d9d03d; border-radius: 50%; transform: rotate(55deg) scaleX(.55); }
+.orbit::after { transform: rotate(-55deg) scaleX(.55); }
+.orbit span { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 20px var(--accent); }
+.orbit span:nth-child(1) { top: 16%; left: 22%; }.orbit span:nth-child(2) { right: 12%; top: 49%; }.orbit span:nth-child(3) { left: 47%; bottom: 8%; }
+.app-footer { width: min(1080px, 100%); margin: 0 auto; }
+@media (max-width: 700px) { .app-frame { padding: 18px; }.welcome-panel { grid-template-columns: 1fr; margin: 5vh auto; padding: 32px 24px; }.orbit { width: 180px; margin: 32px 0 0; } }
