@@ -1,0 +1,73 @@
+.portfolio-chart-theme {
+  --chart-surface: var(--surface, #fff);
+  --chart-border: var(--line, #dce4ee);
+  --chart-ink: var(--text, #16243b);
+  --chart-muted: var(--muted, #69778e);
+  color: #69778e;
+}
+.portfolio-chart-theme svg:focus-visible,
+.portfolio-chart-theme button:focus-visible,
+.portfolio-chart-theme summary:focus-visible {
+  outline: 2px solid #356ce0;
+  outline-offset: 3px;
+}
+.portfolio-chart-ranges {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #e4eaf0;
+  border-radius: 8px;
+  background: #f5f7fa;
+}
+.portfolio-chart-ranges button {
+  min-width: 34px;
+  min-height: 29px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #62728a;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.portfolio-chart-ranges button[aria-pressed="true"] {
+  background: white;
+  color: #223954;
+  box-shadow: 0 1px 3px #13283d1a;
+}
+.portfolio-chart-ranges button:hover { color: #1f4e9e; }
+.portfolio-chart-state {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 20px;
+  color: #69778e;
+  text-align: center;
+  font-size: 13px;
+}
+.portfolio-chart-state strong { color: #16243b; font-size: 15px; }
+.portfolio-chart-state button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #dce4ee;
+  border-radius: 8px;
+  background: white;
+  color: #356ce0;
+  cursor: pointer;
+}
+.portfolio-chart-data-table { margin-top: 6px; border-top: 1px solid #e9edf3; color: #50627b; font-size: 12px; }
+.portfolio-chart-data-table summary { width: fit-content; padding: 9px 0; color: #356ce0; cursor: pointer; }
+.portfolio-chart-table-scroll { max-height: 260px; overflow: auto; border: 1px solid #e5eaf0; border-radius: 8px; }
+.portfolio-chart-data-table table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+.portfolio-chart-data-table caption { padding: 9px 10px; color: #586a82; text-align: left; }
+.portfolio-chart-data-table th,
+.portfolio-chart-data-table td { padding: 7px 10px; border-top: 1px solid #edf0f4; white-space: nowrap; }
+.portfolio-chart-data-table th { color: #34455e; font-weight: 620; }
+@keyframes spectrum-mc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spectrum-mc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-chart-theme *, .portfolio-chart-theme *::before, .portfolio-chart-theme *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

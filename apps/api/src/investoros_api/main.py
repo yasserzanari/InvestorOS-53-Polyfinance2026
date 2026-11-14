@@ -5,8 +5,10 @@ from typing import Any
 import boto3
 from fastapi import FastAPI, HTTPException
 from mangum import Mangum
+from investoros_api.profiles.router import router as profiles_router
 
 app = FastAPI(title="InvestorOS API", version="0.1.0")
+app.include_router(profiles_router)
 _dynamodb = None
 
 

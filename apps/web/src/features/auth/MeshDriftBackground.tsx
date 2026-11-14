@@ -5,7 +5,7 @@ attribute vec2 a_position;
 void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
 `;
 
-// Mesh drift — supplied 21st.dev Shader Builder source. Keep shader math and
+// Mesh drift — supplied component library Shader Builder source. Keep shader math and
 // packed uniforms aligned with the user's specification.
 const fragmentShader = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { productModules } from '../app/modules';
+import { demoAccounts, useDemoAccount } from './DemoAccountContext';
 import './app-shell.css';
 
 const groups = ['Décider', 'Explorer'] as const;
@@ -9,6 +10,7 @@ const groups = ['Décider', 'Explorer'] as const;
 export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
+  const { activeAccount, setActiveAccountId } = useDemoAccount();
 
   useEffect(() => setDrawerOpen(false), [location.pathname]);
   useEffect(() => {
@@ -37,7 +39,7 @@ export function AppShell() {
           <span className="sidebar-logo-crop"><img src="/brand/investoros-logo.png" alt="" /></span>
           <span className="sidebar-brand-copy"><strong>InvestorOS</strong><small>Polyfinance 2026</small></span>
         </Link>
-        <div className="sidebar-workspace"><span className="workspace-avatar">P</span><span className="workspace-copy"><strong>Polyfinance</strong><small>Espace de travail</small></span><ChevronDown size={15} aria-hidden="true" /></div>
+        <div className="sidebar-workspace"><span className="workspace-avatar">P</span><span className="workspace-copy"><strong>Polyfinance</strong><small>Espace de travail</small></span></div>
         <nav className="sidebar-navigation" aria-label="Modules">
           {groups.map((group) => (
             <section className="sidebar-group" key={group} aria-label={group}>
@@ -70,10 +72,16 @@ export function AppShell() {
       </aside>
       <div className="workspace-main">
         <header className="workspace-topbar">
-          <div className="topbar-context"><span>InvestorOS</span><span className="context-slash">/</span><strong>{productModules.find((module) => module.href === location.pathname)?.shortLabel ?? 'Espace'}</strong></div>
-          <div className="topbar-actions"><span className="topbar-simulation">Espace de démonstration</span><Link to="/" className="topbar-public-link">Site public</Link></div>
+          <div className="topbar-context"><span>InvestorOS</span><span className="context-slash">/</span><strong>{location.pathname === '/app/profiles' ? 'Profil investisseur' : productModules.find((module) => module.href === location.pathname)?.shortLabel ?? 'Espace'}</strong></div>
+          <div className="topbar-actions">
+            <label className="account-switcher-label" htmlFor="active-demo-account">Compte</label>
+            <select id="active-demo-account" className="account-switcher" value={activeAccount.id} onChange={(event) => setActiveAccountId(event.target.value)} aria-label="Compte de démonstration actif">
+              {demoAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+            <span className="topbar-simulation">Espace de démonstration</span><Link to="/" className="topbar-public-link">Site public</Link>
+          </div>
         </header>
-        <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}`}><Outlet /></main>
+        <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}${location.pathname === '/app/profiles' ? ' is-profiles-content' : ''}`}><Outlet /></main>
       </div>
     </div>
   );

@@ -37,8 +37,8 @@ interface ResponsiveHeroBannerProps {
 const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
     onNavigate,
     className = "",
-    logoUrl = "https://cdn.21st.dev/assets/mirror/c4/c4d5f159140e3ccc35a8bd4f043453cb9e2692f700206e43855ff598c171b924.png",
-    backgroundImageUrl = "https://cdn.21st.dev/assets/mirror/a8/a8cf38f65f7315f95eba8c803c4a80a9d78cb2ea36fbfee49828396e4a0b9737.jpg",
+    logoUrl = "/brand/investoros-logo.png",
+    backgroundImageUrl = "/landing/hero-future-landscape.png",
     navLinks = [
         { label: "Home", href: "#", isActive: true },
         { label: "Missions", href: "#" },

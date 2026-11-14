@@ -13,16 +13,21 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
-      proxy: apiTarget
-        ? {
+      host: '0.0.0.0',
+      proxy: {
+        '/profile-api': {
+          target: 'http://127.0.0.1:8010',
+          rewrite: (path) => path.replace(/^\/profile-api/, ''),
+        },
+        ...(apiTarget ? {
             '/api': {
               target: apiTarget,
               changeOrigin: true,
               secure: true,
               rewrite: (path) => path.replace(/^\/api/, ''),
             },
-          }
-        : undefined,
+          } : {}),
+      },
     },
   };
 });
