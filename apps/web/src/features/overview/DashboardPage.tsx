@@ -65,6 +65,13 @@ export function ModuleLanding({ moduleId }: { moduleId: string }) {
       <h1>{module.label}</h1>
       <p>{module.description}</p>
       <div className="module-placeholder-note">Cet espace est prêt à accueillir son flux de travail. Les données et actions apparaîtront ici lorsqu’elles seront reliées à une source réelle.</div>
+      <Link
+        className="text-action"
+        to="/app/assistant"
+        state={{ initialPrompt: `Aide-moi à préparer le travail dans le module « ${module.label} ». Commence par résumer ce que ce module permet réellement aujourd’hui, les informations manquantes et les prochaines étapes. Ne prétends pas avoir exécuté une action qui n’est pas disponible.` }}
+      >
+        Organiser ce travail avec l’Assistant <ArrowRight size={15} />
+      </Link>
       <Link className="text-action" to="/app">Retour à la vue d’ensemble <ArrowRight size={15} /></Link>
     </section>
   );

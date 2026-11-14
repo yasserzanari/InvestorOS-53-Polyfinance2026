@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Database, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Database, ExternalLink, GitBranch, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { loadSimulationAssets, loadSimulationHistory, loadSimulationRegulations, type SimulationAssetList, type SimulationHistory, type SimulationRegulation, type SimulationRegulations } from '../../shared/api';
+import { loadSimulationAssets, loadSimulationFilings, loadSimulationHistory, loadSimulationRegulations, runSimulationProjection, type ScenarioBranchInput, type SimulationAssetList, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationProjection, type SimulationRegulation, type SimulationRegulations } from '../../shared/api';
 import './scenarios.css';
 
 type Range = 1 | 3 | 5;
@@ -29,7 +29,7 @@ function returnsAfterDate(data: SimulationHistory, eventDate: string) {
   })) as Record<'1'|'5'|'20', number|null>;
 }
 
-function HistoricalChart({ data, regulations = [], selectedId, onSelect }: { data: SimulationHistory; regulations?: SimulationRegulation[]; selectedId?: string; onSelect: (id: string) => void }) {
+function HistoricalChart({ data, regulations = [], filings = [], filingsMessage, projection, selectedId, onSelect }: { data: SimulationHistory; regulations?: SimulationRegulation[]; filings?: SimulationFiling[]; filingsMessage?: string; projection?: SimulationProjection; selectedId?: string; onSelect: (id: string) => void }) {
   const [range, setRange] = useState<Range>(3);
   const [horizon, setHorizon] = useState<Horizon>(60);
   const cutoff = new Date();
@@ -46,8 +46,9 @@ function HistoricalChart({ data, regulations = [], selectedId, onSelect }: { dat
   const futureMedian = medianReturn === undefined ? undefined : currentIndex * (1 + medianReturn);
   const futureHigh = upperReturn === undefined ? undefined : currentIndex * (1 + upperReturn);
   const values = normalized.map((point) => point.value);
-  const min = Math.min(...values, 100, futureLow ?? Infinity);
-  const max = Math.max(...values, 100, futureHigh ?? -Infinity);
+  const projectedValues = projection?.branches.flatMap((branch) => branch.path.flatMap((point) => [point.lowerPrice, point.medianPrice, point.upperPrice].map((price) => price / projection.startingPrice * currentIndex))) ?? [];
+  const min = Math.min(...values, 100, futureLow ?? Infinity, ...projectedValues);
+  const max = Math.max(...values, 100, futureHigh ?? -Infinity, ...projectedValues);
   const padding = Math.max((max - min) * .12, 2);
   const low = min - padding;
   const high = max + padding;
@@ -59,12 +60,28 @@ function HistoricalChart({ data, regulations = [], selectedId, onSelect }: { dat
   }));
   const path = xy.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
   const currentY = xy.at(-1)?.y ?? yFor(100);
+  const scenarioPaths = projection?.branches.map((branch, branchIndex) => {
+    const points = branch.path.map((point) => ({
+      x: 1000 + point.observations / projection.horizonObservations * 100,
+      low: yFor(point.lowerPrice / projection.startingPrice * currentIndex),
+      median: yFor(point.medianPrice / projection.startingPrice * currentIndex),
+      high: yFor(point.upperPrice / projection.startingPrice * currentIndex),
+    }));
+    return {
+      id: branch.id,
+      title: branch.title,
+      color: ['#4779d0', '#3c897b', '#a77a45', '#8e6ca7'][branchIndex % 4],
+      median: `M1000 ${currentY} ${points.map((point) => `L${point.x.toFixed(1)} ${point.median.toFixed(1)}`).join(' ')}`,
+      band: `M1000 ${currentY} L${points.map((point) => `${point.x.toFixed(1)} ${point.high.toFixed(1)}`).join(' L')} L${points.slice().reverse().map((point) => `${point.x.toFixed(1)} ${point.low.toFixed(1)}`).join(' L')} Z`,
+    };
+  }) ?? [];
   const futureArea = futureLow !== undefined && futureHigh !== undefined ? `M1000 ${currentY} L1080 ${yFor(futureHigh)} L1080 ${yFor(futureLow)} Z` : '';
   const futureMedianPath = futureMedian !== undefined ? `M1000 ${currentY} L1080 ${yFor(futureMedian)}` : '';
   const shownEvents = data.events.filter((event) => event.date >= (visible[0]?.date ?? '') && event.date <= (visible.at(-1)?.date ?? ''));
   const shownRegulations = regulations.filter((event) => event.publishedAt >= (visible[0]?.date ?? '') && event.publishedAt <= (visible.at(-1)?.date ?? ''));
   const selected = data.events.find((event) => event.id === selectedId);
   const selectedRegulation = regulations.find((event) => `reg:${event.id}` === selectedId);
+  const selectedFiling = filings.find((event) => `sec:${event.id}` === selectedId);
   const eventPosition = (eventDate: string) => {
     const index = xy.findIndex((point) => point.date >= eventDate);
     return index < 0 ? undefined : xy[index];
@@ -90,6 +107,7 @@ function HistoricalChart({ data, regulations = [], selectedId, onSelect }: { dat
             <path d={path} className="simulation-chart-line" />
             {futureArea && <path d={futureArea} className="simulation-future-band" />}
             {futureMedianPath && <path d={futureMedianPath} className="simulation-future-median" />}
+            {scenarioPaths.map((scenario) => <g key={scenario.id}><path d={scenario.band} fill={scenario.color} fillOpacity=".08" /><path d={scenario.median} fill="none" stroke={scenario.color} strokeWidth="1.8" strokeDasharray="5 3" vectorEffect="non-scaling-stroke" /></g>)}
           </svg>
           {shownEvents.map((event) => {
             const point = eventPosition(event.date);
@@ -143,6 +161,20 @@ function HistoricalChart({ data, regulations = [], selectedId, onSelect }: { dat
             {selectedRegulation.url.startsWith('https://www.federalregister.gov/') && <a className="simulation-event-source" href={selectedRegulation.url} target="_blank" rel="noreferrer">Ouvrir le document Federal Register ↗</a>}
             {selectedRegulation.officialPdfUrl?.startsWith('https://www.govinfo.gov/') && <a className="simulation-event-source" href={selectedRegulation.officialPdfUrl} target="_blank" rel="noreferrer">PDF de l’édition officielle ↗</a>}
           </article>
+        ) : selectedFiling ? (
+          <article className="simulation-selected-event is-regulation-card">
+            <div className="simulation-event-title"><span>Déclaration SEC · {selectedFiling.form}</span><time>{dateLabel(selectedFiling.filedAt)}</time></div>
+            <h3>{selectedFiling.title}</h3>
+            <small>Déposée le {dateLabel(selectedFiling.filedAt)}{selectedFiling.reportedAt ? ` · période déclarée ${selectedFiling.reportedAt}` : ''}</small>
+            <div className="simulation-return-grid">
+              {[[1, '1 séance'], [5, '5 séances'], [20, '20 séances']].map(([key, label]) => {
+                const value = returnsAfterDate(data, selectedFiling.filedAt)[String(key) as '1'|'5'|'20'];
+                return <div key={key}><span>{label}</span><strong>{pctLabel(value)}</strong></div>;
+              })}
+            </div>
+            <small>Les rendements ne sont affichés que si le jeu de prix contient des clôtures postérieures au dépôt. Une coïncidence temporelle ne prouve pas un effet du dépôt.</small>
+            <a className="simulation-event-source" href={selectedFiling.url} target="_blank" rel="noreferrer">Ouvrir la déclaration SEC <ExternalLink size={11} /></a>
+          </article>
         ) : (
           <div className="simulation-event-empty"><CalendarDays size={20} /><strong>Sélectionnez un repère du graphique</strong><span>Rendements ajustés après la première clôture disponible à la date ex ou après.</span></div>
         )}
@@ -154,6 +186,11 @@ function HistoricalChart({ data, regulations = [], selectedId, onSelect }: { dat
           <div className="simulation-regulation-heading"><strong>Réglementation récente</strong><span>{shownRegulations.length}</span></div>
           {shownRegulations.slice(0, 8).map((event) => <button type="button" key={event.id} aria-pressed={selectedId === `reg:${event.id}`} onClick={() => onSelect(`reg:${event.id}`)}><span className="simulation-regulation-icon"><CalendarDays size={12} /></span><span><strong>{event.title}</strong><small>{dateLabel(event.publishedAt)} · {event.agencies[0] ?? event.type}</small></span></button>)}
         </div>}
+        <div className="simulation-regulation-list">
+          <div className="simulation-regulation-heading"><strong>Déclarations de l’émetteur</strong><span>{filings.length}</span></div>
+          {filings.slice(0, 8).map((filing) => <button type="button" key={filing.id} aria-pressed={selectedId === `sec:${filing.id}`} onClick={() => onSelect(`sec:${filing.id}`)}><span className="simulation-regulation-icon"><Database size={12} /></span><span><strong>{filing.form} · {filing.title}</strong><small>{dateLabel(filing.filedAt)}{filing.reportedAt ? ` · exercice ${filing.reportedAt}` : ''}</small></span></button>)}
+          {!filings.length && <p className="simulation-filings-status">{filingsMessage ?? 'Aucune déclaration disponible.'}</p>}
+        </div>
       </aside>
     </>
   );
@@ -164,6 +201,17 @@ export function ScenariosPage() {
   const [ticker, setTicker] = useState('');
   const [history, setHistory] = useState<SimulationHistory>();
   const [regulations, setRegulations] = useState<SimulationRegulations>();
+  const [filings, setFilings] = useState<SimulationFilings>();
+  const [filingsMessage, setFilingsMessage] = useState('');
+  const [horizon, setHorizon] = useState<Horizon>(60);
+  const [branches, setBranches] = useState([
+    { id: 'branch-down', title: 'Hypothèse basse', event: '', shockPct: '', eventAfterObservations: 10 },
+    { id: 'branch-mid', title: 'Hypothèse intermédiaire', event: '', shockPct: '', eventAfterObservations: 10 },
+    { id: 'branch-up', title: 'Hypothèse haute', event: '', shockPct: '', eventAfterObservations: 10 },
+  ]);
+  const [projection, setProjection] = useState<SimulationProjection>();
+  const [projectionBusy, setProjectionBusy] = useState(false);
+  const [projectionError, setProjectionError] = useState('');
   const [regulationTopic, setRegulationTopic] = useState('tariff');
   const [regulationError, setRegulationError] = useState('');
   const [selectedId, setSelectedId] = useState<string>();
@@ -194,8 +242,23 @@ export function ScenariosPage() {
   useEffect(() => {
     if (!ticker) return;
     const controller = new AbortController();
+    setFilings(undefined);
+    setFilingsMessage('Chargement des déclarations SEC…');
+    loadSimulationFilings(ticker, controller.signal).then((result) => {
+      setFilings(result);
+      setFilingsMessage(result.available ? '' : result.reason ?? 'Déclarations non configurées.');
+    }).catch((cause) => {
+      if (!controller.signal.aborted) setFilingsMessage(cause instanceof Error ? cause.message : 'Les déclarations SEC sont indisponibles.');
+    });
+    return () => controller.abort();
+  }, [ticker]);
+
+  useEffect(() => {
+    if (!ticker) return;
+    const controller = new AbortController();
     setHistory(undefined);
     setSelectedId(undefined);
+    setProjection(undefined);
     setError('');
     setLoading(true);
     loadSimulationHistory(ticker, controller.signal).then(setHistory).catch((cause) => {
@@ -206,6 +269,26 @@ export function ScenariosPage() {
 
   const selected = useMemo(() => history?.events.find((event) => event.id === selectedId), [history, selectedId]);
   const selectedRegulation = useMemo(() => regulations?.documents.find((event) => `reg:${event.id}` === selectedId), [regulations, selectedId]);
+  const selectedFiling = useMemo(() => filings?.filings.find((event) => `sec:${event.id}` === selectedId), [filings, selectedId]);
+  const selectedEventLabel = selected ? `${eventNames[selected.kind] ?? selected.kind} du ${dateLabel(selected.date)}` : selectedRegulation ? `${selectedRegulation.type} du ${dateLabel(selectedRegulation.publishedAt)}` : selectedFiling ? `${selectedFiling.form} déposé le ${dateLabel(selectedFiling.filedAt)}` : '';
+
+  const calculateScenarios = async () => {
+    if (!ticker || branches.some((branch) => !branch.event.trim() || branch.shockPct.trim() === '' || !Number.isFinite(Number(branch.shockPct)) || branch.eventAfterObservations > horizon)) {
+      setProjectionError('Ajoutez un événement, un choc explicite et un jalon valide pour chaque hypothèse.');
+      return;
+    }
+    const input: ScenarioBranchInput[] = branches.map((branch) => ({ ...branch, shockPct: Number(branch.shockPct) }));
+    setProjectionBusy(true);
+    setProjectionError('');
+    try {
+      setProjection(await runSimulationProjection({ ticker, horizonObservations: horizon, branches: input }));
+    } catch (cause) {
+      setProjectionError(cause instanceof Error ? cause.message : 'Le calcul conditionnel est indisponible.');
+      setProjection(undefined);
+    } finally {
+      setProjectionBusy(false);
+    }
+  };
 
   return (
     <section className="simulation-page" aria-labelledby="simulation-title">
@@ -221,9 +304,17 @@ export function ScenariosPage() {
         <>
           <div className="simulation-source-note"><ShieldCheck size={16} /><span><strong>{history.source}</strong> · extraction au {dateLabel(history.sourceAsOf)} · {history.prices.length.toLocaleString('fr-CA')} observations · devise {history.currency}</span><span className="simulation-source-badge"><Database size={13} /> Données historiques</span></div>
           <div className="simulation-regulation-toolbar"><span><CalendarDays size={14} /> Filtrer les actes réglementaires</span><div role="group" aria-label="Thème de recherche réglementaire">{[['tariff','Tarifs'],['supply-chain','Chaîne logistique'],['export-controls','Contrôles export'],['energy','Énergie']].map(([id,label])=><button type="button" key={id} aria-pressed={regulationTopic===id} onClick={()=>setRegulationTopic(id)}>{label}</button>)}</div>{regulationError&&<small role="status">{regulationError}</small>}</div>
-          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} selectedId={selectedId} onSelect={setSelectedId} /></div>
+          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} projection={projection} selectedId={selectedId} onSelect={setSelectedId} /></div>
+          <section className="simulation-scenario-builder" aria-labelledby="scenario-builder-title">
+            <div className="simulation-scenario-heading"><span className="simulation-panel-icon"><GitBranch size={16} /></span><div><span className="simulation-eyebrow">HYPOTHÈSES EXPLICITES</span><h2 id="scenario-builder-title">Construire des trajectoires conditionnelles</h2><p>Choisissez les événements et les chocs à comparer. Aucun choc n’est estimé par le modèle.</p></div><label><span>Horizon</span><select value={horizon} onChange={(event) => setHorizon(Number(event.target.value) as Horizon)}>{HORIZONS.map((value) => <option key={value} value={value}>{value} séances</option>)}</select></label></div>
+            {selectedEventLabel && <div className="simulation-use-event"><span>Événement sélectionné : <strong>{selectedEventLabel}</strong></span><button type="button" onClick={() => setBranches((current) => current.map((branch) => ({ ...branch, event: selectedEventLabel })))}>Utiliser dans les hypothèses</button></div>}
+            <div className="simulation-branch-grid">{branches.map((branch, index) => <div className="simulation-branch" key={branch.id}><span className="simulation-branch-title"><i style={{ background: ['#4779d0', '#3c897b', '#a77a45'][index] }} />{branch.title}</span><label><span>Événement ou condition</span><input value={branch.event} maxLength={160} placeholder="Ex. hausse des taux de 1 point" onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, event: event.target.value } : item))} /></label><div className="simulation-branch-inputs"><label><span>Choc (%)</span><input type="number" min={-80} max={100} step="0.1" value={branch.shockPct} placeholder="ex. −10" onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, shockPct: event.target.value } : item))} /></label><label><span>Après (séances)</span><input type="number" min={0} max={horizon} step={1} value={branch.eventAfterObservations} onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, eventAfterObservations: Number(event.target.value) } : item))} /></label></div></div>)}</div>
+            <div className="simulation-scenario-actions"><p>Comparaison aux fenêtres de rendements historiques de {ticker}, au {dateLabel(history.sourceAsOf)}. Les branches ne sont ni une prévision ni des probabilités.</p><button type="button" disabled={projectionBusy} onClick={() => void calculateScenarios()}>{projectionBusy ? <LoaderCircle size={14} className="simulation-spinner" /> : <GitBranch size={14} />}{projectionBusy ? 'Calcul en cours…' : 'Calculer les trajectoires'}</button></div>
+            {projectionError && <p className="simulation-form-error" role="alert">{projectionError}</p>}
+            {projection && <div className="simulation-projection-results"><div className="simulation-projection-heading"><strong>Trajectoires calculées</strong><span>Point de départ : {projection.startingPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency} · {dateLabel(projection.asOf)}</span></div><div className="simulation-projection-grid">{projection.branches.map((branch, index) => { const end = branch.path.at(-1); return <article key={branch.id} style={{ borderTopColor: ['#4779d0', '#3c897b', '#a77a45', '#8e6ca7'][index % 4] }}><strong>{branch.title}</strong><p>{branch.event} · choc {pctLabel(branch.shockPct)} après {branch.eventAfterObservations} séances</p><div><span>Bas historique <b>{end?.lowerPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span><span>Médiane <b>{end?.medianPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span><span>Haut historique <b>{end?.upperPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span></div></article>; })}</div><p className="simulation-projection-method">{projection.method} {projection.limitations.join(' ')}</p><p className="simulation-projection-method">Source historique : {projection.source}. Données arrêtées au {dateLabel(projection.asOf)}.</p></div>}
+          </section>
           <div className="simulation-method-note"><ShieldCheck size={15} /><span><strong>Méthode et limites.</strong> {history.method} {history.limitations.join(' ')} {regulations?.legalStatus}</span>{regulations?.sourceUrl && <a href={regulations.sourceUrl} target="_blank" rel="noreferrer">Documentation de l’API réglementaire ↗</a>}<Link to="/app/evidence">Sources et méthode</Link></div>
-          <Link className="simulation-assistant-link" to="/app/assistant" state={{ initialPrompt: selected ? `Analyse l’événement ${selected.kind} du ${selected.date} sur ${history.asset.name} (${history.asset.ticker}). Les rendements historiques calculés sont : une séance ${pctLabel(selected.observedReturnsPct['1observations'])}, cinq séances ${pctLabel(selected.observedReturnsPct['5observations'])}, vingt séances ${pctLabel(selected.observedReturnsPct['20observations'])}. Explique ce qu’ils mesurent, distingue corrélation et causalité, et indique ce qu’il faudrait comme sources supplémentaires avant d’en déduire une réaction à un événement futur.` : selectedRegulation ? `Évalue prudemment la pertinence possible du document réglementaire « ${selectedRegulation.title} », publié le ${selectedRegulation.publishedAt} par ${selectedRegulation.agencies.join(', ') || 'une agence fédérale'}, pour ${history.asset.name} (${history.asset.ticker}). La source primaire est ${selectedRegulation.url}. Les rendements ajustés observés après publication sont ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['1'])} à une séance, ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['20'])} à vingt séances. Distingue le texte officiel, l’applicabilité à cette entreprise, la coïncidence et la causalité; n’infère pas une exposition qui n’est pas établie.` : `Explique les limites de l’analyse historique de ${history.asset.name} (${history.asset.ticker}) et les sources nécessaires pour étudier un événement de marché.` }}>Discuter de cette analyse avec l’Assistant →</Link>
+          <Link className="simulation-assistant-link" to="/app/assistant" state={{ initialPrompt: selected ? `Analyse l’événement ${selected.kind} du ${selected.date} sur ${history.asset.name} (${history.asset.ticker}). Les rendements historiques calculés sont : une séance ${pctLabel(selected.observedReturnsPct['1observations'])}, cinq séances ${pctLabel(selected.observedReturnsPct['5observations'])}, vingt séances ${pctLabel(selected.observedReturnsPct['20observations'])}. Explique ce qu’ils mesurent, distingue corrélation et causalité, et indique ce qu’il faudrait comme sources supplémentaires avant d’en déduire une réaction à un événement futur.` : selectedRegulation ? `Évalue prudemment la pertinence possible du document réglementaire « ${selectedRegulation.title} », publié le ${selectedRegulation.publishedAt} par ${selectedRegulation.agencies.join(', ') || 'une agence fédérale'}, pour ${history.asset.name} (${history.asset.ticker}). La source primaire est ${selectedRegulation.url}. Les rendements ajustés observés après publication sont ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['1'])} à une séance, ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history, selectedRegulation.publishedAt)['20'])} à vingt séances. Distingue le texte officiel, l’applicabilité à cette entreprise, la coïncidence et la causalité; n’infère pas une exposition qui n’est pas établie.` : selectedFiling ? `Examine le dépôt ${selectedFiling.form} « ${selectedFiling.title} » de ${history.asset.name} (${history.asset.ticker}), déposé le ${selectedFiling.filedAt}. Source EDGAR : ${selectedFiling.url}. Les rendements ajustés mesurables après dépôt sont ${pctLabel(returnsAfterDate(history, selectedFiling.filedAt)['1'])} à une séance, ${pctLabel(returnsAfterDate(history, selectedFiling.filedAt)['5'])} à cinq séances et ${pctLabel(returnsAfterDate(history, selectedFiling.filedAt)['20'])} à vingt séances. Si ces valeurs sont indisponibles, explique que le paquet s’arrête avant le dépôt. Distingue le contenu du document de toute causalité boursière.` : projection ? `Explique ces trajectoires conditionnelles calculées pour ${history.asset.name} (${history.asset.ticker}), au cours de départ ${projection.startingPrice} ${projection.currency} au ${projection.asOf}: ${projection.branches.map((branch) => `${branch.title}: ${branch.event}, choc ${branch.shockPct} %, médiane de fin ${branch.path.at(-1)?.medianPrice}`).join('; ')}. Méthode : ${projection.method} Limites : ${projection.limitations.join(' ')}` : `Explique les limites de l’analyse historique de ${history.asset.name} (${history.asset.ticker}) et les sources nécessaires pour étudier un événement de marché.` }}>Discuter de cette analyse avec l’Assistant →</Link>
         </>
       ) : null}
       {!loading && !error && assetList && !history ? <div className="simulation-state" role="status"><LoaderCircle size={17} className="simulation-spinner" />Chargement de {ticker}…</div> : null}

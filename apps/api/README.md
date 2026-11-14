@@ -39,6 +39,9 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/demo/overview` | Lecture du contexte fictif DynamoDB |
 | GET | `/v1/simulation/assets` | Univers historique configuré et ses limites |
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
+| GET | `/v1/simulation/regulations?topic=...` | Documents Federal Register récents avec dates et liens officiels associés |
+| GET | `/v1/simulation/filings/{ticker}` | Déclarations EDGAR de l’émetteur; nécessite `SEC_USER_AGENT` côté serveur |
+| POST | `/v1/simulation/scenarios` | Quantiles de rendements historiques et chocs conditionnels saisis par l’utilisateur |
 | GET | `/v1/profiles/status` | Configuration déclarée du modèle Bedrock (ne vérifie pas les permissions) |
 | GET | `/v1/profiles/sources/{source_id}` | Notes de méthode exactes du catalogue produit |
 | POST | `/v1/profiles/chat` | Conversation en flux NDJSON, outils contrôlés et résultats visibles |
@@ -72,6 +75,22 @@ réglementaires; leur présence ne prouve pas leur application à un émetteur n
 leur effet sur son cours. Le site avertit que sa représentation XML est
 informative; vérifier l’édition officielle liée avant une lecture juridique.
 
+`GET /v1/simulation/filings/{ticker}` résout le CIK depuis le catalogue SEC et
+lit les métadonnées de dépôts EDGAR (8-K, 10-K, 10-Q et formulaires étrangers
+équivalents). Configurer un entête `SEC_USER_AGENT` qui identifie l’application
+et un contact maintenu par l’exploitant; les requêtes sont limitées et mises en
+cache côté API. Les heures et dates déposées sont des dates de document, pas des
+mesures de causalité. Les rendements postérieurs restent absents lorsque le jeu
+de prix finit avant le dépôt.
+
+`POST /v1/simulation/scenarios` accepte un ticker configuré, un horizon de 20,
+60 ou 120 séances et deux à quatre branches. Chaque branche exige un texte de
+condition, un choc chiffré explicitement fourni (−80 % à +100 %) et son jalon.
+L’API compare ces hypothèses aux fenêtres historiques du titre. Les quantiles
+par jalon sont marginaux et ne forment pas des chemins historiques individuels;
+la réponse inclut la date source, la méthode et les limites. Ce calcul n’est ni
+une prévision, ni une probabilité de scénario, ni une recommandation.
+
 Les publications de sociétés et les publications sociales ne sont pas encore
 connectées à ces routes. Il faut les ingérer avec leur source primaire, heure de
 publication, lien direct et méthode de vérification d’identité. L’API X demande
@@ -80,4 +99,4 @@ appeler X directement ni afficher des publications simulées.
 
 ## Ce qui n’est pas encore branché
 
-La conversation de profil utilise le SDK Bedrock côté serveur lorsqu’un modèle est configuré; son statut de configuration ne prouve pas que l’invocation réussira. L’outil `analyze_demo_portfolio` lit le portefeuille fictif fixe configuré pour le déploiement et calcule les pondérations/concentration de manière déterministe. Simulation calcule désormais des trajectoires historiques et réactions datées pour les événements présents dans le paquet configuré; elle ne calcule pas encore de trajectoires futures ni de recherche de nouvelles en direct. Il n’existe pas encore Step Functions, RAG/Knowledge Base, recherche externe, authentification utilisateur ou accès financier. Seuls les statuts émis par les opérations réellement appelées peuvent être présentés comme des exécutions réelles.
+La conversation partagée entre le profil et la page Assistant utilise le SDK Bedrock côté serveur lorsqu’un modèle est configuré; son statut de configuration ne prouve pas que l’invocation réussira. L’outil `analyze_demo_portfolio` lit le portefeuille fictif fixe configuré pour le déploiement et calcule les pondérations/concentration de manière déterministe. Les outils de conversation peuvent gérer le profil et les onglets partagés, consulter des spécialistes Bedrock ou préparer des tâches avec des liens vers les modules. Un lien de relais n’exécute pas de mutation dans le module cible. Simulation produit des observations historiques et des trajectoires conditionnelles à partir d’hypothèses saisies; elle ne prédit pas les cours. Il n’existe pas encore Step Functions, RAG/Knowledge Base, recherche générale externe, authentification utilisateur ou accès financier. Seuls les statuts émis par les opérations réellement appelées peuvent être présentés comme des exécutions réelles.

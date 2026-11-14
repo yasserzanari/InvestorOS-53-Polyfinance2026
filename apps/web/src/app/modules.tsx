@@ -25,7 +25,7 @@ export type ProductModule = {
 // sidebar derives all navigation labels, icons, and paths from this list.
 export const productModules: ProductModule[] = [
   {
-    id: 'overview', label: 'Vue d’ensemble', shortLabel: 'Accueil', href: '/app',
+    id: 'overview', label: 'Vue d’ensemble', shortLabel: 'Dashboard', href: '/app',
     description: 'Reprendre votre travail et choisir la prochaine étape.', icon: ChartNoAxesCombined, group: 'Décider',
   },
   {
