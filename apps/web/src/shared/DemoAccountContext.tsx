@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
 export type DemoAccount = {
-  id: string;
+  id: 'amira' | 'mateo' | 'robert';
   name: string;
   initials: string;
   profileName: string;

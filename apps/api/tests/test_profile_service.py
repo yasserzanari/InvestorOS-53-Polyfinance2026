@@ -55,13 +55,13 @@ class ProfileServiceTests(unittest.TestCase):
         summary = {'positionCount': 4, 'largestPositionPct': 40, 'provenance': {'classification': 'fictional_fixture'}}
         analyze.return_value = summary
         runtime = RuntimeStub(stream_tool('analyze_demo_portfolio', {}))
-        events = list(run_chat(ChatRequest(message='Analyse la répartition de mon portefeuille'), runtime))
+        events = list(run_chat(ChatRequest(accountId='robert', message='Analyse la répartition de mon portefeuille'), runtime))
         tool_event = [event for event in events if event['type'] == 'tool' and event['name'] == 'analyze_demo_portfolio'][-1]
         self.assertEqual(tool_event['status'], 'done')
         self.assertEqual(tool_event['output'], summary)
         result = runtime.calls[1]['messages'][-1]['content'][0]['toolResult']
         self.assertEqual(result['content'][0]['json'], summary)
-        analyze.assert_called_once_with()
+        analyze.assert_called_once_with(persona='robert')
 
     @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
     def test_untrusted_tool_fields_are_rejected_without_mutating_profile(self):

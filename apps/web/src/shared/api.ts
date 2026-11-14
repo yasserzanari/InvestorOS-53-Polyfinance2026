@@ -1,6 +1,7 @@
 export type DemoOverview = {
   mode: 'demo';
   source: 'aws-dynamodb';
+  persona: 'amira' | 'mateo' | 'robert';
   account: {
     display_name: string;
     is_demo: true;
@@ -33,12 +34,12 @@ const getApiBase = (): string | null => {
   return base || null;
 };
 
-export async function loadDemoOverview(signal?: AbortSignal): Promise<DemoApiConnection> {
+export async function loadDemoOverview(persona: DemoOverview['persona'] = 'mateo', signal?: AbortSignal): Promise<DemoApiConnection> {
   const base = getApiBase();
   if (!base) return { status: 'not_configured' };
 
   try {
-    const response = await fetch(`${base}/v1/demo/overview`, {
+    const response = await fetch(`${base}/v1/demo/overview?persona=${encodeURIComponent(persona)}`, {
       headers: { Accept: 'application/json' },
       signal,
     });
@@ -46,7 +47,7 @@ export async function loadDemoOverview(signal?: AbortSignal): Promise<DemoApiCon
     if (!response.ok) return { status: 'unavailable' };
 
     const overview = (await response.json()) as DemoOverview;
-    if (overview.mode !== 'demo' || overview.source !== 'aws-dynamodb' || !overview.profile?.is_demo) {
+    if (overview.mode !== 'demo' || overview.source !== 'aws-dynamodb' || overview.persona !== persona || !overview.profile?.is_demo) {
       return { status: 'unavailable' };
     }
     return { status: 'connected', overview };

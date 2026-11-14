@@ -45,7 +45,7 @@ Après déploiement contrôlé de l’API, ajouter la variable de dépôt GitHub
 
 - Le rôle runtime Lambda est distinct du rôle CI GitHub OIDC. Sa confiance est limitée au service Lambda.
 - La policy runtime utilise les actions identifiées par analyse statique du code Boto3 (`dynamodb:GetItem`, `dynamodb:Query`, permission dépendante `dynamodb:ReadDataForReplication`) sur les seuls ARNs des quatre tables de cette stack. Les droits CloudWatch sont limités au groupe `/aws/lambda/investoros-dev-api` et ses streams (`logs:CreateLogStream`, `logs:PutLogEvents`). Cette policy runtime n’accorde aucun droit d’écriture DynamoDB.
-- L’API n’accepte pas d’ID de compte depuis le client; seule la fixture fictive configurée est lisible. CORS autorise le domaine CloudFront précis et `localhost:5173`.
+- L’API ne transforme jamais un identifiant fourni par le navigateur en clé DynamoDB. Elle accepte uniquement les personas connus (`amira`, `mateo`, `robert`), puis résout leurs clés fixes depuis `DEMO_CONTEXTS`, injecté par Terraform. Les trois comptes, profils et portefeuilles restent des fixtures fictives. CORS autorise le domaine CloudFront précis et `localhost:5173`.
 - API Gateway `$default` configure 5 requêtes/s et burst 10; Lambda a une concurrence réservée de 5. Une surcharge API Gateway produit `429`. Les seuils par analyse ne sont pas encore pertinents, car aucune route d’analyse n’existe.
 - Le groupe de logs Lambda conserve 14 jours. Deux alarmes CloudWatch couvrent erreurs et throttles. Elles ne notifient personne sans destination SNS/action ajoutée.
 - DynamoDB est à la demande, chiffré avec la clé AWS owned par défaut, PITR activé et protection contre suppression activée. Il n’y a pas de données d’un compte réel.
@@ -64,7 +64,7 @@ L’analyse automatique du plan (`iam-policy-autopilot`) est utile pour repérer
 | --- | --- |
 | Frontend CloudFront/S3 et workflow GitHub | Déployé avant cette tranche; inventaire confirmé |
 | API FastAPI `/health` et `/v1/demo/overview` | Code prêt, non déployé |
-| Tables DynamoDB et fixture fictive | Code Terraform prêt, non déployées |
+| Tables DynamoDB et trois fixtures fictives | Code Terraform prêt, non déployées |
 | Limites API/Lambda, logs et alarmes | Code Terraform prêt, non déployés |
 | Frontend configuré à une URL API | Code prêt; `VITE_API_BASE_URL` reste à configurer après l’API |
 | Simulations déterministes | À construire ensuite, avant les appels aux agents |
