@@ -1,5 +1,5 @@
 """Allowlisted model tools; schemas are sent directly to Bedrock Converse."""
-from .models import PROFILE_FIELDS, WorkspaceTab
+from .models import AskUserInput, PROFILE_FIELDS, WorkspaceTab
 
 def spec(name: str, description: str, properties: dict, required: list[str]) -> dict:
     return {'toolSpec': {'name': name, 'description': description, 'inputSchema': {'json': {
@@ -19,3 +19,9 @@ TOOLS = [
 ]
 # Pydantic's nested $refs need their definitions included in the JSON root.
 TOOLS[1]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_schema().get('$defs', {})
+
+ASK_USER_SCHEMA = AskUserInput.model_json_schema()
+TOOLS.append(spec('ask_user',
+    'Poser une à trois questions interactives adaptées aux informations manquantes. Choisir single_choice pour une réponse exclusive, multiple_choice pour plusieurs besoins/préférences, text pour une explication personnelle. Fournir des choix neutres, sans réponse présélectionnée, et permettre la réponse libre si utile. Cet outil suspend le tour en attendant les réponses réelles de l’utilisateur.',
+    ASK_USER_SCHEMA['properties'], ['title', 'questions']))
+TOOLS[-1]['toolSpec']['inputSchema']['json']['$defs'] = ASK_USER_SCHEMA.get('$defs', {})

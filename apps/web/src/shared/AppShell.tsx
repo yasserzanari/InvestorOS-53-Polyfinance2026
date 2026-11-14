@@ -39,7 +39,6 @@ export function AppShell() {
           <span className="sidebar-logo-crop"><img src="/brand/investoros-logo.png" alt="" /></span>
           <span className="sidebar-brand-copy"><strong>InvestorOS</strong><small>Polyfinance 2026</small></span>
         </Link>
-        <div className="sidebar-workspace"><span className="workspace-avatar">P</span><span className="workspace-copy"><strong>Polyfinance</strong><small>Espace de travail</small></span></div>
         <nav className="sidebar-navigation" aria-label="Modules">
           {groups.map((group) => (
             <section className="sidebar-group" key={group} aria-label={group}>
@@ -81,7 +80,7 @@ export function AppShell() {
             <span className="topbar-simulation">Espace de démonstration</span><Link to="/" className="topbar-public-link">Site public</Link>
           </div>
         </header>
-        <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}${location.pathname === '/app/profiles' ? ' is-profiles-content' : ''}`}><Outlet /></main>
+        <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}${['/app/profiles','/app/assistant'].includes(location.pathname) ? ' is-profiles-content' : ''}`}><Outlet /></main>
       </div>
     </div>
   );
