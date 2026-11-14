@@ -26,5 +26,7 @@
   --color-accent: #e9f4f5;
   --color-accent-foreground: #123f52;
   --color-border: #dce4ee;
+  --color-input: #dce4ee;
+  --color-ring: #356ce0;
   --radius: 0.75rem;
 }

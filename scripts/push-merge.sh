@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo 'Usage: ./scripts/push-merge.sh "commit message"' >&2
+  echo 'Usage: stage the intended files, then run ./scripts/push-merge.sh "commit message"' >&2
   exit 2
 }
 
@@ -21,8 +21,8 @@ gh auth status >/dev/null
 git fetch origin main
 
 if [[ "$branch" == 'main' ]]; then
-  if [[ -z "$(git status --porcelain)" ]]; then
-    echo 'Error: no local changes to publish from main.' >&2
+  if git diff --cached --quiet; then
+    echo 'Error: stage the intended changes before publishing.' >&2
     exit 1
   fi
 
@@ -31,11 +31,12 @@ if [[ "$branch" == 'main' ]]; then
   git switch -c "$branch"
 fi
 
-git add -A
 git diff --cached --check
-if ! git diff --cached --quiet; then
-  git commit -m "$commit_message"
+if git diff --cached --quiet; then
+  echo 'Error: nothing is staged; stage only the changes for this PR.' >&2
+  exit 1
 fi
+git commit -m "$commit_message"
 
 ahead=$(git rev-list --count origin/main..HEAD)
 if [[ "$ahead" == '0' ]]; then
