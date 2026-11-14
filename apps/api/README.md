@@ -57,9 +57,10 @@ Le backend lit les fichiers `assets_universe.csv`, `prices_daily.csv` et
 par défaut pointe vers le paquet local ignoré sous
 `docs/prep/sources/Datathon2026/alphaforge_starter`. `scripts/build-api.sh` inclut
 ces trois fichiers dans `investoros_api/data` dans l’archive Lambda et échoue
-explicitement si le paquet source manque. Le sous-ensemble utilisé (environ 4,3 Mo)
-est empaqueté depuis les fichiers présents localement; aucun CSV n’est versionné
-dans Git. `SIMULATION_DATA_DIR` permet de remplacer ce chemin en développement ou
+explicitement si le paquet source manque. Les trois fichiers inclus totalisent
+environ 3,3 Mo.
+Ils sont empaquetés depuis les fichiers présents localement; aucun CSV n’est
+versionné dans Git. `SIMULATION_DATA_DIR` permet de remplacer ce chemin en développement ou
 au déploiement. Sans le jeu requis, les routes de Simulation répondent clairement
 `503` plutôt que de produire des valeurs fictives.
 
