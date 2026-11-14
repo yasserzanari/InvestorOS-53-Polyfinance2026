@@ -33,10 +33,15 @@ fi
 
 git diff --cached --check
 if git diff --cached --quiet; then
-  echo 'Error: nothing is staged; stage only the changes for this PR.' >&2
-  exit 1
+  ahead=$(git rev-list --count origin/main..HEAD)
+  if [[ "$ahead" == '0' ]]; then
+    echo 'Error: nothing is staged and this branch has no commits ahead of origin/main.' >&2
+    exit 1
+  fi
+  echo "Resuming existing branch with $ahead commit(s) ahead of origin/main."
+else
+  git commit -m "$commit_message"
 fi
-git commit -m "$commit_message"
 
 ahead=$(git rev-list --count origin/main..HEAD)
 if [[ "$ahead" == '0' ]]; then
