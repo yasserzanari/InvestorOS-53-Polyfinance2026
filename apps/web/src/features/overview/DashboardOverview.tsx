@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
 import {
   ArrowRight, BadgeAlert, BookOpenCheck, BriefcaseBusiness, ChartNoAxesCombined,
   CircleHelp, Compass, FileSearch, GitBranch, Layers3, ShieldCheck, UsersRound,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { productModules } from '../../app/modules';
-import { loadDemoOverview, type DemoApiConnection } from '../../shared/api';
+import type { DemoApiConnection } from '../../shared/api';
 
 const moduleIcons = {
   profiles: UsersRound,
@@ -29,15 +28,8 @@ const actionItems = [
   { title: 'Relier des sources', detail: 'Vérifier les données utilisées', href: '/app/evidence', label: 'Ouvrir les sources', Icon: ShieldCheck },
 ];
 
-export function DashboardOverview({ onStartChat }: { onStartChat: (question: string) => void }) {
+export function DashboardOverview({ api, onStartChat }: { api: DemoApiConnection; onStartChat: (question: string) => void }) {
   const modules = productModules.filter(({ id }) => id !== 'overview');
-  const [api, setApi] = useState<DemoApiConnection>({ status: 'not_configured' });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    loadDemoOverview(controller.signal).then(setApi).catch(() => undefined);
-    return () => controller.abort();
-  }, []);
 
   const apiMessage = api.status === 'connected'
     ? `API AWS connectée · ${api.overview.account.display_name} · source DynamoDB fictive`

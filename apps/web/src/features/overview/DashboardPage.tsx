@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -7,7 +7,9 @@ import { DashboardConversation } from './DashboardConversation';
 import { DashboardOverview } from './DashboardOverview';
 import { DashboardPrompt } from './DashboardPrompt';
 import type { ChatMessage } from './dashboard-types';
+import { getPromptSuggestions } from './prompt-suggestions';
 import { useSpeechInput } from './useSpeechInput';
+import { loadDemoOverview, type DemoApiConnection } from '../../shared/api';
 import './dashboard.css';
 
 export function DashboardPage() {
@@ -15,7 +17,14 @@ export function DashboardPage() {
   const [view, setView] = useState<'overview' | 'chat'>('overview');
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [api, setApi] = useState<DemoApiConnection>({ status: 'not_configured' });
   const { isListening, notice, toggle } = useSpeechInput();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadDemoOverview(controller.signal).then(setApi).catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   const sendPrompt = (initialQuestion?: string) => {
     const text = (initialQuestion ?? prompt).trim();
@@ -42,7 +51,7 @@ export function DashboardPage() {
             exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
             transition={{ duration: reduceMotion ? 0 : 0.2 }}
           >
-            <DashboardOverview onStartChat={(question) => sendPrompt(question)} />
+            <DashboardOverview api={api} onStartChat={(question) => sendPrompt(question)} />
             <DashboardPrompt
               value={prompt}
               onChange={setPrompt}
@@ -50,6 +59,7 @@ export function DashboardPage() {
               isListening={isListening}
               onToggleMic={() => toggle(prompt, setPrompt)}
               notice={notice}
+              suggestions={getPromptSuggestions(api, prompt)}
             />
           </motion.div>
         ) : (

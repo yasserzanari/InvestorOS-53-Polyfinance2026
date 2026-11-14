@@ -18,6 +18,7 @@ interface FileAttachment {
 interface AdvancedChatInputProps extends React.HTMLAttributes<HTMLDivElement> {
   textareaProps?: TextareaProps;
   sendButtonProps?: ButtonProps;
+  hideSendButton?: boolean;
   files?: FileAttachment[];
   onFileRemove?: (id: string | number) => void;
   onSend?: () => void;
@@ -30,6 +31,7 @@ const AdvancedChatInput = React.forwardRef<HTMLDivElement, AdvancedChatInputProp
       className,
       textareaProps,
       sendButtonProps,
+      hideSendButton = false,
       files = [],
       onFileRemove,
       onSend,
@@ -117,7 +119,7 @@ const AdvancedChatInput = React.forwardRef<HTMLDivElement, AdvancedChatInputProp
             ))}
           </div>
 
-          <motion.div
+          {!hideSendButton && <motion.div
             key={hasValue || hasFiles ? "active" : "inactive"}
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -134,7 +136,7 @@ const AdvancedChatInput = React.forwardRef<HTMLDivElement, AdvancedChatInputProp
               <CornerUpLeft className="h-4 w-4" />
               <span className="sr-only">Send</span>
             </Button>
-          </motion.div>
+          </motion.div>}
         </div>
       </div>
     );
