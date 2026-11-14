@@ -36,7 +36,7 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
     { label: 'Portefeuille', value: portfolioValue, note: connected ? `${api.overview.portfolio.positions.length} positions · données fictives AWS` : 'Ajoutez vos positions', Icon: BriefcaseBusiness, href: '/app/portfolios', tone: 'blue' },
     { label: 'Profil investisseur', value: profileValue, note: connected ? api.overview.profile.display_name : 'Définissez vos objectifs', Icon: UsersRound, href: '/app/profiles', tone: 'teal' },
     { label: 'Analyses', value: connected ? String(api.overview.analyses.length) : 'Aucune', note: connected ? 'Analyses enregistrées dans la démo' : 'Les résultats seront ici', Icon: ChartNoAxesCombined, href: '/app/analyses', tone: 'violet' },
-    { label: 'Sources', value: 'À relier', note: 'Aucune source vérifiée', Icon: BookOpenCheck, href: '/app/evidence', tone: 'amber' },
+    { label: 'Sources et méthode', value: 'Consulter', note: 'Provenance, disponibilité et limites', Icon: BookOpenCheck, href: '/app/evidence', tone: 'amber' },
   ];
 
   const apiMessage = api.status === 'connected'
