@@ -17,6 +17,25 @@ Le modèle local par défaut est `amazon.nova-pro-v1:0`, région `us-east-1`. Su
 - `tools.py` expose les outils autorisés au modèle; `sources.py` contient les notes réellement consultables.
 - Le routeur et le service Bedrock gèrent l’appel au modèle et publient les événements. Modifier le prompt et les outils côté API, pas dans le rendu React.
 
+## Assistant partagé
+
+L’entrée **Assistant** du menu latéral ouvre `/app/assistant`. Cette route et
+`/app/profiles` utilisent le composant de chat réutilisable
+`features/assistant/AssistantChatPanel.tsx`, le même workspace et le même transport Bedrock, les
+mêmes cartes de questions, activités, citations, tâches et onglets. Les messages,
+le profil et les onglets sont conservés par compte dans
+`investoros.workspace.v2.<accountId>`; l’onglet sélectionné est conservé à part
+pour que la navigation entre les deux routes garde le même contexte.
+
+Le compositeur du tableau de bord transmet aussi sa demande initiale à l’Assistant
+partagé. Ainsi, il n’existe qu’un historique de conversation et un seul chemin
+d’exécution pour les demandes qui commencent sur le tableau de bord ou dans
+l’espace de profil. Le contexte Bedrock inclut le catalogue des modules; pour une
+demande qui traverse plusieurs espaces, il peut construire un onglet Tâches avec
+des liens directs. Les opérations réelles restent bornées aux outils serveur
+disponibles; il ne doit pas annoncer comme faites les actions qu’aucun outil ne
+prend en charge.
+
 ## Contrat HTTP
 
 `POST /v1/profiles/chat` reçoit `{message, history, profile, tabs, accountId}`. `history` contient `{role, content}`, avec `role` limité à `user` ou `assistant`. Les comptes acceptés sont les personas fictifs Amira, Mateo et Robert. Les champs de profil autorisés sont `objective`, `horizon`, `riskTolerance`, `lossCapacity`, `liquidity`, `constraints`, `preferences`, `knowledge`.
@@ -105,3 +124,46 @@ de les ouvrir ou de demander une clarification à l’assistant. Elles n’affir
 pas qu’un profil est adapté ni exempt de toute contradiction. La fonction ne
 fait aucun appel AWS et reste testable indépendamment de la vue. Ajouter une
 règle ici, son cas de négation et un test dans `profile-consistency.test.mjs`.
+
+## Questions interactives (`ask_user`)
+
+L’assistant choisit le format selon le besoin : `single_choice`, `multiple_choice`
+ou `text`, avec une option de réponse libre lorsqu’elle est pertinente. Il émet
+`questions.request` avec un identifiant unique et une à trois questions. Le tour
+se termine avec `done.awaitingUser=true` : aucune réponse de l’utilisateur n’est
+simulée et aucun choix n’est présélectionné.
+
+Le contrat TypeScript se trouve dans `question-model.ts`; le schéma Python dans
+`profiles/models.py`. `AskUserCard.tsx` affiche les questions, la navigation
+numérotée, les erreurs et le résumé après validation. Le brouillon est conservé
+localement par identifiant de demande. Fermer la carte la réduit sans effacer les
+réponses. Les étapes restent consultables et les champs requis sont vérifiés à
+l’envoi final. Les questions attendues et le résumé envoyé sont conservés dans
+l’historique du compte fictif.
+
+`useProfileWorkspace.answerQuestions` envoie `questionRequest` et `questionAnswer`
+ensemble au même endpoint de chat. L’API vérifie la correspondance de demande,
+les identifiants, les choix autorisés, leur cardinalité et les champs obligatoires.
+Les réponses structurées alimentent le contexte utilisateur de Bedrock au tour
+suivant. La carte n’affiche « Réponses envoyées » qu’une fois ce tour terminé;
+si le réseau échoue, le brouillon reste disponible pour réessayer.
+
+Un message libre peut reprendre la conversation sans remplir la carte; les cartes
+précédentes non répondues deviennent alors inactives. Les anciens messages de
+questionnaire rédigés avant cette évolution restent du texte dans l’historique.
+
+## Onglet Agents réservé
+
+L’onglet Agents reste vide en attendant sa prochaine définition visuelle. Aucun
+outil, entrée/sortie technique ni aperçu de consultation ne s’affiche dans ce
+panneau. Les événements d’exécution continuent d’alimenter la conversation.
+
+### Position des questions en attente
+
+La dernière demande `ask_user` non répondue est affichée dans `pw-question-dock`,
+fixé au-dessus du compositeur dans le même conteneur. Elle ne figure plus comme
+formulaire actif dans la liste des messages. La carte et la barre de saisie ont
+la même largeur, des bordures jointives et les couleurs bleues du produit. La
+hauteur du dock est bornée; les longues questions défilent dans leur propre zone,
+et les commandes restent visibles. Après envoi validé, le résumé rejoint
+l’historique et la nouvelle question éventuelle prend sa place dans le dock.

@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '../shared/AppShell';
 import { DemoAccountProvider } from '../shared/DemoAccountContext';
 import { DashboardPage, ModuleLanding } from '../features/overview/DashboardPage';
-import { ProfilesPage } from '../features/profiles/ProfilesPage';
+import { AssistantPage, ProfilesPage } from '../features/profiles/ProfilesPage';
 import { productModules } from './modules';
 
 const LandingPage = lazy(() => import('../features/landing/LandingPage').then(({ LandingPage: Page }) => ({ default: Page })));
@@ -20,9 +20,10 @@ export function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/app" element={<AppShell />}>
               <Route index element={<DashboardPage />} />
+              <Route path="assistant" element={<AssistantPage />} />
               <Route path="profiles" element={<ProfilesPage />} />
               <Route path="portfolios" element={<PortfolioPage />} />
-              {productModules.filter(({ id }) => !['overview', 'profiles', 'portfolios'].includes(id)).map((module) => (
+              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios'].includes(id)).map((module) => (
                 <Route
                   key={module.id}
                   path={module.href.replace('/app/', '')}

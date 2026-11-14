@@ -2,3 +2,16 @@
 .pw-result-preview{position:absolute;inset:0;padding:16px;overflow:auto;background:#fff;color:#33445f;font-size:12px;line-height:1.65;white-space:pre-wrap}.pw-result-preview strong{font-size:14px}.pw-result-preview p{font:inherit;color:inherit}
 /* Profile route uses the shared navbar as its only page toolbar. */
 .pw-new-chat{width:30px;height:30px;display:grid;place-items:center;flex:none;border:1px solid #e3e8f1;border-radius:8px;background:#fff;color:#8b98ad}.pw-new-chat:hover{background:#f5f8fc;color:#4c658b}.pw-composer{display:flex;flex-direction:column;align-items:center;padding:16px 24px 12px}.pw-prompt-root{width:100%;max-width:680px;margin-inline:auto}.pw-composer>span,.pw-composer>.pw-error{width:100%;max-width:680px;margin-inline:auto}.pw-composer>span{padding-inline:4px;font-size:10px;line-height:1.5}.pw-prompt-root>div{margin-inline:auto}.pw-inspector-content{scrollbar-width:thin;scrollbar-color:#d5dce8 transparent;overscroll-behavior:contain}.pw-inspector-content::-webkit-scrollbar{width:6px}.pw-inspector-content::-webkit-scrollbar-thumb{background:#d5dce8;border-radius:999px}
+/* Pending questions share a single dock with the composer; conversation history scrolls above. */
+.pw-question-dock{display:flex;flex-direction:column;width:100%;max-width:680px;min-height:0;max-height:min(46dvh,450px);overflow:hidden;flex-shrink:1}
+.pw-question-waiting{flex:none;display:flex;align-items:center;padding:9px 15px;border:1px solid #d9e4fa;border-bottom:0;border-radius:16px 16px 0 0;background:#f0f5ff;color:#5476b0;font-size:11px;font-weight:550}
+.pw-question-dock .ask-user-card{display:flex;flex-direction:column;min-height:0;margin:0;border-color:#d9e4fa;border-radius:0;border-bottom:0;box-shadow:none}
+.pw-question-dock .ask-user-header{flex:none;min-height:44px;padding-block:9px}
+.pw-question-dock .ask-user-card>form{min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.pw-question-dock .ask-user-question{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;flex:1}
+.pw-question-dock .ask-user-description{flex:none;max-height:65px;overflow:auto}
+.pw-question-dock .ask-user-footer,.pw-question-dock .ask-user-reopen{flex:none}
+.pw-question-dock .ask-user-text{max-height:150px;min-height:82px}
+.pw-composer.is-awaiting-answer>.pw-prompt-root>div{border-radius:0 0 22px 22px;border-color:#d9e4fa;box-shadow:none;background:#fff}
+.pw-composer.is-awaiting-answer{padding-top:12px;max-height:calc(100% - 100px);min-height:0}
+.pw-task>label{display:flex;align-items:center;gap:10px;flex:1;min-width:0}.pw-task:has(input:checked)>label>span{text-decoration:line-through;color:#8490a0}.pw-task>a{display:inline-flex;align-items:center;gap:5px;flex:none;color:#4362a9;font-size:11px;text-decoration:none}.pw-task>a:hover{text-decoration:underline}

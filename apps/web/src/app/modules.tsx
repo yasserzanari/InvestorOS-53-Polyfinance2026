@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   ChartNoAxesCombined,
+  Bot,
   Compass,
   FileSearch,
   GitBranch,
@@ -26,6 +27,10 @@ export const productModules: ProductModule[] = [
   {
     id: 'overview', label: 'Vue d’ensemble', shortLabel: 'Accueil', href: '/app',
     description: 'Reprendre votre travail et choisir la prochaine étape.', icon: ChartNoAxesCombined, group: 'Décider',
+  },
+  {
+    id: 'assistant', label: 'Assistant', shortLabel: 'Assistant', href: '/app/assistant',
+    description: 'Orchestrer les tâches InvestorOS et retrouver votre espace de travail partagé.', icon: Bot, group: 'Décider',
   },
   {
     id: 'profiles', label: 'Profils investisseurs', shortLabel: 'Profils', href: '/app/profiles',

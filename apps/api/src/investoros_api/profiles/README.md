@@ -59,3 +59,85 @@ The orchestrator allows six model rounds and explicitly caps output tokens per c
 The request carries the current demo workspace; this module is stateless. Browser persistence is owned by the frontend. This endpoint does not establish a production user identity or write DynamoDB records. Bind the local development server to loopback and expose it through the frontend development proxy. Production requires an authenticated account context, request rate limits and durable workspace storage.
 
 FastAPI StreamingResponse streams locally. The existing Mangum Lambda/API Gateway adapter may buffer NDJSON responses. Streaming production deployment requires a streaming-capable adapter/transport; the Lambda timeout must also allow multiple model rounds. Do not claim production token streaming simply because this local endpoint streams.
+
+## Questions interactives : `ask_user`
+
+L’assistant appelle `ask_user` lorsqu’une information du profil doit être précisée.
+Il choisit le format adapté à l’information : `single_choice` pour une réponse
+exclusive (par exemple l’horizon), `multiple_choice` pour plusieurs besoins ou
+préférences compatibles, `text` pour une situation personnelle ou les conséquences
+d’une perte. Les choix restent neutres et ne sont jamais présélectionnés. Les
+questions portent sur les inconnues utiles dans ce contexte, sans redemander les
+faits déjà donnés. Les suggestions de suivi facultatives sont distinctes de ce
+formulaire et ne servent plus de questionnaire en prose.
+
+Entrée de l’outil (validée avec `AskUserInput`) :
+
+```json
+{
+  "title": "Précisons votre horizon",
+  "description": "Pour distinguer les projets proches de l’épargne de long terme.",
+  "questions": [{
+    "id": "horizon",
+    "label": "Quand pensez-vous utiliser cet argent?",
+    "kind": "single_choice",
+    "options": [
+      {"id": "near", "label": "Dans les trois prochaines années"},
+      {"id": "later", "label": "Dans huit ans ou plus"}
+    ],
+    "required": true,
+    "allowOther": true,
+    "placeholder": "Un autre horizon, ou une situation encore incertaine…"
+  }]
+}
+```
+
+Le serveur ajoute un identifiant unique et émet
+`{"type":"questions","request":{"id":"…","title":"…","questions":[…]}}`.
+Le tour se termine ensuite avec `done.awaitingUser=true` et
+`done.questionRequestId`. Aucun texte de réponse utilisateur ni résultat d’outil
+fictif n’est renvoyé au modèle. Les opérations réalisées avant la question restent
+disponibles dans les événements workspace. Les outils suivants éventuellement
+présents dans le même lot ne sont pas exécutés après cette suspension.
+
+Pour reprendre, le frontend envoie un nouveau `POST /v1/profiles/chat` contenant
+les champs ordinaires et les deux champs suivants :
+
+```json
+{
+  "questionRequest": {
+    "id": "request-uuid",
+    "title": "Précisons votre horizon",
+    "questions": [{
+      "id": "horizon", "label": "Quand pensez-vous utiliser cet argent?",
+      "kind": "single_choice", "required": true, "allowOther": true,
+      "options": [{"id":"near","label":"Dans trois ans"},{"id":"later","label":"Dans huit ans ou plus"}]
+    }]
+  },
+  "questionAnswer": {
+    "requestId": "request-uuid",
+    "answers": [{"questionId":"horizon","selectedOptionIds":["later"],"text":""}]
+  }
+}
+```
+
+Les identifiants de demande, de questions et de choix doivent correspondre. Une
+question obligatoire ne peut pas être vide; une question facultative peut être
+omise. Une réponse développée n’accepte pas de choix; un choix unique accepte au
+plus une option. La réponse libre des questions à choix est acceptée seulement si
+`allowOther=true`. Les listes de questions, options et réponses sont bornées et
+les identifiants répétés sont rejetés. Les erreurs de soumission sont des réponses
+HTTP 422, avant tout appel AWS.
+
+Le serveur reste sans état : `questionRequest` est le schéma validé du formulaire
+transmis par le client, pas une preuve signée de création. Ces données ne donnent
+aucun droit supplémentaire. Les libellés et choix réellement fournis sont ajoutés
+au prochain message **utilisateur** sous forme de données structurées; le prompt
+système reste détenu par le serveur. Le modèle enregistre ensuite les faits
+explicitement déclarés avec `update_profile`.
+
+Tests sans réseau :
+
+```sh
+PYTHONPATH=apps/api/src python -m unittest discover -s apps/api/tests -v
+```
