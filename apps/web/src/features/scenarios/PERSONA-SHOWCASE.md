@@ -15,7 +15,8 @@ Le parcours peut commencer dans Assistant ou dans un module. Les onglets et la c
 - Distinguer donnée observée, déclaration du persona, calcul déterministe, hypothèse saisie et information inconnue.
 - Quand une réponse manque ou se contredit, utiliser `ask_user`; ne pas fabriquer une réponse depuis l’âge ou le nom du persona.
 - Les outils, sources et onglets affichés doivent correspondre aux appels et résultats réels du tour. Les sources sont ouvrables; les follow-ups sont des actions qui envoient réellement leur texte.
-- Simulation n’utilise pas de posts X. Aucun accès officiel gratuit et autorisé à X n’est configuré. Les dépôts SEC, actes du Federal Register, historiques du jeu local et résultats GDELT disponibles sont des sources distinctes, avec leurs limites.
+- Simulation propose une recherche de publications X récentes, mais le connecteur est désactivé par défaut pour éviter les appels facturables. Il ne fonctionne que si l’exploitant active explicitement `SIMULATION_X_SEARCH_ENABLED` et configure un jeton serveur. La requête recherche le nom et le symbole de l’émetteur; elle ne découvre ni ne suit automatiquement ses dirigeants, les décideurs publics ou des comptes nommés.
+- X Recent Search ne couvre que les sept derniers jours. Les publications et images jointes restent des pistes non vérifiées : elles ne créent pas de marqueur historique, ne prouvent pas une relation avec l’émetteur et n’alimentent pas les calculs de cours. Les dépôts SEC, actes du Federal Register, historiques du jeu local, résultats GDELT et publications X restent des sources distinctes, avec leurs limites.
 - Un rendement après un événement est une comparaison temporelle, pas son impact causal. Si le jeu n’a pas de prix après la date, afficher « indisponible ».
 
 ## Amira — croissance diversifiée, IA et crypto
@@ -89,8 +90,9 @@ Les pourcentages de choc choisis dans une simulation de portefeuille sont des hy
 1. Choisir un actif dans l’univers chargé par l’API. Le graphique indique le paquet de prix, la date de fin, la devise et les limites.
 2. Choisir un événement d’entreprise, un acte réglementaire ou un dépôt SEC. Les marqueurs et la liste latérale sélectionnent la même preuve; les sources officielles s’ouvrent dans un nouvel onglet.
 3. Lire les rendements après date uniquement pour les séances présentes dans le jeu. Ils ne sont pas attribués à l’événement.
-4. Comparer deux à quatre branches en saisissant soi-même le libellé du scénario, l’amplitude du choc et son jalon. Le moteur applique ces hypothèses aux quantiles de fenêtres historiques du même actif.
-5. Lire les hypothèses et limites à côté du résultat : les quantiles marginaux ne sont pas des trajectoires conjointes, des probabilités, ni une prévision.
+4. Examiner la couverture GDELT récente séparément des événements historiques. Si X est activé et configuré, consulter aussi ses publications récentes et ouvrir la publication originale; le contenu n’est pas confirmé par sa seule présence.
+5. Comparer deux à quatre branches en saisissant soi-même le libellé du scénario, l’amplitude du choc et son jalon. Le moteur applique ces hypothèses aux quantiles de fenêtres historiques du même actif.
+6. Lire les hypothèses et limites à côté du résultat : les quantiles marginaux ne sont pas des trajectoires conjointes, des probabilités, ni une prévision.
 
 Les formulaires de scénario sont des champs génériques. Ajouter un nouveau cas d’usage ne doit pas demander d’ajouter une branche dédiée à un persona ou une entreprise.
 
@@ -98,4 +100,4 @@ Les formulaires de scénario sont des champs génériques. Ajouter un nouveau ca
 
 Les références de préparation locales suggèrent une hiérarchie de dossier d’analyse : question et statut, onglets Résumé/Preuves/Scénarios/Activité, résultat explicable, preuves cliquables et événements sur un graphique. Le module Simulation reprend la sélection d’événements et la comparaison de branches avec les données disponibles. Les cartes de réseau fournisseurs et les aperçus navigateur des agents ne sont pas activés ici : les données de fournisseurs et une exécution de navigateur attribuable manquent; l’interface ne doit pas en dessiner de fausses.
 
-Les captures de préparation sont sous `docs/prep/references-visuelles/` sur la machine de développement. Ce répertoire reste local et ignoré par Git selon les règles du dépôt.
+Les captures de préparation sont sous `docs/prep/references-visuelles/` sur la machine de développement. Ce répertoire reste local et ignoré par Git selon les règles du dépôt. Les décisions de réutilisation et les éléments à ne pas simuler sont consignés dans [SCENARIO-DESIGN-DECISIONS.md](./SCENARIO-DESIGN-DECISIONS.md).

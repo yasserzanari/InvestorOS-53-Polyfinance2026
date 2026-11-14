@@ -516,11 +516,21 @@ def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
 
 
 @router.get("/social/{ticker}")
-def issuer_social_posts(ticker: str, limit: int = 15) -> dict[str, Any]:
-    """Return recent public X posts as leads; calls are explicitly opt-in and bounded."""
+def issuer_social_posts(
+    ticker: str,
+    limit: int = 15,
+    accounts: str | None = None,
+) -> dict[str, Any]:
+    """Return recent public X posts as leads; optional author handles are user-supplied."""
     normalized = ticker.upper()
     if limit < 1 or limit > 25:
         raise HTTPException(status_code=422, detail="La limite doit être comprise entre 1 et 25.")
+    if accounts is not None and len(accounts) > 100:
+        raise HTTPException(status_code=422, detail="La liste des comptes X est trop longue.")
+    requested_accounts = [part.strip().removeprefix("@").strip() for part in re.split(r"[,\s]+", accounts or "") if part.strip()]
+    if len(requested_accounts) > 5 or any(not re.fullmatch(r"[A-Za-z0-9_]{1,15}", item) for item in requested_accounts):
+        raise HTTPException(status_code=422, detail="Indiquez au plus cinq comptes X valides, séparés par des virgules ou des espaces.")
+    normalized_accounts = list(dict.fromkeys(requested_accounts))
     asset = _assets().get(normalized)
     if not asset:
         raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
@@ -531,6 +541,7 @@ def issuer_social_posts(ticker: str, limit: int = 15) -> dict[str, Any]:
         "company": asset["name"],
         "source": "X API v2 · Recent Search",
         "sourceUrl": X_SEARCH_DOCS_URL,
+        "accounts": normalized_accounts,
         "posts": [],
         "limitations": [
             "La recherche récente couvre uniquement les sept derniers jours et n’est pas une archive historique.",
@@ -544,7 +555,7 @@ def issuer_social_posts(ticker: str, limit: int = 15) -> dict[str, Any]:
     if not bearer_token:
         return {**base, "available": False, "reason": "La recherche X est activée mais le jeton API serveur n’est pas configuré."}
 
-    cache_key = f"{normalized}:{limit}"
+    cache_key = f"{normalized}:{limit}:{','.join(normalized_accounts)}"
     now = datetime.now(timezone.utc).timestamp()
     cached = _X_POSTS_CACHE.get(cache_key)
     if cached and now - cached[0] < (300 if cached[1]["available"] else 120):
@@ -557,7 +568,9 @@ def issuer_social_posts(ticker: str, limit: int = 15) -> dict[str, Any]:
         search_terms.append(f"${safe_ticker}")
     else:
         search_terms.append(f'"{normalized}"')
-    query = f'{" OR ".join(search_terms)} -is:retweet'
+    issuer_query = f'({" OR ".join(search_terms)})'
+    author_query = f'({" OR ".join(f"from:{account}" for account in normalized_accounts)})'
+    query = f'{author_query} {issuer_query} -is:retweet' if normalized_accounts else f'{" OR ".join(search_terms)} -is:retweet'
     params = urlencode({
         "query": query,
         "max_results": min(limit, 100),

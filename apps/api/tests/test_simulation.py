@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi import HTTPException
 
@@ -269,6 +270,28 @@ class SimulationHistoryTests(unittest.TestCase):
         request = open_url.call_args.args[0]
         self.assertIn("Bearer server-only-token", request.get_header("Authorization"))
         self.assertIn("sept derniers jours", " ".join(result["limitations"]))
+
+    @patch("investoros_api.simulation.urlopen")
+    def test_x_search_can_filter_to_user_supplied_accounts_and_issuer(self, open_url):
+        open_url.return_value = BytesIO(json.dumps({"data": []}).encode())
+        with patch.dict(os.environ, {"SIMULATION_X_SEARCH_ENABLED": "true", "X_API_BEARER_TOKEN": "server-only-token"}):
+            result = simulation.issuer_social_posts("ABC", accounts="@example_ceo,policy_maker")
+
+        self.assertTrue(result["available"])
+        self.assertEqual(result["accounts"], ["example_ceo", "policy_maker"])
+        query = parse_qs(urlsplit(open_url.call_args.args[0].full_url).query)["query"][0]
+        self.assertIn("from:example_ceo OR from:policy_maker", query)
+        self.assertIn('"Example Corp"', query)
+        self.assertIn("$ABC", query)
+
+    @patch("investoros_api.simulation.urlopen")
+    def test_x_search_rejects_invalid_or_too_many_accounts_before_request(self, open_url):
+        with patch.dict(os.environ, {"SIMULATION_X_SEARCH_ENABLED": "true", "X_API_BEARER_TOKEN": "server-only-token"}):
+            for accounts in ("not a handle!", "a,b,c,d,e,f"):
+                with self.subTest(accounts=accounts), self.assertRaises(HTTPException) as raised:
+                    simulation.issuer_social_posts("ABC", accounts=accounts)
+                self.assertEqual(raised.exception.status_code, 422)
+        open_url.assert_not_called()
 
     @patch("investoros_api.simulation.boto3.client")
     @patch("investoros_api.simulation.urlopen")

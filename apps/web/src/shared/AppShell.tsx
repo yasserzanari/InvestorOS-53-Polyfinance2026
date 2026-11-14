@@ -37,7 +37,6 @@ export function AppShell() {
       <aside className={`glass-sidebar${drawerOpen ? ' is-open' : ''}`} aria-label="Navigation InvestorOS">
         <Link className="sidebar-brand" to="/app" aria-label="InvestorOS, vue d’ensemble" title="InvestorOS">
           <span className="sidebar-logo-crop"><img src="/brand/investoros-logo.png" alt="" /></span>
-          <span className="sidebar-brand-copy"><strong>InvestorOS</strong><small>Polyfinance 2026</small></span>
         </Link>
         <nav className="sidebar-navigation" aria-label="Modules">
           {groups.map((group) => (
