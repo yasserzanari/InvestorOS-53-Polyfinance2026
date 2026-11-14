@@ -1,5 +1,6 @@
 """Allowlisted model tools; schemas are sent directly to Bedrock Converse."""
-from .models import AskUserInput, PROFILE_FIELDS, ScenarioAnalysisInput, WorkspaceTab
+from ..simulation import ScenarioProjectionRequest
+from .models import AskUserInput, PROFILE_FIELDS, ScenarioAnalysisInput, SimulationHistoryInput, WorkspaceTab
 
 def spec(name: str, description: str, properties: dict, required: list[str]) -> dict:
     return {'toolSpec': {'name': name, 'description': description, 'inputSchema': {'json': {
@@ -7,6 +8,10 @@ def spec(name: str, description: str, properties: dict, required: list[str]) -> 
     }}}}
 
 TOOLS = [
+    spec('inspect_simulation_history', 'Lire les prix ajustés et événements d’entreprise réellement présents dans Simulation pour un ticker configuré. Appeler pour toute question sur l’historique ou les rendements observés après événement. La coïncidence temporelle ne prouve pas une causalité; les données sont historiques, pas en temps réel.',
+         SimulationHistoryInput.model_json_schema()['properties'], ['ticker']),
+    spec('project_market_scenarios', 'Calculer des trajectoires Simulation sur un ticker configuré. Appeler uniquement lorsque la personne a explicitement fourni chaque choc en pourcentage et son jalon; sinon utiliser ask_user. Les quantiles historiques sont marginaux, sans probabilité ni valeur prédictive.',
+         ScenarioProjectionRequest.model_json_schema()['properties'], ['ticker', 'horizonObservations', 'branches']),
     spec('analyze_demo_portfolio', 'Lire le portefeuille fictif fixe de ce déploiement et calculer ses pondérations et sa concentration. Pour toute question sur les positions ou la répartition, appeler cet outil avant de répondre. Les rendements et risques historiques sont indisponibles sans série de prix.', {}, []),
     spec('analyze_demo_scenario', 'Calculer un scénario conditionnel sur les positions du persona actif. N’appeler cet outil que si l’utilisateur a fourni les variations en pourcentage ou les a choisies explicitement après ask_user; ne jamais inventer les chocs. Résultat arithmétique seulement, jamais une prévision ni une recommandation.', ScenarioAnalysisInput.model_json_schema()['properties'], ['name', 'shocks']),
     spec('update_profile', 'Mettre à jour seulement les faits explicitement fournis par l’utilisateur. Ne pas inventer ni confirmer le profil.',
@@ -20,8 +25,10 @@ TOOLS = [
          {'prompts': {'type': 'array', 'items': {'type': 'string', 'maxLength': 200}, 'maxItems': 3}}, ['prompts']),
 ]
 # Pydantic's nested $refs need their definitions included in the JSON root.
-TOOLS[3]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_schema().get('$defs', {})
-TOOLS[1]['toolSpec']['inputSchema']['json']['$defs'] = ScenarioAnalysisInput.model_json_schema().get('$defs', {})
+TOOLS[1]['toolSpec']['inputSchema']['json']['$defs'] = ScenarioProjectionRequest.model_json_schema().get('$defs', {})
+# Pydantic's nested $refs need their definitions included in the JSON root.
+TOOLS[3]['toolSpec']['inputSchema']['json']['$defs'] = ScenarioAnalysisInput.model_json_schema().get('$defs', {})
+TOOLS[5]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_schema().get('$defs', {})
 
 ASK_USER_SCHEMA = AskUserInput.model_json_schema()
 TOOLS.append(spec('ask_user',

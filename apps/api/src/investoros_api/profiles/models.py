@@ -1,5 +1,7 @@
 """Versioned HTTP/tool schemas. Keep browser and model data behind the same validation."""
+from datetime import date
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PROFILE_FIELDS = frozenset(('objective', 'horizon', 'riskTolerance', 'lossCapacity', 'liquidity', 'constraints', 'preferences', 'knowledge'))
@@ -141,4 +143,17 @@ class ScenarioAnalysisInput(BaseModel):
         ids = [shock.positionId for shock in self.shocks]
         if len(set(ids)) != len(ids):
             raise ValueError('Chaque position doit apparaître une seule fois.')
+        return self
+
+
+class SimulationHistoryInput(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    ticker: str = Field(min_length=1, max_length=16, pattern=r'^[A-Za-z0-9.-]+$')
+    startDate: date | None = None
+    endDate: date | None = None
+
+    @model_validator(mode='after')
+    def validate_period(self):
+        if self.startDate and self.endDate and self.startDate > self.endDate:
+            raise ValueError('La date de début doit précéder la date de fin.')
         return self

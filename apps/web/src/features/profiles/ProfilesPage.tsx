@@ -23,13 +23,17 @@ import './profiles.css';
 type ProfilesWorkspaceProps = { assistantMode?: boolean; initialPrompt?: string };
 
 function toolSources(tool: ToolEvent) {
-  if (!['analyze_demo_portfolio', 'analyze_demo_scenario'].includes(tool.name) || !tool.output || typeof tool.output !== 'object') return undefined;
-  const output = tool.output as { portfolioName?: string; provenance?: { moduleUrl?: string } };
+  if (!['analyze_demo_portfolio', 'analyze_demo_scenario', 'inspect_simulation_history', 'project_market_scenarios'].includes(tool.name) || !tool.output || typeof tool.output !== 'object') return undefined;
+  const output = tool.output as { portfolioName?: string; ticker?: string; provenance?: { moduleUrl?: string; sourceUrl?: string } };
   const url = output.provenance?.moduleUrl;
-  if (!url) return undefined;
-  const safeUrl = safeSourceUrl(url);
-  const label = tool.name === 'analyze_demo_scenario' ? 'Scénarios · ouvrir' : `${output.portfolioName ?? 'Portefeuille'} · ouvrir`;
-  return safeUrl === '#' ? undefined : [{ name: label, url: safeUrl }];
+  const safeUrl = url ? safeSourceUrl(url) : '#';
+  const label = ['inspect_simulation_history', 'project_market_scenarios'].includes(tool.name)
+    ? `Simulation${output.ticker ? ` · ${output.ticker}` : ''} · ouvrir`
+    : tool.name === 'analyze_demo_scenario' ? 'Scénarios · ouvrir' : `${output.portfolioName ?? 'Portefeuille'} · ouvrir`;
+  const sources = safeUrl === '#' ? [] : [{ name: label, url: safeUrl }];
+  const directSource = output.provenance?.sourceUrl ? safeSourceUrl(output.provenance.sourceUrl) : '#';
+  if (directSource !== '#') sources.push({ name: `Yahoo Finance · ${output.ticker ?? 'source'}`, url: directSource });
+  return sources.length ? sources : undefined;
 }
 
 function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWorkspaceProps) {

@@ -93,6 +93,7 @@ Les pourcentages de choc choisis dans une simulation de portefeuille sont des hy
 4. Examiner les articles GDELT récents dans la liste et, lorsque leur date d’indexation tombe dans la fenêtre du graphique, sélectionner leur marqueur daté. La fiche ouvre l’article original et peut montrer les rendements observés après indexation; ceux-ci ne prouvent pas que l’article a causé le mouvement. La date d’indexation n’est pas nécessairement la date de publication. Si X est activé et configuré, consulter aussi ses publications récentes et ouvrir la publication originale; le contenu n’est pas confirmé par sa seule présence.
 5. Comparer deux à quatre branches en saisissant soi-même le libellé du scénario, l’amplitude du choc et son jalon. Le moteur applique ces hypothèses aux quantiles de fenêtres historiques du même actif.
 6. Lire les hypothèses et limites à côté du résultat : les quantiles marginaux ne sont pas des trajectoires conjointes, des probabilités, ni une prévision.
+7. Le même parcours peut partir de l’Assistant : demander l’historique d’un ticker du jeu, puis fournir chaque choc et son jalon pour lancer la comparaison. L’opération apparaît dans l’activité du chat et son lien ouvre Simulation sur le ticker choisi. Les sources d’actualité et dépôts restent à ouvrir dans leur panneau de Simulation; le chat ne prétend pas les avoir consultés.
 
 Les formulaires de scénario sont des champs génériques. Ajouter un nouveau cas d’usage ne doit pas demander d’ajouter une branche dédiée à un persona ou une entreprise.
 

@@ -9,6 +9,7 @@
 .simulation-asset-select select:focus-visible,.simulation-range button:focus-visible,.simulation-event-marker:focus-visible,.simulation-event-list button:focus-visible{outline:2px solid #356ce0;outline-offset:2px}
 .simulation-source-note{display:flex;min-height:42px;align-items:center;gap:9px;padding:8px 11px;border:1px solid #dfe7f1;border-radius:9px;background:#f8faff;color:#708098;font-size:10px}
 .simulation-source-note>svg{flex:none;color:#5379ba}.simulation-source-note>span:first-of-type{min-width:0;flex:1}.simulation-source-note strong{color:#415a7c;font-weight:620}.simulation-source-badge{display:inline-flex;flex:none;align-items:center;gap:5px;color:#74839a;font-size:9px}
+.simulation-source-link{display:inline-flex;flex:none;align-items:center;gap:4px;color:#456ba9;font-size:9px;text-decoration:none}.simulation-source-link:hover{text-decoration:underline;text-underline-offset:2px}
 .simulation-workspace{display:grid;min-height:440px;flex:1;grid-template-columns:minmax(0,1.72fr) minmax(280px,.78fr);gap:12px}
 .simulation-chart-card,.simulation-event-panel{min-width:0;border:1px solid #e2e8f0;border-radius:11px;background:#fff;box-shadow:0 3px 13px rgb(39 60 89 / 3%)}
 .simulation-chart-card{display:flex;min-height:440px;flex-direction:column;padding:15px 15px 11px}
