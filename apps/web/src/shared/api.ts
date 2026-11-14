@@ -130,6 +130,26 @@ export type SimulationNews = {
   articles: SimulationNewsArticle[];
   limitations?: string[];
 };
+export type SimulationSocialPost = {
+  id: string;
+  text: string;
+  url: string;
+  author: string;
+  username?: string;
+  publishedAt: string;
+  imageUrl?: string;
+};
+export type SimulationSocialPosts = {
+  ticker: string;
+  company?: string;
+  available: boolean;
+  reason?: string;
+  source: string;
+  sourceUrl: string;
+  asOf?: string;
+  posts: SimulationSocialPost[];
+  limitations?: string[];
+};
 export type ScenarioBranchInput = {
   id: string;
   title: string;
@@ -230,6 +250,8 @@ export const loadSimulationFilings = (ticker: string, startDate?: string, signal
   getSimulation<SimulationFilings>(`filings/${encodeURIComponent(ticker)}${startDate ? `?start_date=${encodeURIComponent(startDate)}` : ''}`, signal);
 export const loadSimulationNews = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationNews>(`news/${encodeURIComponent(ticker)}`, signal);
+export const loadSimulationSocialPosts = (ticker: string, signal?: AbortSignal) =>
+  getSimulation<SimulationSocialPosts>(`social/${encodeURIComponent(ticker)}`, signal);
 export async function runSimulationProjection(input: {
   ticker: string;
   horizonObservations: number;

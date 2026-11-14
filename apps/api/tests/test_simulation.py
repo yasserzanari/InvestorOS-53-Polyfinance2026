@@ -33,12 +33,16 @@ class SimulationHistoryTests(unittest.TestCase):
         simulation._assets.cache_clear()
         simulation._SEC_CACHE.clear()
         simulation._NEWS_CACHE.clear()
+        simulation._X_POSTS_CACHE.clear()
+        simulation._X_SECRET_CACHE = None
 
     def tearDown(self):
         self.patcher.stop()
         simulation._assets.cache_clear()
         simulation._SEC_CACHE.clear()
         simulation._NEWS_CACHE.clear()
+        simulation._X_POSTS_CACHE.clear()
+        simulation._X_SECRET_CACHE = None
         self.temp.cleanup()
 
     def write_csv(self, filename, rows):
@@ -225,4 +229,58 @@ class SimulationHistoryTests(unittest.TestCase):
         self.assertFalse(first["available"])
         self.assertIn("limitée", first["reason"])
         self.assertEqual(second, first)
+        self.assertEqual(open_url.call_count, 1)
+
+    @patch("investoros_api.simulation.urlopen")
+    def test_x_search_is_disabled_by_default_without_spending(self, open_url):
+        with patch.dict(os.environ, {"SIMULATION_X_SEARCH_ENABLED": "", "X_API_BEARER_TOKEN": ""}):
+            result = simulation.issuer_social_posts("ABC")
+        self.assertFalse(result["available"])
+        self.assertIn("désactivée", result["reason"])
+        open_url.assert_not_called()
+
+    @patch("investoros_api.simulation.urlopen")
+    def test_x_search_returns_linked_public_posts_and_safe_image(self, open_url):
+        open_url.return_value = BytesIO(json.dumps({
+            "data": [{"id": "123456789", "text": "Example Corp announced a shipment update.", "author_id": "u1", "created_at": "2026-11-14T15:30:00.000Z", "attachments": {"media_keys": ["m1"]}}],
+            "includes": {
+                "users": [{"id": "u1", "name": "Example CEO", "username": "example_ceo"}],
+                "media": [{"media_key": "m1", "type": "photo", "preview_image_url": "https://pbs.twimg.com/media/example.jpg"}],
+            },
+        }).encode())
+        with patch.dict(os.environ, {"SIMULATION_X_SEARCH_ENABLED": "true", "X_API_BEARER_TOKEN": "server-only-token"}):
+            result = simulation.issuer_social_posts("ABC")
+
+        self.assertTrue(result["available"])
+        self.assertEqual(result["posts"][0]["url"], "https://x.com/example_ceo/status/123456789")
+        self.assertEqual(result["posts"][0]["publishedAt"], "2026-11-14T15:30:00+00:00")
+        self.assertEqual(result["posts"][0]["imageUrl"], "https://pbs.twimg.com/media/example.jpg")
+        request = open_url.call_args.args[0]
+        self.assertIn("Bearer server-only-token", request.get_header("Authorization"))
+        self.assertIn("sept derniers jours", " ".join(result["limitations"]))
+
+    @patch("investoros_api.simulation.boto3.client")
+    @patch("investoros_api.simulation.urlopen")
+    def test_x_search_can_read_token_from_secrets_manager(self, open_url, client):
+        open_url.return_value = BytesIO(json.dumps({"data": []}).encode())
+        client.return_value.get_secret_value.return_value = {"SecretString": "secret-manager-token"}
+        with patch.dict(os.environ, {
+            "SIMULATION_X_SEARCH_ENABLED": "true",
+            "X_API_BEARER_TOKEN": "",
+            "X_API_BEARER_TOKEN_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:x-token",
+        }):
+            result = simulation.issuer_social_posts("ABC")
+
+        self.assertTrue(result["available"])
+        client.assert_called_once_with("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        self.assertEqual(open_url.call_args.args[0].get_header("Authorization"), "Bearer secret-manager-token")
+
+    @patch("investoros_api.simulation.urlopen", side_effect=HTTPError("https://api.x.com", 429, "rate limited", {}, None))
+    def test_x_search_rate_limit_is_reported_and_cached(self, open_url):
+        with patch.dict(os.environ, {"SIMULATION_X_SEARCH_ENABLED": "true", "X_API_BEARER_TOKEN": "server-only-token"}):
+            first = simulation.issuer_social_posts("ABC")
+            second = simulation.issuer_social_posts("ABC")
+        self.assertFalse(first["available"])
+        self.assertIn("quota", first["reason"])
+        self.assertEqual(first, second)
         self.assertEqual(open_url.call_count, 1)

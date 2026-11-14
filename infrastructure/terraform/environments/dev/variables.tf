@@ -14,3 +14,15 @@ variable "environment" {
     error_message = "environment doit être dev ou demo."
   }
 }
+
+variable "simulation_x_search_enabled" {
+  description = "Active les recherches X payantes pour Simulation; false par défaut."
+  type        = bool
+  default     = false
+}
+
+variable "x_api_bearer_token_secret_arn" {
+  description = "ARN Secrets Manager du Bearer Token X; aucun secret n’est stocké dans Terraform."
+  type        = string
+  default     = ""
+}

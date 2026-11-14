@@ -61,3 +61,15 @@ variable "common_tags" {
   description = "Tags communs du projet."
   type        = map(string)
 }
+
+variable "simulation_x_search_enabled" {
+  description = "Active explicitement l’API X Recent Search, qui peut entraîner des frais à l’usage."
+  type        = bool
+  default     = false
+}
+
+variable "x_api_bearer_token_secret_arn" {
+  description = "ARN d’un secret Secrets Manager contenant uniquement le Bearer Token X; vide par défaut."
+  type        = string
+  default     = ""
+}

@@ -25,7 +25,7 @@ resource "aws_iam_role_policy" "runtime" {
   role = aws_iam_role.lambda_execution.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid      = "ReadDemoRecords"
         Effect   = "Allow"
@@ -38,7 +38,12 @@ resource "aws_iam_role_policy" "runtime" {
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${var.lambda_log_group_arn}:*"
       }
-    ]
+      ], !var.simulation_x_search_enabled || var.x_api_bearer_token_secret_arn == "" ? [] : [{
+        Sid      = "ReadXSearchToken"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.x_api_bearer_token_secret_arn
+    }])
   })
 }
 
@@ -57,16 +62,18 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      ACCOUNTS_TABLE_NAME     = var.table_names.accounts
-      PROFILES_TABLE_NAME     = var.table_names.profiles
-      PORTFOLIOS_TABLE_NAME   = var.table_names.portfolios
-      ANALYSES_TABLE_NAME     = var.table_names.analyses
-      DEMO_ACCOUNT_ID         = var.demo_account_id
-      DEMO_PROFILE_ID         = var.demo_profile_id
-      DEMO_PORTFOLIO_ID       = var.demo_portfolio_id
-      DEMO_CONTEXTS           = jsonencode(var.demo_contexts)
-      POWERTOOLS_SERVICE_NAME = "investoros-api"
-      ENVIRONMENT             = var.environment
+      ACCOUNTS_TABLE_NAME           = var.table_names.accounts
+      PROFILES_TABLE_NAME           = var.table_names.profiles
+      PORTFOLIOS_TABLE_NAME         = var.table_names.portfolios
+      ANALYSES_TABLE_NAME           = var.table_names.analyses
+      DEMO_ACCOUNT_ID               = var.demo_account_id
+      DEMO_PROFILE_ID               = var.demo_profile_id
+      DEMO_PORTFOLIO_ID             = var.demo_portfolio_id
+      DEMO_CONTEXTS                 = jsonencode(var.demo_contexts)
+      POWERTOOLS_SERVICE_NAME       = "investoros-api"
+      ENVIRONMENT                   = var.environment
+      SIMULATION_X_SEARCH_ENABLED   = tostring(var.simulation_x_search_enabled)
+      X_API_BEARER_TOKEN_SECRET_ARN = var.simulation_x_search_enabled ? var.x_api_bearer_token_secret_arn : ""
     }
   }
 
@@ -81,7 +88,7 @@ resource "aws_apigatewayv2_api" "http" {
 
   cors_configuration {
     allow_origins = local.allowed_origins
-    allow_methods = ["GET", "OPTIONS"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
     allow_headers = ["content-type"]
     max_age       = 300
   }
@@ -107,6 +114,15 @@ resource "aws_apigatewayv2_route" "health" {
 resource "aws_apigatewayv2_route" "demo_overview" {
   api_id    = aws_apigatewayv2_api.http.id
   route_key = "GET /v1/demo/overview"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+# The FastAPI app owns validation and routing for the profile and Simulation
+# APIs. Keep an API Gateway proxy route so adding a documented FastAPI route
+# does not silently work only in local development.
+resource "aws_apigatewayv2_route" "application_api" {
+  api_id    = aws_apigatewayv2_api.http.id
+  route_key = "ANY /{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
@@ -136,4 +152,12 @@ resource "aws_lambda_permission" "api_demo_overview" {
   function_name = aws_lambda_function.api.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/GET/v1/demo/overview"
+}
+
+resource "aws_lambda_permission" "api_application_routes" {
+  statement_id  = "AllowHttpApiApplicationRoutes"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*/*"
 }

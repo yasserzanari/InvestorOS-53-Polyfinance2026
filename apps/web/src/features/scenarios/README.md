@@ -31,8 +31,11 @@ Les personas Amira, Mateo et Robert restent des profils de démonstration sépar
 - `GET /v1/simulation/regulations?topic=...` : documents datés par thème.
 - `GET /v1/simulation/filings/{ticker}` : dépôts EDGAR; nécessite `SEC_USER_AGENT`.
 - `GET /v1/simulation/news/{ticker}` : couverture récente GDELT, avec cache et gestion des limitations.
+- `GET /v1/simulation/social/{ticker}` : posts publics X des sept derniers jours; recherche opt-in et potentiellement facturable.
 - `POST /v1/simulation/scenarios` : quantiles historiques et chocs utilisateur. Chaque entrée est validée et chaque réponse inclut date source, méthode et limites.
 
 Les marqueurs Federal Register et EDGAR sont positionnés à la première clôture disponible à la date de publication/dépôt ou après. La fiche conserve la date documentaire d’origine et distingue la période déclarée d’un dépôt. Les rendements mesurés après date ne prouvent ni causalité ni exposition de l’émetteur à une règle. Les articles GDELT restent des liens de découverte secondaire dans la liste; ils ne sont pas mélangés aux événements datés ni au calcul de cours.
 
-Tout changement de source doit conserver la provenance, les dates de disponibilité, la devise et les limites du jeu. Aucun service payant, collecte de réseau social ou scraping n’est requis par cette page.
+La recherche X est désactivée par défaut. Quand l’exploitant l’active explicitement côté serveur, la page affiche les posts publics et les liens directs renvoyés par X Recent Search; les images jointes restent des aperçus non vérifiés. La recherche ne couvre que les sept derniers jours, n’est pas une archive et ne suit pas automatiquement les comptes de dirigeants ou responsables publics. Les posts ne sont jamais utilisés pour inférer un événement historique ou alimenter le calcul de cours. X v2 est facturé à l’usage; l’activation nécessite une validation du budget et des règles de conservation. Le jeton reste côté API et peut être stocké dans AWS Secrets Manager. Voir [la documentation de l’API](../../../../api/README.md) pour le paramétrage.
+
+Tout changement de source doit conserver la provenance, les dates de disponibilité, la devise et les limites du jeu.
