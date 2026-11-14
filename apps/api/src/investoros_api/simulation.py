@@ -12,6 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
+import boto3
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -26,6 +27,8 @@ SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 GDELT_DOCS_URL = "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/"
+X_RECENT_SEARCH_URL = "https://api.x.com/2/tweets/search/recent"
+X_SEARCH_DOCS_URL = "https://docs.x.com/x-api/posts/search/introduction"
 
 
 class ScenarioBranch(BaseModel):
@@ -60,6 +63,8 @@ class ScenarioProjectionRequest(BaseModel):
 
 _SEC_CACHE: dict[str, tuple[float, Any]] = {}
 _NEWS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_X_POSTS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_X_SECRET_CACHE: tuple[float, str] | None = None
 
 
 def _data_dir() -> Path:
@@ -502,6 +507,157 @@ def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
         result = {"ticker": normalized, "company": asset["name"], "available": False, "reason": reason, "source": "GDELT DOC 2.0", "sourceUrl": GDELT_DOCS_URL, "articles": []}
     _NEWS_CACHE[cache_key] = (now, result)
     return result
+
+
+@router.get("/social/{ticker}")
+def issuer_social_posts(ticker: str, limit: int = 15) -> dict[str, Any]:
+    """Return recent public X posts as leads; calls are explicitly opt-in and bounded."""
+    normalized = ticker.upper()
+    if limit < 1 or limit > 25:
+        raise HTTPException(status_code=422, detail="La limite doit être comprise entre 1 et 25.")
+    asset = _assets().get(normalized)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
+
+    enabled = os.getenv("SIMULATION_X_SEARCH_ENABLED", "").strip().lower() == "true"
+    base = {
+        "ticker": normalized,
+        "company": asset["name"],
+        "source": "X API v2 · Recent Search",
+        "sourceUrl": X_SEARCH_DOCS_URL,
+        "posts": [],
+        "limitations": [
+            "La recherche récente couvre uniquement les sept derniers jours et n’est pas une archive historique.",
+            "Les publications publiques sont des pistes à vérifier; elles ne prouvent pas l’exposition de l’émetteur ni un effet sur le cours.",
+            "Les images sont des médias joints par les auteurs; leur contenu ou leur lien avec l’événement n’est pas vérifié.",
+        ],
+    }
+    if not enabled:
+        return {**base, "available": False, "reason": "La recherche X est désactivée pour éviter les appels facturables. Elle nécessite une activation serveur explicite."}
+    bearer_token = _x_api_bearer_token()
+    if not bearer_token:
+        return {**base, "available": False, "reason": "La recherche X est activée mais le jeton API serveur n’est pas configuré."}
+
+    cache_key = f"{normalized}:{limit}"
+    now = datetime.now(timezone.utc).timestamp()
+    cached = _X_POSTS_CACHE.get(cache_key)
+    if cached and now - cached[0] < (300 if cached[1]["available"] else 120):
+        return cached[1]
+
+    company = asset["name"].replace('"', "").strip()
+    safe_ticker = re.sub(r"[^A-Za-z0-9]", "", normalized)
+    search_terms = [f'"{company}"']
+    if safe_ticker and safe_ticker.isalpha() and len(safe_ticker) <= 6:
+        search_terms.append(f"${safe_ticker}")
+    else:
+        search_terms.append(f'"{normalized}"')
+    query = f'{" OR ".join(search_terms)} -is:retweet'
+    params = urlencode({
+        "query": query,
+        "max_results": min(limit, 100),
+        "tweet.fields": "created_at,author_id,attachments",
+        "expansions": "author_id,attachments.media_keys",
+        "user.fields": "name,username",
+        "media.fields": "type,url,preview_image_url,alt_text",
+    })
+    request = Request(
+        f"{X_RECENT_SEARCH_URL}?{params}",
+        headers={"Accept": "application/json", "Authorization": f"Bearer {bearer_token}"},
+    )
+    reason = "La recherche X est temporairement indisponible."
+    result: dict[str, Any]
+    try:
+        with urlopen(request, timeout=7) as response:
+            payload = json.loads(response.read(1_000_001))
+        includes = payload.get("includes", {}) if isinstance(payload, dict) else {}
+        included_users = includes.get("users", []) if isinstance(includes, dict) else []
+        included_media = includes.get("media", []) if isinstance(includes, dict) else []
+        authors = {
+            item.get("id"): item
+            for item in included_users if isinstance(included_users, list)
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        }
+        media = {
+            item.get("media_key"): item
+            for item in included_media if isinstance(included_media, list)
+            if isinstance(item, dict) and isinstance(item.get("media_key"), str)
+        }
+        posts: list[dict[str, Any]] = []
+        post_rows = payload.get("data", []) if isinstance(payload, dict) else []
+        for item in post_rows if isinstance(post_rows, list) else []:
+            if not isinstance(item, dict):
+                continue
+            post_id = item.get("id")
+            text = item.get("text")
+            created_at = item.get("created_at")
+            if not isinstance(post_id, str) or not post_id.isdigit() or not isinstance(text, str) or not text.strip():
+                continue
+            try:
+                published_at = datetime.fromisoformat(created_at.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
+            except (AttributeError, ValueError):
+                continue
+            author = authors.get(item.get("author_id"), {})
+            username = author.get("username") if isinstance(author, dict) else None
+            username = username if isinstance(username, str) and re.fullmatch(r"[A-Za-z0-9_]{1,15}", username) else None
+            attached_media = item.get("attachments", {}).get("media_keys", []) if isinstance(item.get("attachments"), dict) else []
+            image_url = None
+            for media_key in attached_media:
+                media_item = media.get(media_key)
+                if not isinstance(media_item, dict) or media_item.get("type") != "photo":
+                    continue
+                candidate = media_item.get("preview_image_url") or media_item.get("url")
+                if isinstance(candidate, str) and len(candidate) <= 2048:
+                    try:
+                        parsed = urlsplit(candidate)
+                        if parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:
+                            image_url = candidate
+                            break
+                    except ValueError:
+                        pass
+            post = {
+                "id": post_id,
+                "text": text[:5000],
+                "url": f"https://x.com/{username}/status/{post_id}" if username else f"https://x.com/i/web/status/{post_id}",
+                "author": author.get("name", username or "Compte X public") if isinstance(author, dict) else (username or "Compte X public"),
+                "username": username,
+                "publishedAt": published_at,
+            }
+            if image_url:
+                post["imageUrl"] = image_url
+            posts.append(post)
+            if len(posts) >= limit:
+                break
+        result = {**base, "available": True, "asOf": datetime.now(timezone.utc).isoformat(), "posts": posts}
+    except HTTPError as error:
+        reason = "La source X limite ou refuse temporairement la recherche."
+        if error.code == 429:
+            reason = "La limite d’appels X est atteinte; réessayez après le renouvellement du quota."
+        result = {**base, "available": False, "reason": reason}
+    except (URLError, TimeoutError, json.JSONDecodeError, OSError, AttributeError):
+        result = {**base, "available": False, "reason": reason}
+    _X_POSTS_CACHE[cache_key] = (now, result)
+    return result
+
+
+def _x_api_bearer_token() -> str:
+    """Read local development credentials or a short-lived cached Secrets Manager value."""
+    global _X_SECRET_CACHE
+    local_token = os.getenv("X_API_BEARER_TOKEN", "").strip()
+    if local_token:
+        return local_token
+    secret_arn = os.getenv("X_API_BEARER_TOKEN_SECRET_ARN", "").strip()
+    if not secret_arn:
+        return ""
+    now = datetime.now(timezone.utc).timestamp()
+    if _X_SECRET_CACHE and now - _X_SECRET_CACHE[0] < 300:
+        return _X_SECRET_CACHE[1]
+    try:
+        response = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-1")).get_secret_value(SecretId=secret_arn)
+        token = response.get("SecretString", "").strip()
+    except Exception:
+        token = ""
+    _X_SECRET_CACHE = (now, token)
+    return token
 
 
 @router.get("/regulations")

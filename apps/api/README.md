@@ -42,6 +42,7 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/simulation/regulations?topic=...` | Documents Federal Register récents avec dates et liens officiels associés |
 | GET | `/v1/simulation/filings/{ticker}?start_date=YYYY-MM-DD` | Déclarations EDGAR récentes et historiques depuis le début de la série visible; nécessite `SEC_USER_AGENT` côté serveur |
 | GET | `/v1/simulation/news/{ticker}` | Couverture secondaire récente indexée par GDELT; cache positif et pause après erreur ou limitation |
+| GET | `/v1/simulation/social/{ticker}` | Publications X publiques des sept derniers jours; connecteur explicitement désactivé par défaut |
 | POST | `/v1/simulation/scenarios` | Quantiles de rendements historiques et chocs conditionnels saisis par l’utilisateur |
 | GET | `/v1/profiles/status` | Configuration déclarée du modèle Bedrock (ne vérifie pas les permissions) |
 | GET | `/v1/profiles/sources/{source_id}` | Notes de méthode exactes du catalogue produit |
@@ -109,9 +110,32 @@ incluant HTTP 429) pour limiter les appels. Une source indisponible est affiché
 comme telle, sans articles inventés. Les articles ne sont jamais utilisés comme
 événements de prix ni pour attribuer un mouvement à une nouvelle.
 
-Les publications X ne sont pas intégrées. Leur API est payante et exige un jeton
-configuré côté serveur; n’ajouter ce connecteur qu’après validation du budget et
-des règles de conservation. Le frontend ne doit jamais appeler X directement.
+Les publications X sont intégrées à la route optionnelle `/v1/simulation/social`,
+mais ne sont pas activées par défaut. Leur API est payante et exige un jeton
+configuré côté serveur; l’option reste désactivée afin
+qu’un chargement de page ne déclenche pas de requête facturable. L’API X v2
+utilise un modèle de paiement à l’usage et Recent Search ne couvre que les sept
+derniers jours ([présentation officielle](https://docs.x.com/x-api/getting-started/about-x-api),
+[recherche de publications](https://docs.x.com/x-api/posts/search/introduction)).
+
+Pour une activation après validation du budget et des règles de conservation :
+
+- définir `SIMULATION_X_SEARCH_ENABLED=true` côté serveur;
+- en local seulement, fournir `X_API_BEARER_TOKEN` dans l’environnement du
+  processus API sans le commiter;
+- sur AWS, créer un secret Secrets Manager ne contenant que le Bearer Token,
+  puis passer son ARN à Terraform avec `x_api_bearer_token_secret_arn`;
+- limiter l’accès IAM au seul ARN du secret; la variable Terraform d’activation
+  reste `false` par défaut.
+
+La route borne chaque recherche à 25 publications, met les résultats en cache
+cinq minutes (deux minutes après erreur) en mémoire du processus et ne persiste
+pas les posts. Les liens ouvrent la publication source; les images jointes sont
+des aperçus fournis par X et ne prouvent pas la nature ou la pertinence de
+l’événement. Les posts sont des pistes sociales, jamais des faits établis ou des
+événements de cours. Aucun résultat X n’alimente les quantiles ni les trajectoires
+de Simulation. Il s’agit d’une recherche récente, pas d’une archive historique
+ni d’un suivi complet des dirigeants, responsables publics ou autres comptes.
 
 ## Ce qui n’est pas encore branché
 

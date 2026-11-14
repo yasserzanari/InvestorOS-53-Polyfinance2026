@@ -46,13 +46,13 @@ Après déploiement contrôlé de l’API, ajouter la variable de dépôt GitHub
 - Le rôle runtime Lambda est distinct du rôle CI GitHub OIDC. Sa confiance est limitée au service Lambda.
 - La policy runtime utilise les actions identifiées par analyse statique du code Boto3 (`dynamodb:GetItem`, `dynamodb:Query`, permission dépendante `dynamodb:ReadDataForReplication`) sur les seuls ARNs des quatre tables de cette stack. Les droits CloudWatch sont limités au groupe `/aws/lambda/investoros-dev-api` et ses streams (`logs:CreateLogStream`, `logs:PutLogEvents`). Cette policy runtime n’accorde aucun droit d’écriture DynamoDB.
 - L’API ne transforme jamais un identifiant fourni par le navigateur en clé DynamoDB. Elle accepte uniquement les personas connus (`amira`, `mateo`, `robert`), puis résout leurs clés fixes depuis `DEMO_CONTEXTS`, injecté par Terraform. Les trois comptes, profils et portefeuilles restent des fixtures fictives. CORS autorise le domaine CloudFront précis et `localhost:5173`.
-- API Gateway `$default` configure 5 requêtes/s et burst 10; Lambda a une concurrence réservée de 5. Une surcharge API Gateway produit `429`. Les seuils par analyse ne sont pas encore pertinents, car aucune route d’analyse n’existe.
+- API Gateway `$default` configure 5 requêtes/s et burst 10; Lambda a une concurrence réservée de 5. Une surcharge API Gateway produit `429`. Le proxy `ANY /{proxy+}` transmet les autres routes documentées à FastAPI; l’intégration HTTP reste limitée à 10 secondes.
 - Le groupe de logs Lambda conserve 14 jours. Deux alarmes CloudWatch couvrent erreurs et throttles. Elles ne notifient personne sans destination SNS/action ajoutée.
 - DynamoDB est à la demande, chiffré avec la clé AWS owned par défaut, PITR activé et protection contre suppression activée. Il n’y a pas de données d’un compte réel.
 
 ## Variables et permissions nécessaires
 
-Les seules variables d’entrée de cet environnement sont `aws_region` (défaut `us-east-1`) et `environment` (`dev` ou `demo`). Le backend S3 utilise le bucket d’état préexistant cité plus haut.
+Les variables d’entrée de cet environnement sont `aws_region` (défaut `us-east-1`), `environment` (`dev` ou `demo`), `simulation_x_search_enabled` (défaut `false`) et `x_api_bearer_token_secret_arn` (défaut vide). Le backend S3 utilise le bucket d’état préexistant cité plus haut. L’activation X peut entraîner des frais à l’usage : ne passer à `true` qu’après validation du budget et des règles de conservation. Le jeton n’est jamais une variable Terraform; le rôle Lambda obtient uniquement `secretsmanager:GetSecretValue` sur l’ARN configuré.
 
 Pour cette tranche, le rôle Terraform d’installation a besoin des opérations de création et de lecture nécessaires sur API Gateway v2, Lambda, IAM rôle/policy et `iam:PassRole`, DynamoDB (tables, PITR, items fixture et tags), CloudWatch Logs/Alarms, plus les lectures S3/CloudFront/IAM pour rafraîchir les ressources frontend déjà suivies dans le state. `sts:GetCallerIdentity` sert à identifier le compte. Les ressources DynamoDB, Lambda, logs et alarmes sont nommées et régionales dans le plan. API Gateway et certaines opérations de découverte ont des exigences de ressource `*` côté IAM.
 
@@ -63,21 +63,22 @@ L’analyse automatique du plan (`iam-policy-autopilot`) est utile pour repérer
 | Composant | État |
 | --- | --- |
 | Frontend CloudFront/S3 et workflow GitHub | Déployé avant cette tranche; inventaire confirmé |
-| API FastAPI `/health` et `/v1/demo/overview` | Code prêt, non déployé |
+| API FastAPI `/health`, `/v1/demo/overview`, Assistant et Simulation | Code et proxy API Gateway prêts, non déployés |
 | Tables DynamoDB et trois fixtures fictives | Code Terraform prêt, non déployées |
 | Limites API/Lambda, logs et alarmes | Code Terraform prêt, non déployés |
 | Frontend configuré à une URL API | Code prêt; `VITE_API_BASE_URL` reste à configurer après l’API |
-| Simulations déterministes | À construire ensuite, avant les appels aux agents |
+| Simulation historique, événements datés, sources et scénarios conditionnels | Code prêt; déploiement et configuration des données restent à faire |
 | Step Functions pour travaux longs | À ajouter ensuite, non déployé |
 | Bedrock | Catalogue/quota consultables; invocation modèle non validée, aucun appel effectué |
-| Knowledge Base/RAG/recherche X | Reportés après le parcours de base; aucun connecteur branché |
+| X Recent Search | Connecteur optionnel codé, désactivé par défaut; jeton et budget non configurés |
+| Knowledge Base/RAG | Non branchés |
 | Auth utilisateur/données privées | Absentes; ne pas y placer de données réelles |
 
 ## Suite de livraison
 
 1. Réconcilier les états et variables du dépôt sans supprimer les ressources en double; examiner le plan complet.
 2. Appliquer l’API et DynamoDB avec un rôle autorisé, puis appeler `/health` et `/v1/demo/overview` de façon contrôlée.
-3. Définir un calcul financier déterministe avec hypothèses explicites, limites, et tests de plafonds avant d’exposer une route d’analyse.
+3. Construire l’archive API, relire le plan Terraform complet, puis vérifier que le proxy ne remplace ni ne détruit les ressources actives avant tout déploiement autorisé.
 4. Ajouter Step Functions quand une analyse longue a un contrat et un coût bornés.
 5. Choisir un modèle Bedrock, vérifier l’autorisation d’invocation dans `us-east-1`, régler les quotas/coûts et effectuer un premier appel mesuré avant de le déclarer fonctionnel.
 6. Ajouter RAG avec une source et une provenance vérifiables seulement si les réponses produit en ont besoin.
