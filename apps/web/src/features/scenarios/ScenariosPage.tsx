@@ -41,7 +41,7 @@ function returnsAfterDate(data: SimulationHistory, eventDate: string) {
   })) as Record<'1'|'5'|'20', number|null>;
 }
 
-function HistoricalChart({ data, regulations = [], filings = [], filingsMessage, news, projection, selectedId, onSelect, selectedBranchId, onSelectBranch }: { data: SimulationHistory; regulations?: SimulationRegulation[]; filings?: SimulationFiling[]; filingsMessage?: string; news?: SimulationNews; projection?: SimulationProjection; selectedId?: string; onSelect: (id: string) => void; selectedBranchId?: string; onSelectBranch: (id: string) => void }) {
+function HistoricalChart({ data, regulations = [], filings = [], filingsMessage, filingsLimitations = [], news, projection, selectedId, onSelect, selectedBranchId, onSelectBranch }: { data: SimulationHistory; regulations?: SimulationRegulation[]; filings?: SimulationFiling[]; filingsMessage?: string; filingsLimitations?: string[]; news?: SimulationNews; projection?: SimulationProjection; selectedId?: string; onSelect: (id: string) => void; selectedBranchId?: string; onSelectBranch: (id: string) => void }) {
   const [range, setRange] = useState<Range>(3);
   const [horizon, setHorizon] = useState<Horizon>(60);
   const cutoff = new Date();
@@ -213,6 +213,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
           <div className="simulation-regulation-heading"><strong>Déclarations de l’émetteur</strong><span>{filings.length}</span></div>
           {filings.slice(0, 8).map((filing) => <button type="button" key={filing.id} aria-pressed={selectedId === `sec:${filing.id}`} onClick={() => onSelect(`sec:${filing.id}`)}><span className="simulation-regulation-icon"><Database size={12} /></span><span><strong>{filing.form} · {filing.title}</strong><small>{dateLabel(filing.filedAt)}{filing.reportedAt ? ` · exercice ${filing.reportedAt}` : ''}</small></span></button>)}
           {!filings.length && <p className="simulation-filings-status">{filingsMessage ?? 'Aucune déclaration disponible.'}</p>}
+          {filingsLimitations.map((limitation) => <p className="simulation-filings-status" key={limitation}>{limitation}</p>)}
         </div>
         <div className="simulation-regulation-list simulation-news-list">
           <div className="simulation-regulation-heading"><strong><Newspaper size={12} /> Couverture récente</strong><span>{news?.articles.length ?? '…'}</span></div>
@@ -273,18 +274,18 @@ export function ScenariosPage() {
   }, [regulationTopic]);
 
   useEffect(() => {
-    if (!ticker) return;
+    if (!ticker || !history || history.asset.ticker !== ticker) return;
     const controller = new AbortController();
     setFilings(undefined);
     setFilingsMessage('Chargement des déclarations SEC…');
-    loadSimulationFilings(ticker, controller.signal).then((result) => {
+    loadSimulationFilings(ticker, history.prices[0]?.date, controller.signal).then((result) => {
       setFilings(result);
       setFilingsMessage(result.available ? '' : result.reason ?? 'Déclarations non configurées.');
     }).catch((cause) => {
       if (!controller.signal.aborted) setFilingsMessage(cause instanceof Error ? cause.message : 'Les déclarations SEC sont indisponibles.');
     });
     return () => controller.abort();
-  }, [ticker]);
+  }, [ticker, history]);
 
   useEffect(() => {
     if (!ticker) return;
@@ -351,7 +352,7 @@ export function ScenariosPage() {
         <>
           <div className="simulation-source-note"><ShieldCheck size={16} /><span><strong>{history.source}</strong> · extraction au {dateLabel(history.sourceAsOf)} · {history.prices.length.toLocaleString('fr-CA')} observations · devise {history.currency}</span><span className="simulation-source-badge"><Database size={13} /> Données historiques</span></div>
           <div className="simulation-regulation-toolbar"><span><CalendarDays size={14} /> Filtrer les actes réglementaires</span><div role="group" aria-label="Thème de recherche réglementaire">{[['tariff','Tarifs'],['supply-chain','Chaîne logistique'],['export-controls','Contrôles export'],['energy','Énergie']].map(([id,label])=><button type="button" key={id} aria-pressed={regulationTopic===id} onClick={()=>setRegulationTopic(id)}>{label}</button>)}</div>{regulationError&&<small role="status">{regulationError}</small>}</div>
-          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} news={news} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} /></div>
+          <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} filingsLimitations={filings?.limitations} news={news} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} /></div>
           <section className="simulation-scenario-builder" aria-labelledby="scenario-builder-title">
             <div className="simulation-scenario-heading"><span className="simulation-panel-icon"><GitBranch size={16} /></span><div><span className="simulation-eyebrow">HYPOTHÈSES EXPLICITES</span><h2 id="scenario-builder-title">Construire des trajectoires conditionnelles</h2><p>Choisissez les événements et les chocs à comparer. Aucun choc n’est estimé par le modèle.</p></div><label><span>Horizon</span><select value={horizon} onChange={(event) => setHorizon(Number(event.target.value) as Horizon)}>{HORIZONS.map((value) => <option key={value} value={value}>{value} séances</option>)}</select></label><button type="button" className="simulation-add-branch" disabled={branches.length >= 4} onClick={() => setBranches((current) => [...current, { id: globalThis.crypto?.randomUUID?.() ?? `branch-${Date.now()}`, title: `Hypothèse ${current.length + 1}`, event: '', shockPct: '', eventAfterObservations: 10 }])}><Plus size={13}/>Ajouter</button></div>
             {selectedEventLabel && <div className="simulation-use-event"><span>Événement sélectionné : <strong>{selectedEventLabel}</strong></span><button type="button" onClick={() => setBranches((current) => current.map((branch) => ({ ...branch, event: selectedEventLabel })))}>Utiliser dans les hypothèses</button></div>}

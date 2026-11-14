@@ -106,6 +106,8 @@ export type SimulationFilings = {
   source: string;
   sourceUrl: string;
   asOf?: string;
+  startDate?: string;
+  truncated?: boolean;
   filings: SimulationFiling[];
   limitations?: string[];
 };
@@ -224,8 +226,8 @@ export const loadSimulationHistory = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationHistory>(`history/${encodeURIComponent(ticker)}`, signal);
 export const loadSimulationRegulations = (topic: string, signal?: AbortSignal) =>
   getSimulation<SimulationRegulations>(`regulations?topic=${encodeURIComponent(topic)}`, signal);
-export const loadSimulationFilings = (ticker: string, signal?: AbortSignal) =>
-  getSimulation<SimulationFilings>(`filings/${encodeURIComponent(ticker)}`, signal);
+export const loadSimulationFilings = (ticker: string, startDate?: string, signal?: AbortSignal) =>
+  getSimulation<SimulationFilings>(`filings/${encodeURIComponent(ticker)}${startDate ? `?start_date=${encodeURIComponent(startDate)}` : ''}`, signal);
 export const loadSimulationNews = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationNews>(`news/${encodeURIComponent(ticker)}`, signal);
 export async function runSimulationProjection(input: {

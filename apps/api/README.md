@@ -40,7 +40,7 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/simulation/assets` | Univers historique configuré et ses limites |
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
 | GET | `/v1/simulation/regulations?topic=...` | Documents Federal Register récents avec dates et liens officiels associés |
-| GET | `/v1/simulation/filings/{ticker}` | Déclarations EDGAR de l’émetteur; nécessite `SEC_USER_AGENT` côté serveur |
+| GET | `/v1/simulation/filings/{ticker}?start_date=YYYY-MM-DD` | Déclarations EDGAR récentes et historiques depuis le début de la série visible; nécessite `SEC_USER_AGENT` côté serveur |
 | GET | `/v1/simulation/news/{ticker}` | Couverture secondaire récente indexée par GDELT; cache positif et pause après erreur ou limitation |
 | POST | `/v1/simulation/scenarios` | Quantiles de rendements historiques et chocs conditionnels saisis par l’utilisateur |
 | GET | `/v1/profiles/status` | Configuration déclarée du modèle Bedrock (ne vérifie pas les permissions) |
@@ -78,13 +78,18 @@ informative; vérifier l’édition officielle liée avant une lecture juridique
 
 `GET /v1/simulation/filings/{ticker}` résout le CIK depuis le catalogue SEC et
 lit les métadonnées de dépôts EDGAR (8-K, 10-K, 10-Q et formulaires étrangers
-équivalents). Configurer un entête `SEC_USER_AGENT` qui identifie l’application
-et un contact maintenu par l’exploitant; les requêtes sont limitées et mises en
-cache côté API. Les heures et dates déposées sont des dates de document, pas des
-mesures de causalité. Les rendements postérieurs restent absents lorsque le jeu
-de prix finit avant le dépôt. Dans le graphique, les dépôts situés dans la période
-de prix visible ont un marqueur sélectionnable; les dépôts plus récents restent
-ouvrables depuis la liste sans être projetés artificiellement sur la courbe.
+équivalents). Le paramètre `start_date` demande les dépôts depuis le début de la
+série de prix affichée; l’API consulte les archives EDGAR de l’émetteur lorsque
+la période dépasse l’historique récent inclus dans la réponse principale. La
+liste retourne au plus 50 dépôts et le signale si elle est tronquée ou si une
+archive n’a pas pu être chargée. Configurer un entête `SEC_USER_AGENT` qui
+identifie l’application et un contact maintenu par l’exploitant; les requêtes
+sont limitées et mises en cache côté API. Les heures et dates déposées sont des
+dates de document, pas des mesures de causalité. Les rendements postérieurs
+restent absents lorsque le jeu de prix finit avant le dépôt. Dans le graphique,
+les dépôts situés dans la période de prix visible ont un marqueur sélectionnable;
+les dépôts plus récents restent ouvrables depuis la liste sans être projetés
+artificiellement sur la courbe.
 
 `POST /v1/simulation/scenarios` accepte un ticker configuré, un horizon de 20,
 60 ou 120 séances et deux à quatre branches. Chaque branche exige un texte de
