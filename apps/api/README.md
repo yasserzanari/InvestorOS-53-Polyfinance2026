@@ -1,6 +1,6 @@
 # InvestorOS API
 
-FastAPI est l’application HTTP commune au développement local et à AWS Lambda. Mangum adapte FastAPI à Lambda. La première tranche expose seulement `GET /health` et `GET /v1/demo/overview`.
+FastAPI est l’application HTTP commune au développement local et à AWS Lambda. Mangum adapte FastAPI à Lambda. L’API expose la lecture du contexte de démonstration, ainsi que la conversation partagée avec Bedrock dans `/v1/profiles/*`.
 
 ## Contrat de démonstration
 
@@ -37,9 +37,12 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | --- | --- | --- |
 | GET | `/health` | Liveness sans dépendance aux services AWS |
 | GET | `/v1/demo/overview` | Lecture du contexte fictif DynamoDB |
+| GET | `/v1/profiles/status` | Configuration déclarée du modèle Bedrock (ne vérifie pas les permissions) |
+| GET | `/v1/profiles/sources/{source_id}` | Notes de méthode exactes du catalogue produit |
+| POST | `/v1/profiles/chat` | Conversation en flux NDJSON, outils contrôlés et résultats visibles |
 
-Codes principaux : `200` succès, `404` fixture absente, `403` association incohérente, `502` fixture mal formée, `503` configuration manquante. API Gateway applique aussi sa limitation de débit et peut répondre `429` avant l’exécution Lambda. Les routes d’analyse et leurs plafonds de coût ne sont pas encore créés.
+Codes principaux : `200` succès, `404` fixture absente, `403` association incohérente, `422` entrée invalide, `502` fixture mal formée, `503` configuration manquante. API Gateway applique aussi sa limitation de débit et peut répondre `429` avant l’exécution Lambda. Le flux de chat doit se terminer par un événement `done`; un HTTP 200 seul ne garantit pas que Bedrock ait répondu.
 
 ## Ce qui n’est pas encore branché
 
-Aucun moteur de simulation, Step Functions, Bedrock, RAG/Knowledge Base, recherche externe, authentification utilisateur ni accès financier n’est déployé. Les vues du produit qui ne consomment pas cette route doivent rester étiquetées « Démo » ou « Simulé ». Les statuts d’agents ne peuvent pas être présentés comme des exécutions réelles.
+La conversation de profil utilise le SDK Bedrock côté serveur lorsqu’un modèle est configuré; son statut de configuration ne prouve pas que l’invocation réussira. L’outil `analyze_demo_portfolio` lit le portefeuille fictif fixe configuré pour le déploiement et calcule les pondérations/concentration de manière déterministe. Il n’existe pas encore de calcul de rendement historique, Step Functions, RAG/Knowledge Base, recherche externe, authentification utilisateur ou accès financier. Les vues qui utilisent des séries générées dans le navigateur restent étiquetées « Démo » ou « Simulé ». Seuls les statuts émis par les opérations réellement appelées peuvent être présentés comme des exécutions réelles.

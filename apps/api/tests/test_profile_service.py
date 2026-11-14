@@ -3,6 +3,7 @@ import os
 from copy import deepcopy
 import unittest
 from unittest.mock import patch
+
 from investoros_api.profiles.models import ChatRequest
 from investoros_api.profiles.service import run_chat, VisibleText
 
@@ -47,6 +48,20 @@ class ProfileServiceTests(unittest.TestCase):
         self.assertEqual(events[-1]['type'], 'done')
         self.assertEqual(runtime.calls[1]['messages'][-1]['content'][0]['toolResult']['status'], 'success')
         self.assertEqual(runtime.calls[0]['inferenceConfig']['maxTokens'], 1800)
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
+    @patch('investoros_api.profiles.service.analyze_configured_portfolio')
+    def test_portfolio_tool_returns_deterministic_result_to_chat(self, analyze):
+        summary = {'positionCount': 4, 'largestPositionPct': 40, 'provenance': {'classification': 'fictional_fixture'}}
+        analyze.return_value = summary
+        runtime = RuntimeStub(stream_tool('analyze_demo_portfolio', {}))
+        events = list(run_chat(ChatRequest(message='Analyse la répartition de mon portefeuille'), runtime))
+        tool_event = [event for event in events if event['type'] == 'tool' and event['name'] == 'analyze_demo_portfolio'][-1]
+        self.assertEqual(tool_event['status'], 'done')
+        self.assertEqual(tool_event['output'], summary)
+        result = runtime.calls[1]['messages'][-1]['content'][0]['toolResult']
+        self.assertEqual(result['content'][0]['json'], summary)
+        analyze.assert_called_once_with()
 
     @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
     def test_untrusted_tool_fields_are_rejected_without_mutating_profile(self):

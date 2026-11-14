@@ -7,6 +7,7 @@ def spec(name: str, description: str, properties: dict, required: list[str]) -> 
     }}}}
 
 TOOLS = [
+    spec('analyze_demo_portfolio', 'Lire le portefeuille fictif fixe de ce déploiement et calculer ses pondérations et sa concentration. Pour toute question sur les positions ou la répartition, appeler cet outil avant de répondre. Les rendements et risques historiques sont indisponibles sans série de prix.', {}, []),
     spec('update_profile', 'Mettre à jour seulement les faits explicitement fournis par l’utilisateur. Ne pas inventer ni confirmer le profil.',
          {'fields': {'type': 'object', 'properties': {key: {'type': 'string', 'maxLength': 2000} for key in sorted(PROFILE_FIELDS)}, 'additionalProperties': False}}, ['fields']),
     spec('upsert_tab', 'Créer ou mettre à jour un onglet de travail utile. Réutiliser un id existant pour une mise à jour. Les tâches décrivent le travail réel.', WorkspaceTab.model_json_schema()['properties'], ['id', 'title', 'kind']),

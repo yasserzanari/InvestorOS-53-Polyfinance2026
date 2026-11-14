@@ -5,6 +5,7 @@ import { useDemoAccount } from '../../shared/DemoAccountContext';
 import { fieldLabels, fieldOrder } from './profile-model';
 import { createLocalId, safeSourceUrl, profileApiBase, type WorkspaceTab } from './profile-api';
 import { useProfileWorkspace, type ChatMessage } from './useProfileWorkspace';
+import type { ToolEvent } from './profile-api';
 import { PromptBar } from './components/PromptBar';
 import { StreamingAnswer } from './components/StreamingAnswer';
 import { MessageScroller } from './components/MessageScroller';
@@ -19,6 +20,15 @@ import { AssistantChatPanel } from '../assistant/AssistantChatPanel';
 import './profiles.css';
 
 type ProfilesWorkspaceProps = { assistantMode?: boolean; initialPrompt?: string };
+
+function toolSources(tool: ToolEvent) {
+  if (tool.name !== 'analyze_demo_portfolio' || !tool.output || typeof tool.output !== 'object') return undefined;
+  const output = tool.output as { portfolioName?: string; provenance?: { moduleUrl?: string } };
+  const url = output.provenance?.moduleUrl;
+  if (!url) return undefined;
+  const safeUrl = safeSourceUrl(url);
+  return safeUrl === '#' ? undefined : [{ name: `${output.portfolioName ?? 'Portefeuille'} · ouvrir`, url: safeUrl }];
+}
 
 function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWorkspaceProps) {
   const location = useLocation();
@@ -40,7 +50,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
     if(m.role==='user')return <div className="pw-user-message">{m.text}</div>;
     const text=m.versions[m.version]??m.text;
     return <article className="pw-answer" data-ui-message="">
-      {m.tools.length>0&&<LiveActivity busy={busy&&m===workspace.messages.at(-1)} label={busy?activity:'Activité du tour'} nodes={m.tools.map(t=>({id:t.id,type:'tool',primary:t.name==='ask_user'?'Question à préciser':t.name,toolName:t.name,status:t.status==='done'?'completed':t.status==='failed'?'failed':'running',args:t.input,details:[{text:JSON.stringify(t.output??t.error??'En cours')}]}))}/>}
+      {m.tools.length>0&&<LiveActivity busy={busy&&m===workspace.messages.at(-1)} label={busy?activity:'Activité du tour'} nodes={m.tools.map(t=>({id:t.id,type:'tool',primary:t.name==='ask_user'?'Question à préciser':t.name,toolName:t.name,status:t.status==='done'?'completed':t.status==='failed'?'failed':'running',args:t.input,details:[{text:JSON.stringify(t.output??t.error??'En cours')}],sources:toolSources(t)}))}/>}
       {m.agents.map(a=><Subagent key={a.id} name={a.name} status={a.status} task={a.task} summary={a.summary} activity={a.status==='running'?'Consultation du spécialiste Bedrock':undefined} startedAt={a.startedAt} durationMs={a.durationMs}/>)}
       <StreamingAnswer text={text} streaming={busy&&m===workspace.messages.at(-1)} citations={m.citations} followUps={m.questionRequest?[]:m.followUps} onFollowUp={p=>submit(p.label)}/>
       {m.questionRequest&&m.questionAnswer&&<AskUserCard key={m.questionRequest.id} request={m.questionRequest} answer={m.questionAnswer} disabled={busy||(!m.questionAnswer&&pendingQuestion?.id!==m.id)} onSubmit={answer=>{void answerQuestions(m.id,m.questionRequest!,answer);}}/>}
