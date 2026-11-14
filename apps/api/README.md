@@ -42,7 +42,7 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/simulation/regulations?topic=...` | Documents Federal Register récents avec dates et liens officiels associés |
 | GET | `/v1/simulation/filings/{ticker}?start_date=YYYY-MM-DD` | Déclarations EDGAR récentes et historiques depuis le début de la série visible; nécessite `SEC_USER_AGENT` côté serveur |
 | GET | `/v1/simulation/news/{ticker}` | Couverture secondaire récente indexée par GDELT; cache positif et pause après erreur ou limitation |
-| GET | `/v1/simulation/social/{ticker}` | Publications X publiques des sept derniers jours; connecteur explicitement désactivé par défaut |
+| GET | `/v1/simulation/social/{ticker}?accounts=handle1,handle2` | Publications X publiques des sept derniers jours; connecteur désactivé par défaut; filtre facultatif sur cinq comptes fournis par l’utilisateur |
 | POST | `/v1/simulation/scenarios` | Quantiles de rendements historiques et chocs conditionnels saisis par l’utilisateur |
 | GET | `/v1/profiles/status` | Configuration déclarée du modèle Bedrock (ne vérifie pas les permissions) |
 | GET | `/v1/profiles/sources/{source_id}` | Notes de méthode exactes du catalogue produit |
@@ -132,6 +132,12 @@ Pour une activation après validation du budget et des règles de conservation :
 - limiter l’accès IAM au seul ARN du secret; la variable Terraform d’activation
   reste `false` par défaut.
 
+La route accepte un filtre `accounts` facultatif : au plus cinq identifiants X
+fournis par l’utilisateur, séparés par des virgules ou des espaces. Ils sont
+combinés au nom ou symbole de l’émetteur, afin que les posts retournés répondent
+aux deux critères. Le format des identifiants est validé, mais l’application ne
+confirme pas que le compte appartient réellement à un dirigeant, une autorité ou
+une autre personne. Aucun compte n’est découvert ou ajouté automatiquement.
 La route borne chaque recherche à 25 publications, met les résultats en cache
 cinq minutes (deux minutes après erreur) en mémoire du processus et ne persiste
 pas les posts. Les liens ouvrent la publication source; les images jointes sont

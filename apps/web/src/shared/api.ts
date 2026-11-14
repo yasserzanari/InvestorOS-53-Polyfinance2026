@@ -142,6 +142,7 @@ export type SimulationSocialPost = {
 export type SimulationSocialPosts = {
   ticker: string;
   company?: string;
+  accounts?: string[];
   available: boolean;
   reason?: string;
   source: string;
@@ -250,8 +251,10 @@ export const loadSimulationFilings = (ticker: string, startDate?: string, signal
   getSimulation<SimulationFilings>(`filings/${encodeURIComponent(ticker)}${startDate ? `?start_date=${encodeURIComponent(startDate)}` : ''}`, signal);
 export const loadSimulationNews = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationNews>(`news/${encodeURIComponent(ticker)}`, signal);
-export const loadSimulationSocialPosts = (ticker: string, signal?: AbortSignal) =>
-  getSimulation<SimulationSocialPosts>(`social/${encodeURIComponent(ticker)}`, signal);
+export const loadSimulationSocialPosts = (ticker: string, signal?: AbortSignal, accounts: string[] = []) => {
+  const query = accounts.length ? `?accounts=${encodeURIComponent(accounts.join(','))}` : '';
+  return getSimulation<SimulationSocialPosts>(`social/${encodeURIComponent(ticker)}${query}`, signal);
+};
 export async function runSimulationProjection(input: {
   ticker: string;
   horizonObservations: number;
