@@ -51,16 +51,17 @@ export function DashboardPage() {
             exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
             transition={{ duration: reduceMotion ? 0 : 0.2 }}
           >
-            <DashboardOverview api={api} onStartChat={(question) => sendPrompt(question)} />
-            <DashboardPrompt
-              value={prompt}
-              onChange={setPrompt}
-              onSend={() => sendPrompt()}
-              isListening={isListening}
-              onToggleMic={() => toggle(prompt, setPrompt)}
-              notice={notice}
-              suggestions={getPromptSuggestions(api, prompt)}
-            />
+            <DashboardOverview api={api} onStartChat={(question) => sendPrompt(question)}>
+              <DashboardPrompt
+                value={prompt}
+                onChange={setPrompt}
+                onSend={() => sendPrompt()}
+                isListening={isListening}
+                onToggleMic={() => toggle(prompt, setPrompt)}
+                notice={notice}
+                suggestions={getPromptSuggestions(api, prompt)}
+              />
+            </DashboardOverview>
           </motion.div>
         ) : (
           <motion.div

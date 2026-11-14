@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   ArrowRight, BadgeAlert, BookOpenCheck, BriefcaseBusiness, ChartNoAxesCombined,
   CircleHelp, Compass, FileSearch, GitBranch, Layers3, ShieldCheck, UsersRound,
@@ -28,7 +29,7 @@ const actionItems = [
   { title: 'Relier des sources', detail: 'Vérifier les données utilisées', href: '/app/evidence', label: 'Ouvrir les sources', Icon: ShieldCheck },
 ];
 
-export function DashboardOverview({ api, onStartChat }: { api: DemoApiConnection; onStartChat: (question: string) => void }) {
+export function DashboardOverview({ api, onStartChat, children }: { api: DemoApiConnection; onStartChat: (question: string) => void; children: ReactNode }) {
   const modules = productModules.filter(({ id }) => id !== 'overview');
 
   const apiMessage = api.status === 'connected'
@@ -86,6 +87,7 @@ export function DashboardOverview({ api, onStartChat }: { api: DemoApiConnection
             <div><h2 id="analysis-empty-title">Aucune analyse enregistrée</h2><p>Formulez une question pour préparer votre première analyse.</p></div>
             <button type="button" className="text-action" onClick={() => onStartChat('Aidez-moi à préparer une première analyse.')}>Préparer une analyse <ArrowRight size={15} /></button>
           </section>
+          {children}
         </div>
 
         <div className="dashboard-side-column">
