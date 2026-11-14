@@ -10,6 +10,7 @@ const LandingPage = lazy(() => import('../features/landing/LandingPage').then(({
 const LoginPage = lazy(() => import('../features/auth/LoginPage').then(({ LoginPage: Page }) => ({ default: Page })));
 const PortfolioPage = lazy(() => import('../features/portfolios').then(({ PortfolioPage: Page }) => ({ default: Page })));
 const ScenariosPage = lazy(() => import('../features/scenarios/ScenariosPage').then(({ ScenariosPage: Page }) => ({ default: Page })));
+const EvidencePage = lazy(() => import('../features/evidence/EvidencePage').then(({ EvidencePage: Page }) => ({ default: Page })));
 
 export function App() {
   return (
@@ -25,7 +26,8 @@ export function App() {
               <Route path="profiles" element={<ProfilesPage />} />
               <Route path="portfolios" element={<PortfolioPage />} />
               <Route path="scenarios" element={<ScenariosPage />} />
-              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios'].includes(id)).map((module) => (
+              <Route path="evidence" element={<EvidencePage />} />
+              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios', 'evidence'].includes(id)).map((module) => (
                 <Route
                   key={module.id}
                   path={module.href.replace('/app/', '')}
