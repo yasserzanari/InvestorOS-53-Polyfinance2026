@@ -10,7 +10,7 @@ Cette vue ne branche pas encore de données de portefeuille ni de service d’an
 
 `DashboardPrompt` réutilise le composant `AdvancedChatInput` archivé depuis le skill `frontui`. Le bouton micro utilise l’API de reconnaissance vocale du navigateur si elle existe et affiche un message si elle n’est pas disponible. Le message utilisateur est affiché dans le chat; aucune réponse d’agent n’est fabriquée en attendant le branchement du backend.
 
-## Graphiques et bookmarks 21st.dev
+## Graphiques et bookmarks component library
 
 Aucun des bookmarks consultés ne convient à cet écran sans données réelles ou sans altérer le thème établi : Finance Bento et Stock Portfolio Card supposent des avoirs, prix et performances; Balance Chart et System Status affichent des séries de démonstration; Stats Card est conçu pour des revenus de freelance. Le tableau utilise donc des états vides utiles au lieu de rendre ces exemples comme des résultats financiers.
 

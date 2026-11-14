@@ -315,7 +315,7 @@ export default function BeamWordmarkFooter({
   const word = (wordmark ?? brand).trim() || brand
   const letters = React.useMemo(() => Array.from(word), [word])
   const credit = credits ?? [
-    { lead: brand + " template by ", label: "Kedhar", href: "https://21st.dev/@kedhareswer" },
+    { lead: brand + " template by ", label: "Kedhar", href: "https://github.com/kedhareswer" },
     { lead: "Part of ", label: "Night Shift", tail: " collection" },
   ]
 
