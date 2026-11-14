@@ -1,0 +1,80 @@
+name: Deploy web app to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: investoros-web-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: investoros-web-dist
+          path: apps/web/dist/
+          if-no-files-found: error
+          retention-days: 3
+
+  deploy:
+    needs: build
+    if: >-
+      ${{
+        github.ref == 'refs/heads/main' &&
+        vars.AWS_DEPLOY_ROLE_ARN != '' &&
+        vars.AWS_SITE_BUCKET != '' &&
+        vars.AWS_CLOUDFRONT_DISTRIBUTION_ID != ''
+      }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: investoros-web-dist
+          path: apps/web/dist/
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ca-central-1' }}
+      - name: Publish assets and refresh CloudFront
+        env:
+          AWS_SITE_BUCKET: ${{ vars.AWS_SITE_BUCKET }}
+          AWS_DISTRIBUTION_ID: ${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws s3 sync apps/web/dist/ "s3://${AWS_SITE_BUCKET}/" \
+            --delete --exclude index.html \
+            --cache-control "public,max-age=3600" --only-show-errors
+          aws s3 cp apps/web/dist/index.html "s3://${AWS_SITE_BUCKET}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html; charset=utf-8" --only-show-errors
+          aws cloudfront create-invalidation \
+            --distribution-id "${AWS_DISTRIBUTION_ID}" --paths '/*'
+
+  deployment-configuration:
+    needs: build
+    if: >-
+      ${{
+        github.ref == 'refs/heads/main' &&
+        (vars.AWS_DEPLOY_ROLE_ARN == '' || vars.AWS_SITE_BUCKET == '' || vars.AWS_CLOUDFRONT_DISTRIBUTION_ID == '')
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain the skipped deployment
+        run: echo "::notice::Build succeeded; AWS deploy is waiting for Terraform outputs to be added as repository variables."
