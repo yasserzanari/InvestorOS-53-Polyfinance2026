@@ -4,6 +4,7 @@ import json
 import math
 import os
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import boto3
@@ -11,6 +12,28 @@ from fastapi import HTTPException
 
 from investoros_api.demo_contexts import PersonaId, context_for
 from .models import ScenarioAnalysisInput
+
+
+def _local_fictional_portfolio(persona: PersonaId) -> dict[str, Any]:
+    fixture_path = Path(__file__).resolve().parents[1] / "demo_personas.json"
+    try:
+        fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
+        selected = fixtures[persona]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise HTTPException(status_code=503, detail="Local demo portfolio is not available") from error
+
+    positions = selected.get("positions")
+    if not isinstance(positions, list) or not positions:
+        raise HTTPException(status_code=503, detail="Local demo portfolio is invalid")
+    return {
+        "display_name": selected["portfolio_name"],
+        "currency": "CAD",
+        "as_of": "fixture",
+        "total_value": sum(position["value"] for position in positions),
+        "data_source": "local_fictional_fixture",
+        "profile_id": selected["profile_id"],
+        "positions": positions,
+    }
 
 
 def _plain_value(value: Any) -> Any:
@@ -37,7 +60,15 @@ def _portfolio_payload(item: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def load_demo_portfolio(client=None, persona: PersonaId = "mateo") -> dict[str, Any]:
-    """Fetch the fixed portfolio configured for this deployment, never a client-selected key."""
+    """Load a local fixture in dev or fetch the deployment's fixed DynamoDB portfolio."""
+    mode = os.getenv("DEMO_PORTFOLIO_MODE", "dynamodb")
+    if mode == "local_fixture":
+        if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+            raise HTTPException(status_code=503, detail="Local demo data is disabled in AWS")
+        return _local_fictional_portfolio(persona)
+    if mode != "dynamodb":
+        raise HTTPException(status_code=503, detail="Demo portfolio mode is invalid")
+
     context = context_for(persona)
     account_id = context["account_id"]
     profile_id = context["profile_id"]
@@ -127,7 +158,11 @@ def summarize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
         "positions": sorted_positions,
         "provenance": {
             "classification": portfolio.get("data_source", "unknown"),
-            "source": "Configured fictional DynamoDB demo portfolio",
+            "source": (
+                "Local fictional persona fixture"
+                if portfolio.get("data_source") == "local_fictional_fixture"
+                else "Configured fictional DynamoDB demo portfolio"
+            ),
             "method": (
                 "Sum of stated position weights; concentration index is the sum of squared "
                 "portfolio weights."
