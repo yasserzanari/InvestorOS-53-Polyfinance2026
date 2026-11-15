@@ -503,6 +503,21 @@ Réponds impérativement en français, avec une réponse concise.
             tool_uses = [block['toolUse'] for block in contents if 'toolUse' in block]
             visible_plan_text += '\n' + turn_visible_text
             if not tool_uses:
+                if research_requested and not research_started and not _analysis_plan_approved(request):
+                    if _visible_plan_has_steps(visible_plan_text):
+                        if buffer_text and not plan_shown:
+                            yield {'type':'text','delta':visible_plan_text.strip()+'\n\n'}
+                        question_request = {'id':str(uuid.uuid4()),'title':'Valider le plan de recherche',
+                            'purpose':'plan_approval','questions':[{'id':'approval','label':'Lancer ce plan de recherche ?',
+                            'kind':'single_choice','required':True,'allowOther':True,'options':[
+                            {'id':'approve','label':'Oui, lancer ce plan'}, {'id':'revise','label':'Modifier le plan'}]}]}
+                        yield {'type':'questions','request':question_request}
+                        yield {'type':'workspace','profile':profile,'tabs':tabs}
+                        yield {'type':'done','modelId':model_id,'usage':usage,'awaitingUser':True,'questionRequestId':question_request['id']}
+                        return
+                    plan_recovery = True
+                    messages.append({'role':'user','content':[{'text':'Le plan doit être intégralement visible maintenant. Rédige trois à six étapes numérotées adaptées à ma demande; ne dis pas qu’il est affiché ailleurs.'}]})
+                    continue
                 if plan_recovery and _visible_plan_has_steps(turn_visible_text):
                     if buffer_text:
                         yield {'type':'text','delta':turn_visible_text}

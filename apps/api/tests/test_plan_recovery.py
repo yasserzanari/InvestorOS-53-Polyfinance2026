@@ -22,7 +22,7 @@ class RecoveryTests(unittest.TestCase):
                 return stream_tool('ask_user', FORM)
         events=list(run_chat(ChatRequest(message='Analyse NVDA cette semaine'),Runtime()))
         types=[e['type'] for e in events]
-        self.assertEqual(len(calls),3)
+        self.assertEqual(len(calls),2)
         self.assertEqual(sum(e['type']=='questions' for e in events),1)
         self.assertLess(types.index('text'),types.index('questions'))
         self.assertFalse(any(e.get('code')=='step_limit' for e in events))
