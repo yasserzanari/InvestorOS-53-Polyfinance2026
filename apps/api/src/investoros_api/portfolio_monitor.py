@@ -313,9 +313,11 @@ def scan_persona(persona: PersonaId, now: datetime | None = None) -> dict[str, i
     linked = {(item["ticker"], item.get("positionId")): item for item in [*explicit_positions, *watchlist] if item.get("ticker") in _assets()}
     new_cases = 0
     checked_articles = 0
+    unavailable_tickers = []
     for (ticker, _), holding in list(linked.items())[:15]:
         result = issuer_news(ticker, limit=10)
         if not result.get("available"):
+            unavailable_tickers.append(ticker)
             continue
         candidates = 0
         for article in result.get("articles", [])[:5]:
@@ -362,7 +364,12 @@ def scan_persona(persona: PersonaId, now: datetime | None = None) -> dict[str, i
             if _save_case(persona, case):
                 new_cases += 1
             break
-    return {"persona": persona, "checkedArticles": checked_articles, "newCases": new_cases}
+    return {
+        "persona": persona,
+        "checkedArticles": checked_articles,
+        "newCases": new_cases,
+        "unavailableTickers": unavailable_tickers,
+    }
 
 
 def run_scheduled_scan(event: dict[str, Any] | None = None) -> dict[str, Any]:

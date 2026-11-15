@@ -37,7 +37,7 @@ export type PortfolioNewsCase = {
 export type PortfolioMonitorScan = {
   id: string; persona: DemoOverview['persona']; status: 'pending' | 'running' | 'completed' | 'failed';
   createdAt: string; updatedAt: string; completedAt?: string; message?: string;
-  result?: { checkedArticles: number; newCases: number };
+  result?: { checkedArticles: number; newCases: number; unavailableTickers?: string[] };
 };
 
 export type DemoApiConnection =
