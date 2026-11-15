@@ -100,7 +100,6 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      AWS_REGION                    = var.aws_region
       BEDROCK_MODEL_ID              = var.bedrock_model_id
       DEMO_CONTEXTS                 = jsonencode(local.demo_contexts)
       DEMO_PORTFOLIO_MODE           = "dynamodb"
