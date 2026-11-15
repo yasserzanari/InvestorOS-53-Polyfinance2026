@@ -121,7 +121,7 @@ class DecisionTests(unittest.TestCase):
 
     def test_explanations_and_portfolio_scenarios_keep_their_own_workflow(self):
         from investoros_api.profiles.service import _scenario_calculation_requested
-        for prompt in ['Comment calculer une simulation ?','Explique les trajectoires déjà affichées','Calcule un scénario sur les positions de mon portefeuille']:
+        for prompt in ['Comment calculer une simulation ?','Explique les trajectoires déjà affichées','Calcule un scénario sur les positions de mon portefeuille','Crée une note sur les scénarios conditionnels et ouvre Documents']:
             self.assertFalse(_scenario_calculation_requested(ChatRequest(message=prompt)))
         self.assertTrue(_scenario_calculation_requested(ChatRequest(message='Pour AAPL, calcule deux scénarios sur vingt séances.')))
 

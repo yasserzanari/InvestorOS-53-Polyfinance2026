@@ -21,7 +21,7 @@ Scénarios réutilise les outils de simulation. `ProfileScenario.tsx` propose Sy
 - `update_profile`, `ask_user`, les outils historiques/scénarios et `upsert_tab` restent partagés. Les IDs réservés aux comparaisons et cartes ne peuvent pas être remplacés par une note arbitraire.
 - `workspaceMode: profiles` charge les procédures investor-profile et profile-investment-alignment dans le vrai contexte modèle; la trace indique runtime-bootstrap. Le modèle peut découvrir d’autres skills selon la demande. Le skill profile-workspace décrit les commandes et les vues.
 
-Les sources versionnées dans `agent-skills/` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Au 15 novembre 2026, la version est 1.8.13 avec 19 skills; lire la version courante dans `/v1/profiles/status` et le SHA-256 de chaque chargement. Une demande explicite de calcul de scénarios lit d’abord les capacités réellement disponibles; elle ne peut aboutir sans résultat calculé.
+Les sources versionnées dans `agent-skills/` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Au 15 novembre 2026, la version est 1.8.13 avec 19 skills; lire la version courante dans `/v1/profiles/status` et le SHA-256 de chaque chargement. Une demande explicite de calcul ou de création de scénarios lit d’abord les capacités réellement disponibles; elle ne peut aboutir sans résultat calculé. Les demandes de précision sur un scénario reçoivent un intitulé de question contextualisé.
 
 ## Mémoire
 

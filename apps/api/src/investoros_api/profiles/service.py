@@ -71,8 +71,9 @@ def _scenario_calculation_requested(request: ChatRequest) -> bool:
         text += '\n' + '\n'.join(item.content.casefold() for item in request.history[-6:] if item.role=='user')
     if re.match(r"\s*(?:comment|pourquoi|explique|qu['’]est)", text) or re.search(r'portefeuille|positions', text):
         return False
-    action = re.search(r'\b(?:calcule|calculer|simule|simuler|projette|projeter|génère|générer|construis|construire|crée|créer)\b', text)
-    return bool(action and re.search(r'scénario|simulation|trajectoire|choc', text))
+    calculation = re.search(r'\b(?:calcule|calculer|simule|simuler|projette|projeter)\b', text)
+    creation = re.search(r'\b(?:génère|générer|construis|construire|crée|créer)\s+(?:(?:un|une|des|les|deux|trois|quatre|le|la|ce|ces|[1-4])\s+)?(?:scénarios?|simulations?|trajectoires?)\b', text)
+    return bool((calculation or creation) and re.search(r'scénario|simulation|trajectoire|choc', text))
 
 
 def _scenario_tool_input(args: dict) -> ScenarioProjectionRequest:
@@ -652,7 +653,7 @@ Réponds impérativement en français, avec une réponse concise.
                         output = register_sources(citations(read_ids))
                         yield {'type': 'sources', 'citations': list(source_registry)}
                     elif name == 'ask_user':
-                        question_input = AskUserInput.model_validate({'title':'Précisons votre demande',**args})
+                        question_input = AskUserInput.model_validate({'title':'Précisons le scénario' if projection_requested else 'Précisons votre demande',**args})
                         if question_input.purpose == 'plan_approval' and not _visible_plan_has_steps(turn_visible_text):
                             raise ValueError('Montre d’abord le plan visible en trois à six étapes avant de demander sa validation.')
                         question_request = {'id': str(uuid.uuid4()), **question_input.model_dump()}
