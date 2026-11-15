@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../../../shared/auth';
 import { profileApiBase } from '../profile-api';
 
-type Props = { value: string; onChange: (value: string) => void; onRecordingChange: (active: boolean) => void; onError: (message: string) => void; onFinished: () => void };
+type Props = { value: string; onChange: (value: string) => void; onRecordingChange: (active: boolean) => void; onError: (message: string) => void; onFinished: () => void; onStop: () => void };
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -46,7 +46,7 @@ function readHeaders(bytes: Uint8Array, end: number) {
 }
 
 /** Mic audio is streamed as 16 kHz PCM to a short-lived, server-signed Amazon Transcribe socket. */
-export function VoiceOrb({ value, onChange, onRecordingChange, onError, onFinished }: Props) {
+export function VoiceOrb({ value, onChange, onRecordingChange, onError, onFinished, onStop }: Props) {
   const [active, setActive] = useState(false); const [level, setLevel] = useState(0); const [label, setLabel] = useState('Connexion à la transcription AWS…');
   const alive = useRef(false); const finishing = useRef(false); const resources = useRef<{stream?:MediaStream;context?:AudioContext;socket?:WebSocket;processor?:ScriptProcessorNode;source?:MediaStreamAudioSourceNode;mute?:GainNode;finishTimer?:number}>({});
   const prefix = useRef(value); const finalSegments = useRef(new Map<string,{start:number;text:string}>()); const partialSegments = useRef(new Map<string,{start:number;text:string}>()); const callbacks = useRef({onChange,onRecordingChange,onError,onFinished}); callbacks.current={onChange,onRecordingChange,onError,onFinished};
@@ -135,7 +135,7 @@ export function VoiceOrb({ value, onChange, onRecordingChange, onError, onFinish
   startRef.current=start;
   useEffect(()=>{void startRef.current();return()=>{alive.current=false;cleanup();};},[]);
   return <div className="pw-voice-live" role="status" aria-live="polite">
-    <button type="button" className="pw-voice-close" aria-label="Arrêter le micro" onClick={stop}>×</button>
+    <button type="button" className="pw-voice-close" aria-label="Couper le micro" title="Couper le micro" onClick={onStop}>×</button>
     <div className={`pw-voice-orb${active?' is-listening':''}`} style={{'--voice-level':level} as React.CSSProperties}><span/><span/><span/></div>
     <strong>{label}</strong><small>{active?'Amazon Transcribe · Français (Canada) · arrêt automatique après une pause':'Préparation sécurisée du micro'}</small>
   </div>;

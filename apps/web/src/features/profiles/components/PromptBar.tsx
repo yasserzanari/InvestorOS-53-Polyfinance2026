@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, Square } from 'lucide-react';
+import { Mic, MicOff, Square } from 'lucide-react';
 import { AdvancedChatInput } from '../../../shared/ui/advanced-ai-chat-input';
 import { VoiceOrb } from './VoiceOrb';
 
@@ -39,10 +39,13 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
       setVoiceSession((session) => session + 1);
     }
   };
+  const micToggleLabel = voiceOpen
+    ? busy ? 'Ne pas reprendre le micro après la réponse' : 'Couper le micro'
+    : 'Ouvrir le micro';
   return <div className="pw-prompt-root" ref={rootRef}>
     {voiceOpen&&(busy
       ? <div className="pw-voice-live" role="status" aria-live="polite"><div className="pw-voice-orb"><span/><span/><span/></div><strong>Analyse en cours…</strong><small>Votre question est envoyée. Le micro reprendra après la réponse.</small></div>
-      : <VoiceOrb key={voiceSession} value={value} onChange={onChange} onRecordingChange={setRecording} onError={setNotice} onFinished={finishVoiceTurn}/>)}
+      : <VoiceOrb key={voiceSession} value={value} onChange={onChange} onRecordingChange={setRecording} onError={setNotice} onFinished={finishVoiceTurn} onStop={stopVoice}/>)}
     <AdvancedChatInput
       className="pw-shared-prompt"
       textareaProps={{
@@ -55,7 +58,7 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
       hideSendButton={busy}
       sendButtonProps={{disabled:disabled||!value.trim(), 'aria-label':'Envoyer le message'}}
       actionIcons={[
-        <button key="microphone" type="button" className={`pw-prompt-mic${voiceOpen?' is-recording':''}`} disabled={disabled||(busy&&!voiceOpen)} aria-label={voiceOpen?'Arrêter le mode vocal':'Démarrer le mode vocal'} aria-pressed={voiceOpen} onClick={()=>{setNotice('');if(voiceOpen)stopVoice();else setVoiceOpen(true);}}>{voiceOpen?<Square size={16}/>:<Mic size={18}/>}</button>,
+        <button key="microphone" type="button" className={`pw-prompt-mic-toggle${voiceOpen&&recording?' is-active':''}`} disabled={disabled} aria-label={micToggleLabel} title={micToggleLabel} aria-pressed={voiceOpen} onClick={()=>{setNotice('');if(voiceOpen)stopVoice();else setVoiceOpen(true);}}>{voiceOpen?<MicOff size={15}/>:<Mic size={15}/>}<span>{micToggleLabel}</span></button>,
         <span key="hint" className="pw-prompt-hint">{recording?'Écoute en direct · Amazon Transcribe':'Entrée pour envoyer'}</span>,
         ...(busy?[<button key="stop" type="button" className="pw-prompt-mic" onClick={onStop} aria-label="Arrêter la réponse"><Square size={16}/></button>]:[]),
       ]}
