@@ -31,6 +31,27 @@ def movement_investigation(analysis_id: str, body: MovementInvestigationRequest,
 def status():
     return configuration()
 
+@router.post('/voice/session')
+def voice_session():
+    """Issue a short-lived Amazon Transcribe WebSocket URL for live dictation."""
+    from botocore.auth import SigV4QueryAuth
+    from botocore.awsrequest import AWSRequest
+    import boto3
+
+    region = configuration()['region']
+    credentials = boto3.Session().get_credentials()
+    if credentials is None:
+        raise HTTPException(503, 'Les identifiants AWS de transcription ne sont pas configurés.')
+    host = f'transcribestreaming.{region}.amazonaws.com:8443'
+    params = {
+        'language-code': 'fr-CA',
+        'media-encoding': 'pcm',
+        'sample-rate': '16000',
+    }
+    request = AWSRequest(method='GET', url=f'wss://{host}/stream-transcription-websocket', params=params)
+    SigV4QueryAuth(credentials, 'transcribe', region, expires=60).add_auth(request)
+    return {'url': request.url, 'language': 'fr-CA', 'sampleRate': 16000, 'expiresIn': 60}
+
 @router.get('/sources/{source_id}', response_class=PlainTextResponse)
 def source(source_id: str):
     item = SOURCES.get(source_id)
