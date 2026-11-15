@@ -21,7 +21,7 @@ Scénarios réutilise les outils de simulation. `ProfileScenario.tsx` propose Sy
 - `update_profile`, `ask_user`, les outils historiques/scénarios et `upsert_tab` restent partagés. Les IDs réservés aux comparaisons et cartes ne peuvent pas être remplacés par une note arbitraire.
 - `workspaceMode: profiles` charge les procédures investor-profile et profile-investment-alignment dans le vrai contexte modèle; la trace indique runtime-bootstrap. Le modèle peut découvrir d’autres skills selon la demande. Le skill profile-workspace décrit les commandes et les vues.
 
-Le dépôt source `../InvestorOS-skills` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Le catalogue a évolué pendant les travaux parallèles : lire la version actuelle dans `/v1/profiles/status` et le SHA-256 de chaque chargement, plutôt que supposer une version à partir de cette note.
+Les sources versionnées dans `agent-skills/` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Au 15 novembre 2026, la version est 1.8.11 avec 19 skills; lire la version courante dans `/v1/profiles/status` et le SHA-256 de chaque chargement.
 
 ## Mémoire
 
@@ -35,7 +35,7 @@ Le dépôt source `../InvestorOS-skills` et le snapshot embarqué sont synchroni
 
 ## Vérifications du 15 novembre 2026
 
-- 49 tests API ciblés : calculs sur dates communes, refus FX, références de preuve, révisions/isolation, conservation finale des scénarios, orchestration/outils/skills et contenu des procédures fourni au modèle.
+- 50 tests API ciblés : calculs sur dates communes, refus FX, références de preuve, révisions/isolation, conservation finale des scénarios, orchestration/outils/skills et contenu des procédures fourni au modèle.
 - 12 tests des règles de cohérence, notamment les négations et les formulations rapportées (« fluctuations élevées », « ne peut pas absorber »).
 - TypeScript et build de production vérifiés. Le build conserve un avertissement de taille sur le bundle principal préexistant; il ne démontre pas une performance de réseau public.
 - Chrome/Playwright : six vues, comparaison réelle, erreurs de devise, édition et restauration dans une nouvelle session, agrandissement, mobile. À 1440×950, pas de défilement du corps des six vues de référence; les longues preuves et formulaires avancés peuvent défiler dans leur zone.
@@ -67,4 +67,4 @@ Les 19 maquettes ImageGen et les captures de référence restent dans `docs/prep
 
 ## Dernier état de session AWS
 
-Les essais Bedrock et DynamoDB ci-dessus ont réussi avant expiration des identifiants locaux. Une vérification ultérieure a confirmé ExpiredTokenException sur DynamoDB et une session expirée côté MCP. Le code traite maintenant cette situation explicitement (503 mémoire / événement aws_session_expired pour le chat), conserve les données locales et ne prétend pas sauvegarder sur AWS. La reconnexion est en attente de l’autorisation de lancer aws login ou du renouvellement de la session du hackathon par l’utilisateur. La vérification AWS courante et une éventuelle publication de la nouvelle UI restent à faire après reconnexion; ne pas présenter les anciennes traces réussies comme preuve d’une session encore valide.
+Les essais Bedrock et DynamoDB ci-dessus ont réussi avant expiration des identifiants locaux. Une vérification ultérieure a confirmé ExpiredTokenException sur DynamoDB et une session expirée côté MCP. Le code traite maintenant cette situation explicitement (503 mémoire / événement aws_session_expired pour le chat), conserve les données locales et ne prétend pas sauvegarder sur AWS. La reconnexion est en attente de l’autorisation de lancer aws login ou du renouvellement de la session du hackathon par l’utilisateur. Un nouvel essai non intercepté depuis le chat Chrome a confirmé la même expiration après les deux chargements de skills du runtime (`current-live-browser.json/png`). Aucun outil de comparaison n’a été exécuté dans cet essai. La vérification AWS courante et une éventuelle publication de la nouvelle UI restent à faire après reconnexion; ne pas présenter les anciennes traces réussies comme preuve d’une session encore valide.

@@ -1,0 +1,18 @@
+---
+name: portfolio-exposures
+description: "Examiner un portefeuille fictif : pondérations, concentration, diversification et adéquation au profil."
+---
+
+# portfolio-exposures
+
+Appelle analyze_demo_portfolio pour le persona actif avant tout chiffre. Cite la classification fictive, la date et la devise renvoyées. Distingue concentration des lignes et exposition des actifs sous-jacents : un libellé de fonds ne donne ni ses composants ni ses corrélations. Relie les constats aux objectifs et contraintes explicites du persona.
+
+Utilise aussi ce skill quand la personne demande si une idée d’actif, de secteur ou de crypto correspond au profil, ou si son ajout préserverait la diversification. Examine d’abord les expositions existantes, pas le rendement passé. Si l’actif ou ses composants n’est pas couvert par les données, dis-le et limite la comparaison aux informations effectivement calculées. Ajouter un nouveau nom ne prouve pas une diversification : son poids et ses chevauchements avec les positions existantes sont nécessaires pour un calcul avant/après. Ne suppose aucun poids, financement, rendement futur, corrélation ou préférence implicite.
+
+Sépare clairement : (1) faits du profil, (2) expositions du portefeuille fictif, (3) couverture disponible pour le nouvel actif, (4) tensions ou compromis, (5) inconnues qui empêchent une conclusion. Une tolérance élevée ne signifie pas que toute concentration est cohérente; une préférence de diversification n’est pas une allocation chiffrée. Ne présente jamais le classement par performance passée comme une adéquation, une recommandation ou une prévision. Ne conseille jamais d’ajouter, d’éviter ou de pondérer un actif; évite les formulations détournées comme « pourrait envisager une petite allocation » ou « je recommande de réfléchir ». La capacité financière à absorber une perte reste inconnue si elle n’a pas été explicitement renseignée.
+
+Quand le calculateur retourne les lignes d’un portefeuille, cite les poids exactement et qualifie le portefeuille de fictif. Les catégories ne permettent pas d’inférer la composition sous-jacente : par exemple, une ligne « actions mondiales » n’établit pas le poids de NVIDIA. Si le portefeuille a déjà une ligne « crypto-actifs », cela ne prouve ni qu’elle contient Bitcoin ni qu’un ajout direct diversifierait le portefeuille.
+
+Réponse de synthèse : (a) rappeler deux ou trois faits du persona; (b) donner les lignes et poids pertinents exactement; (c) dire ce que les données permettent de comparer qualitativement; (d) nommer les inconnues qui empêchent un avant/après; (e) ne pas formuler de choix d’actif ni d’allocation. Si la personne ne demande pas un calcul chiffré, n’interromps pas ce résumé pour demander des poids.
+
+Ne pose une question que si une inconnue change l’analyse, par exemple le poids envisagé ou le financement lorsque la personne demande un calcul avant/après. Si les entrées manquent, explique d’abord ce qui est déjà vérifiable et demande au plus quelques précisions. Ne calcule pas de volatilité ou de risque historique sans séries validées. Utilise ask_user pour les précisions nécessaires et upsert_tab pour un plan utile.

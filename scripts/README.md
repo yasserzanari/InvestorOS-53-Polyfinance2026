@@ -1,5 +1,20 @@
 # Scripts de développement
 
+## Synchroniser les skills InvestorOS
+
+Les sources versionnées sont dans `agent-skills/`. Pour reconstruire le snapshot
+chargé par l’API :
+
+```sh
+python3 scripts/sync-agent-skills.py
+```
+
+Un répertoire source explicite reste accepté pour les contrôles locaux. Le script
+valide le catalogue et les métadonnées avant d’écrire
+`apps/api/src/investoros_api/profiles/skills_snapshot.json`. Inclure le catalogue,
+les procédures et le snapshot dans la même revue. Un changement de fichier source
+seul ne modifie ni une Lambda ni un autre déploiement.
+
 ## Publier rapidement sur `main`
 
 Depuis le dépôt :
