@@ -1,60 +1,34 @@
-import { ArrowRight, BadgeAlert, ChevronRight, SlidersHorizontal, X } from 'lucide-react';
-import type { PortfolioPosition, PortfolioSnapshot, getRebalancePreview } from '../model/portfolio-model';
-import { pct, usd } from '../utils/format';
-import { HoldingSparkline } from './HoldingSparkline';
-import { PositionInspector } from './PositionInspector';
+import { BriefcaseBusiness } from 'lucide-react';
+import type { DemoOverview } from '../../../shared/api';
 
-type RebalancePreview = ReturnType<typeof getRebalancePreview>;
+const colors = ['#247f78', '#4d6eb3', '#ad7440', '#8b6ab4', '#3984a3', '#b05d69'];
 
-type PositionsPanelProps = {
-  snapshot: PortfolioSnapshot;
-  positions: PortfolioPosition[];
-  selectedSymbol: string | null;
-  selectedPosition?: PortfolioPosition;
-  preview: RebalancePreview;
-  previewingRebalance: boolean;
-  onApplyRebalance: () => void;
-  onSelect: (symbol: string | null) => void;
-  onToggleRebalance: () => void;
-};
+function money(value: number, currency: string) {
+  return new Intl.NumberFormat('fr-CA', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+}
 
-export function PositionsPanel({ snapshot, positions, selectedSymbol, selectedPosition, preview, previewingRebalance, onApplyRebalance, onSelect, onToggleRebalance }: PositionsPanelProps) {
-  const rebalanceAlreadyApplied = snapshot.rebalances.some((event) => event.step === snapshot.step);
+export function PositionsPanel({ portfolio, selected, onSelect }: {
+  portfolio: DemoOverview['portfolio'];
+  selected: string | null;
+  onSelect: (id: string | null) => void;
+}) {
   return (
     <section className="portfolio-panel portfolio-positions-panel" aria-labelledby="positions-heading">
       <header className="portfolio-panel-heading">
-        <div><h2 id="positions-heading">Positions</h2><p>{positions.length} actifs · cours et poids du modèle</p></div>
-        <button type="button" className={`portfolio-rebalance-toggle ${previewingRebalance ? 'is-open' : ''}`} aria-pressed={previewingRebalance} onClick={onToggleRebalance}><SlidersHorizontal size={14} />Rééquilibrer<ChevronRight size={13} /></button>
+        <div><span className="portfolio-section-icon"><BriefcaseBusiness size={16} /></span><div><h2 id="positions-heading">Positions</h2><p>{portfolio.positions.length} lignes · valeurs de la fixture du compte</p></div></div>
+        <strong className="portfolio-total-value">{money(portfolio.total_value, portfolio.currency)}</strong>
       </header>
-      {previewingRebalance ? <div className="rebalance-preview">
-        <div className="rebalance-preview-heading"><div><BadgeAlert size={17} /><div><strong>Aperçu du rééquilibrage</strong><small>Écart par rapport aux pondérations cibles</small></div></div><button type="button" onClick={onToggleRebalance} aria-label="Fermer l’aperçu"><X size={16} /></button></div>
-        <div className="rebalance-preview-list">{preview.map((trade) => <div key={trade.symbol}>
-          <span className="rebalance-symbol" style={{ color: trade.color }}>{trade.symbol}</span>
-          <span>{trade.weight.toFixed(1)} % → {trade.target} %</span>
-          <strong className={trade.amount >= 0 ? 'portfolio-positive' : 'portfolio-negative'}>{trade.side} {usd(Math.abs(trade.amount))}</strong>
-        </div>)}</div>
-        <button type="button" className="rebalance-apply-button" onClick={onApplyRebalance} disabled={snapshot.step === 0 || rebalanceAlreadyApplied}>Appliquer dans cette simulation <ArrowRight size={14} /></button>
-      </div> : <>
-        {selectedPosition && <PositionInspector position={selectedPosition} onClose={() => onSelect(null)} />}
-        <div className="portfolio-table-scroll holdings-table-scroll">
-          <table className="portfolio-table holdings-table">
-            <caption className="sr-only">Positions simulées, cours, rendements, volatilité, repli, allocation et valeur.</caption>
-            <thead><tr>{['Actif', 'Cours', 'Rendement', 'Tendance', 'Jour', 'Volatilité', 'Repli', 'Poids / cible', 'P&L', 'Valeur'].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead>
-            <tbody>{positions.map((position) => <tr key={position.symbol} className={selectedSymbol === position.symbol ? 'is-selected' : ''}>
-              <th scope="row"><button className="holding-name-button" onClick={() => onSelect(selectedSymbol === position.symbol ? null : position.symbol)} aria-pressed={selectedSymbol === position.symbol}><i style={{ background: position.color }} /><span><strong>{position.symbol}</strong><small>{position.name}</small></span></button></th>
-              <td>{usd(position.price, 2)}</td>
-              <td className={position.returnPct >= 0 ? 'portfolio-positive' : 'portfolio-negative'}>{pct(position.returnPct)}</td>
-              <td><HoldingSparkline values={position.sparkline} color={position.color} /></td>
-              <td className={position.dayChange >= 0 ? 'portfolio-positive' : 'portfolio-negative'}>{pct(position.dayChange * 100, 2)}</td>
-              <td>{position.volatility.toFixed(1)} %</td>
-              <td className="portfolio-negative">{pct(position.maxDrawdown)}</td>
-              <td><div className="portfolio-weight"><span>{position.weight.toFixed(1)} %</span><div><i style={{ width: `${Math.min(100, position.weight / 30 * 100)}%`, background: position.color }} /><b style={{ left: `${position.target / 30 * 100}%` }} /></div></div></td>
-              <td className={position.pnl >= 0 ? 'portfolio-positive' : 'portfolio-negative'}>{position.pnl >= 0 ? '+' : '−'}{usd(Math.abs(position.pnl))}</td>
-              <td>{usd(position.value)}</td>
-            </tr>)}</tbody>
-          </table>
-        </div>
-      </>}
+      <div className="portfolio-position-list" aria-label="Positions du portefeuille fictif">
+        {portfolio.positions.map((position, index) => {
+          const color = colors[index % colors.length];
+          return <button className={`portfolio-position-row${selected === position.id ? ' is-selected' : ''}`} type="button" key={position.id} aria-pressed={selected === position.id} onClick={() => onSelect(selected === position.id ? null : position.id)}>
+            <span className="portfolio-position-identity"><i style={{ background: color }} /><span><strong>{position.label}</strong>{position.ticker && <small>{position.ticker}</small>}</span></span>
+            <span className="portfolio-position-weight"><span>{position.weight_pct.toLocaleString('fr-CA', { maximumFractionDigits: 1 })} %</span><i><b style={{ width: `${Math.max(0, Math.min(100, position.weight_pct))}%`, background: color }} /></i></span>
+            <strong className="portfolio-position-value">{money(position.value, portfolio.currency)}</strong>
+          </button>;
+        })}
+      </div>
+      <p className="portfolio-panel-footnote">Montants et pondérations lus depuis le portefeuille fictif configuré. Aucun historique de cours n’est fourni ici.</p>
     </section>
   );
 }
