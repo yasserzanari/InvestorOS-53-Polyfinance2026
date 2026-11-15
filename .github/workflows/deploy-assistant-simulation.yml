@@ -83,6 +83,10 @@ jobs:
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform init -input=false
 
+      - name: Clear stale taint from existing portfolio monitor roles
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: python "$GITHUB_WORKSPACE/scripts/repair-tainted-monitor-roles.py"
+
       - name: Plan and apply safe changes
         working-directory: ${{ env.TERRAFORM_DIR }}
         shell: bash
