@@ -851,7 +851,7 @@ Réponds impérativement en français, avec une réponse concise.
                         except HTTPException as error:
                             raise ValueError(str(error.detail)) from error
                     elif name == 'open_profile_view':
-                        if 'view' not in args or not set(args) <= {'view','documentId'} or args['view'] not in {'profile','alignment','comparison','scenarios','evidence','memory','documents'}:
+                        if 'view' not in args or not set(args) <= {'view','documentId'} or args['view'] not in {'profile','overview','objectives','situation','risk','preferences','alignment','comparison','scenarios','evidence','memory','documents'}:
                             raise ValueError('Vue de profil inconnue.')
                         if historical_only and args['view'] not in {'comparison','evidence'}:
                             raise ValueError('Cette demande historique utilise Comparer ou Preuves; elle ne change pas l’analyse du profil.')
