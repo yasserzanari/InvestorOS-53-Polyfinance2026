@@ -21,6 +21,7 @@
 | Capability | Canonical owner | Source | Behavior |
 |---|---|---|---|
 | Account selector | `DemoAccountContext` + shared `AppShell` select | `apps/web/src/shared/DemoAccountContext.tsx` | Native select; switching account changes the profile context. |
+| Select/Listbox | Native HTML `<select>` | Browser platform | Use native popup, keyboard, and locale behavior for finite choices such as ticker, horizon, and branch timing. |
 | Form | Feature form with explicit labels and inline feedback | Profile workflow | Draft edit; save locally; confirm as a new demo version. |
 | CRUD | Feature route and local demo store | Profile workflow | Edit/save in place; reset restores only the selected fictional example. |
 | Feedback | Inline status in the owning screen | Profile workflow | Status remains visible; no browser dialogs or transient-only critical messages. |
