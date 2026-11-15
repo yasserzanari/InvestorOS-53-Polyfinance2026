@@ -9,10 +9,11 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
 }) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [voiceSession, setVoiceSession] = useState(0);
   const [notice, setNotice] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef(false);
-  useEffect(() => { if (busy) { setVoiceOpen(false); setRecording(false); } }, [busy]);
+  useEffect(() => { if (busy) setRecording(false); }, [busy]);
   useEffect(() => {
     if (busy || !restoreFocus.current) return;
     const frame = window.requestAnimationFrame(() => {
@@ -23,9 +24,25 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
     return () => window.cancelAnimationFrame(frame);
   }, [busy]);
   const stopVoice = () => { setVoiceOpen(false); setRecording(false); };
-  const send = () => { if (busy || disabled || !value.trim()) return; restoreFocus.current = Boolean(rootRef.current?.contains(document.activeElement)); stopVoice(); onSend(); setNotice(''); };
+  const send = () => {
+    if (busy || disabled || !value.trim()) return;
+    restoreFocus.current = Boolean(rootRef.current?.contains(document.activeElement));
+    if (!voiceOpen) stopVoice();
+    onSend();
+    setNotice('');
+  };
+  const finishVoiceTurn = () => {
+    setRecording(false);
+    if (value.trim()) send();
+    else {
+      setNotice('Je n’ai pas reçu de transcription. Je relance l’écoute.');
+      setVoiceSession((session) => session + 1);
+    }
+  };
   return <div className="pw-prompt-root" ref={rootRef}>
-    {voiceOpen&&<VoiceOrb value={value} onChange={onChange} onRecordingChange={setRecording} onError={setNotice} onFinished={()=>{setVoiceOpen(false);setRecording(false);setNotice('Transcription terminée. Relisez le texte avant de l’envoyer.');}}/>}
+    {voiceOpen&&(busy
+      ? <div className="pw-voice-live" role="status" aria-live="polite"><div className="pw-voice-orb"><span/><span/><span/></div><strong>Analyse en cours…</strong><small>Votre question est envoyée. Le micro reprendra après la réponse.</small></div>
+      : <VoiceOrb key={voiceSession} value={value} onChange={onChange} onRecordingChange={setRecording} onError={setNotice} onFinished={finishVoiceTurn}/>)}
     <AdvancedChatInput
       className="pw-shared-prompt"
       textareaProps={{
@@ -38,7 +55,7 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
       hideSendButton={busy}
       sendButtonProps={{disabled:disabled||!value.trim(), 'aria-label':'Envoyer le message'}}
       actionIcons={[
-        <button key="microphone" type="button" className={`pw-prompt-mic${voiceOpen?' is-recording':''}`} disabled={busy||disabled} aria-label={voiceOpen?'Arrêter le mode vocal':'Démarrer le mode vocal'} aria-pressed={voiceOpen} onClick={()=>{setNotice('');if(voiceOpen)stopVoice();else setVoiceOpen(true);}}>{voiceOpen?<Square size={16}/>:<Mic size={18}/>}</button>,
+        <button key="microphone" type="button" className={`pw-prompt-mic${voiceOpen?' is-recording':''}`} disabled={disabled||(busy&&!voiceOpen)} aria-label={voiceOpen?'Arrêter le mode vocal':'Démarrer le mode vocal'} aria-pressed={voiceOpen} onClick={()=>{setNotice('');if(voiceOpen)stopVoice();else setVoiceOpen(true);}}>{voiceOpen?<Square size={16}/>:<Mic size={18}/>}</button>,
         <span key="hint" className="pw-prompt-hint">{recording?'Écoute en direct · Amazon Transcribe':'Entrée pour envoyer'}</span>,
         ...(busy?[<button key="stop" type="button" className="pw-prompt-mic" onClick={onStop} aria-label="Arrêter la réponse"><Square size={16}/></button>]:[]),
       ]}
