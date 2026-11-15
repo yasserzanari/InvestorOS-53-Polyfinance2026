@@ -17,9 +17,15 @@ class WorkspaceTab(BaseModel):
     model_config = ConfigDict(extra='forbid')
     id: str = Field(min_length=1, max_length=80, pattern=r'^[a-zA-Z0-9_-]+$')
     title: str = Field(min_length=1, max_length=80)
-    kind: Literal['profile', 'note', 'tasks', 'agents', 'sources', 'simulation']
-    content: str = Field(default='', max_length=16000)
+    kind: Literal['profile', 'note', 'tasks', 'agents', 'sources', 'simulation', 'decision']
+    content: str = Field(default='', max_length=64000)
     items: list[TabItem] = Field(default_factory=list, max_length=40)
+
+    @model_validator(mode='after')
+    def validate_content_size(self):
+        if self.kind != 'simulation' and len(self.content) > 16000:
+            raise ValueError('Le contenu de ce document dépasse 16 000 caractères.')
+        return self
 
 class HistoryMessage(BaseModel):
     role: Literal['user', 'assistant']
@@ -59,11 +65,18 @@ class AskUserInput(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     description: str | None = Field(default=None, max_length=800)
     questions: list[UserQuestion] = Field(min_length=1, max_length=3)
+    purpose: Literal['clarification', 'plan_approval'] = 'clarification'
 
     @model_validator(mode='after')
     def validate_questions(self):
         if len({item.id for item in self.questions}) != len(self.questions):
             raise ValueError('Les identifiants des questions doivent être uniques.')
+        if self.purpose == 'plan_approval':
+            if len(self.questions) != 1 or self.questions[0].kind != 'single_choice' or not self.questions[0].required:
+                raise ValueError('La validation du plan attend une seule question obligatoire à choix unique.')
+            labels = {option.label.casefold() for option in self.questions[0].options}
+            if 'oui, lancer ce plan' not in labels or 'modifier le plan' not in labels:
+                raise ValueError('La validation doit proposer « Oui, lancer ce plan » et « Modifier le plan ».')
         return self
 
 
@@ -87,6 +100,7 @@ class QuestionAnswer(BaseModel):
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     message: str = Field(min_length=1, max_length=8000)
+    workspaceMode: Literal['profiles','assistant'] = 'assistant'
     history: list[HistoryMessage] = Field(default_factory=list, max_length=30)
     profile: dict[str, str] = Field(default_factory=dict, max_length=8)
     tabs: list[WorkspaceTab] = Field(default_factory=list, max_length=12)

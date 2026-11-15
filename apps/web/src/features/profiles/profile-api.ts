@@ -2,8 +2,8 @@ import { authenticatedFetch } from '../../shared/auth';
 
 export type Citation = { id: string; index: number; title: string; url: string; snippet?: string };
 export type FollowUp = { id: string; label: string };
-export type WorkspaceTab = { id: string; title: string; kind: 'profile'|'note'|'tasks'|'agents'|'sources'|'simulation'; content: string; items?: {id: string; title: string; status?: string; url?: string}[] };
-export type ToolEvent = { phase?: 'preparing'|'executing'; startedAt?:number; finishedAt?:number; id: string; name: string; status: 'running'|'done'|'failed'; input?: unknown; output?: unknown; error?: string };
+export type WorkspaceTab = { id: string; title: string; kind: 'profile'|'note'|'tasks'|'agents'|'sources'|'simulation'|'decision'; content: string; items?: {id: string; title: string; status?: string; url?: string}[] };
+export type ToolEvent = { actor?:string; phase?: 'preparing'|'executing'; startedAt?:number; finishedAt?:number; id: string; name: string; status: 'running'|'done'|'failed'; input?: unknown; output?: unknown; error?: string };
 export type AgentEvent = { id: string; name: string; status: 'running'|'done'|'failed'; task: string; summary?: string; startedAt?: number; durationMs?: number; kind?: 'bedrock'|'collector'; skills?: {id:string;version?:string;sha256?:string}[]; skill_trace?: {tool:string;actor?:string;input?:{skill_id?:string}}[] };
 export type ProfileEvent = {type: string; [key: string]: unknown};
 export const profileApiBase = import.meta.env.DEV

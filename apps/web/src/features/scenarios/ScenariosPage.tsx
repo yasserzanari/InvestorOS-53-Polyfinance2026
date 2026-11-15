@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Database, ExternalLink, GitBranch, LoaderCircle, MessageCircle, Newspaper, Plus, ShieldCheck, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { loadSourceWorkspace, loadSimulationAssets, loadSimulationEventStudy, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ScenarioBranchInput, type SimulationAssetList, type SimulationEventStudy, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
+import { loadSourceWorkspace, loadSimulationAssets, loadSimulationEventStudy, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ObservationBranchInput as ScenarioBranchInput, type SimulationAssetList, type SimulationEventStudy, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection as SharedSimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
 import { safeSourceUrl } from '../profiles/profile-api';
 
 import './scenarios.css';
 import { useDemoAccount } from '../../shared/DemoAccountContext';
 
+type SimulationProjection=Extract<SharedSimulationProjection,{horizonObservations:number}>;
 type Range = 1 | 3 | 5;
 const RANGE_OPTIONS: Range[] = [1, 3, 5];
-type Horizon = 20 | 60 | 120;
+type Horizon = 5 | 20 | 60 | 120;
 type ScenarioDraft = Omit<ScenarioBranchInput, 'shockPct'> & { shockPct: string };
-const HORIZONS: Horizon[] = [20, 60, 120];
+const HORIZONS: Horizon[] = [5, 20, 60, 120];
 const eventNames: Record<string, string> = { dividend: 'Dividende', split: 'Fractionnement', stock_split: 'Fractionnement' };
 const dateLabel = (value: string) => new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
 const dateWindow = (years: number) => {
@@ -503,6 +504,7 @@ export function ScenariosPage() {
     setProjectionError('');
     try {
       const result = await runSimulationProjection({ ticker, horizonObservations: horizon, branches: input });
+      if(result.timeUnit==='calendar_days')throw new Error('Une projection en séances était attendue.');
       setProjection(result);
       setSelectedBranchId(result.branches[0]?.id);
     } catch (cause) {

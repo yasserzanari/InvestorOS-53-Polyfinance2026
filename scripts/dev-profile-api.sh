@@ -17,7 +17,7 @@ profile_settings="$PROJECT_ROOT/apps/api/.env.profile-api"
 if [[ -f "$profile_settings" ]]; then
   while IFS='=' read -r setting value; do
     case "$setting" in
-      RESEARCH_API_URL|RESEARCH_LAMBDA_FUNCTION|AWS_PROFILE|AWS_REGION|BEDROCK_MODEL_ID|PROFILE_API_PORT|ADMIN_CONSOLE_TOKEN_SECRET_ARN|RESEARCH_ADMIN_TOKEN_SECRET_ARN)
+      PROFILE_WORKSPACE_TABLE|PROFILE_MEMORY_DB|DEMO_CONTEXTS|RESEARCH_API_URL|RESEARCH_LAMBDA_FUNCTION|AWS_PROFILE|AWS_REGION|BEDROCK_MODEL_ID|PROFILE_API_PORT|ADMIN_CONSOLE_TOKEN_SECRET_ARN|RESEARCH_ADMIN_TOKEN_SECRET_ARN)
         if [[ -z "${!setting:-}" ]]; then export "$setting=$value"; fi ;;
     esac
   done < "$profile_settings"

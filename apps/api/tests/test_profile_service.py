@@ -34,7 +34,71 @@ class RuntimeStub:
         ]}
 
 
+class FinalRuntime:
+    def __init__(self):
+        self.calls = []
+
+    def converse_stream(self, **kwargs):
+        self.calls.append(deepcopy(kwargs))
+        return {'stream': [
+            {'contentBlockDelta': {'contentBlockIndex': 0, 'delta': {'text': 'La plateforme ne fournit pas de score ESG comparable.'}}},
+            {'messageStop': {'stopReason': 'end_turn'}},
+            {'metadata': {'usage': {'inputTokens': 10, 'outputTokens': 8}}},
+        ]}
+
+
 class ProfileServiceTests(unittest.TestCase):
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
+    def test_profile_fit_contract_allows_evidence_based_conditional_tensions(self):
+        request = ChatRequest(
+            accountId='mateo',
+            message='Mon portefeuille correspond-il à mon objectif et à mes critères ESG ?',
+            profile={'objective': 'Stabilité', 'horizon': 'Court terme', 'preferences': 'Critères ESG'},
+        )
+        runtime = FinalRuntime()
+
+        events = list(run_chat(request, runtime))
+
+        system = '\n'.join(block['text'] for block in runtime.calls[0]['system'])
+        self.assertIn('Tu peux expliquer une tension conditionnelle', system)
+        self.assertIn('Dis précisément quelles données manquent', system)
+        self.assertNotIn('Ne propose aucune conclusion qualitative d’adéquation', system)
+        self.assertIn('N’attribue aucun score', system)
+        available = {tool['toolSpec']['name'] for tool in runtime.calls[0]['toolConfig']['tools']}
+        self.assertIn('analyze_demo_portfolio', available)
+        self.assertEqual(events[-1]['type'], 'done')
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
+    def test_plan_approval_form_cannot_appear_before_visible_plan_steps(self):
+        request = {
+            'title': 'Valider le plan', 'purpose': 'plan_approval',
+            'questions': [{'id': 'approval', 'label': 'Que faire ?', 'kind': 'single_choice', 'required': True,
+                'allowOther': True, 'options': [{'id': 'launch', 'label': 'Oui, lancer ce plan'},
+                {'id': 'edit', 'label': 'Modifier le plan'}]}],
+        }
+        events = list(run_chat(ChatRequest(message='Analyse NVDA'), RuntimeStub(stream_tool('ask_user', request))))
+        self.assertFalse(any(event['type'] == 'questions' for event in events))
+        self.assertTrue(any(event.get('status') == 'failed' and 'trois à six étapes' in event.get('error', '') for event in events))
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
+    def test_general_platform_capability_question_loads_skill_and_blocks_financial_tools(self):
+        runtime = FinalRuntime()
+        request = ChatRequest(
+            accountId='mateo',
+            message='Évalue ce que la plateforme peut réellement vérifier pour les critères ESG de Mateo.',
+        )
+
+        events = list(run_chat(request, runtime))
+
+        skill_events = [event for event in events if event.get('name') in {'search_skills', 'load_skill'}]
+        self.assertEqual([event['name'] for event in skill_events if event['status'] == 'done'], ['search_skills', 'load_skill'])
+        self.assertEqual(skill_events[-1]['output']['id'], 'platform-capabilities')
+        available = {tool['toolSpec']['name'] for tool in runtime.calls[0]['toolConfig']['tools']}
+        self.assertEqual(available, {'ask_user', 'search_skills', 'load_skill'})
+        self.assertIn('platform_available_tools', '\n'.join(block['text'] for block in runtime.calls[0]['system']))
+        self.assertNotIn('inspect_supply_chain', available)
+        self.assertEqual(events[-1]['type'], 'done')
+
     def test_workspace_accepts_simulation_results_as_shared_tabs(self):
         request = ChatRequest(
             message='Montre les trajectoires dans le chat',
@@ -67,12 +131,20 @@ class ProfileServiceTests(unittest.TestCase):
     def test_portfolio_tool_returns_deterministic_result_to_chat(self, analyze):
         summary = {'positionCount': 4, 'largestPositionPct': 40, 'provenance': {'classification': 'fictional_fixture'}}
         analyze.return_value = summary
-        runtime = RuntimeStub(stream_tool('analyze_demo_portfolio', {}))
+        class PortfolioSequence(RuntimeStub):
+            def converse_stream(self, **kwargs):
+                response = super().converse_stream(**kwargs)
+                if len(self.calls) == 2:
+                    return stream_tool('load_skill', {'skill_id':'portfolio-exposures'})
+                if len(self.calls) == 3:
+                    return stream_tool('analyze_demo_portfolio', {})
+                return response
+        runtime = PortfolioSequence(stream_tool('search_skills', {'query':'portefeuille concentration'}))
         events = list(run_chat(ChatRequest(accountId='robert', message='Analyse la répartition de mon portefeuille'), runtime))
         tool_event = [event for event in events if event['type'] == 'tool' and event['name'] == 'analyze_demo_portfolio'][-1]
         self.assertEqual(tool_event['status'], 'done')
         self.assertEqual(tool_event['output'], summary)
-        result = runtime.calls[1]['messages'][-1]['content'][0]['toolResult']
+        result = runtime.calls[-1]['messages'][-1]['content'][0]['toolResult']
         self.assertEqual(result['content'][0]['json'], summary)
         analyze.assert_called_once_with(persona='robert')
 
@@ -158,6 +230,10 @@ class ProfileServiceTests(unittest.TestCase):
         request, = project.call_args.args
         self.assertEqual(request.branches[0].shockPct, -10)
         self.assertEqual(request.branches[1].shockPct, 5)
+        final_workspace = [e for e in events if e['type']=='workspace'][-1]
+        self.assertEqual(final_workspace['tabs'][-1]['id'], 'simulation-abc')
+        self.assertEqual(final_workspace['tabs'][-1]['kind'], 'simulation')
+        self.assertIn({'type':'profile_view','view':'scenarios'}, events)
 
     @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model'})
     def test_untrusted_tool_fields_are_rejected_without_mutating_profile(self):

@@ -9,7 +9,7 @@ export type AskUserQuestion = {
   allowOther: boolean;
   placeholder?: string;
 };
-export type AskUserRequest = {id: string; title: string; description?: string; questions: AskUserQuestion[]};
+export type AskUserRequest = {id: string; title: string; description?: string; purpose?: 'clarification'|'plan_approval'; questions: AskUserQuestion[]};
 export type AskUserAnswer = {requestId: string; answers: {questionId: string; selectedOptionIds: string[]; text: string}[]};
 
 export function formatQuestionAnswer(request: AskUserRequest, answer: AskUserAnswer): string {

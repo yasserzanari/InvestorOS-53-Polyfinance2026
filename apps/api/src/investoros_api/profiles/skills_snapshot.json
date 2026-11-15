@@ -1,5 +1,5 @@
 {
-  "version": "1.3.1",
+  "version": "1.8.11",
   "skills": [
     {
       "id": "investor-profile",
@@ -17,8 +17,8 @@
         "update_profile"
       ],
       "path": "skills/investor-profile/SKILL.md",
-      "content": "---\nname: investor-profile\ndescription: Clarifier un profil investisseur, ses objectifs, horizon, liquidité, connaissances et capacité de perte.\n---\n\n# investor-profile\n\nCommence par lire le profil actif et les faits déjà déclarés. Demande seulement les inconnues pertinentes via ask_user : single_choice pour un niveau de connaissances, multiple_choice pour des préférences compatibles, text pour les conséquences financières d’une perte. Un oui à une question ouverte ne décrit pas la capacité financière. Ne déduis rien de l’âge. Après réponse, update_profile ne conserve que les faits explicites. Distingue tolérance émotionnelle et capacité financière. N’annonce pas un profil complet si des champs restent ambigus.\n",
-      "sha256": "39266547f8593891051af2112ebab09a09e56e274484524744c2fe67b35024aa"
+      "content": "---\nname: investor-profile\ndescription: Clarifier un profil investisseur, ses objectifs, horizon, liquidité, connaissances et capacité de perte.\n---\n\n# investor-profile\n\nCommence par lire le profil actif et les faits déjà déclarés. Demande seulement les inconnues pertinentes via ask_user : single_choice pour un niveau de connaissances, multiple_choice pour des préférences compatibles, text pour les conséquences financières d’une perte. Un oui à une question ouverte ne décrit pas la capacité financière. Ne déduis rien de l’âge. Après réponse, update_profile ne conserve que les faits explicites. Distingue tolérance émotionnelle et capacité financière. N’annonce pas un profil complet si des champs restent ambigus.\n\n## Vues et mémoire\n\nLe profil déjà renseigné dans le contexte est réutilisable entre conversations du même persona. Enregistrer chaque précision explicite via update_profile avant la clarification suivante. Pour montrer une tension ou une inconnue, publier une carte avec publish_profile_insight et ouvrir alignment. Pour une comparaison historique indépendante, compare_profile_instruments peut avancer sans exiger toutes les rubriques personnelles. La personne confirme elle-même ses réponses dans la fiche.\n",
+      "sha256": "5e7e4e7887f841baf525a22120f6058e02b565296b1f4088e73fa76a627ef704"
     },
     {
       "id": "company-analysis",
@@ -30,7 +30,12 @@
         "nvidia",
         "action",
         "semaine",
-        "titre"
+        "titre",
+        "fondamentaux",
+        "actualité",
+        "annonce",
+        "catalyseur",
+        "événements"
       ],
       "required_tools": [
         "start_analysis",
@@ -38,8 +43,8 @@
         "get_analysis_result"
       ],
       "path": "skills/company-analysis/SKILL.md",
-      "content": "---\nname: company-analysis\ndescription: Analyser une entreprise ou un titre pour un horizon donné : recherche sourcée, événements, fondamentaux et risques.\n---\n\n# company-analysis\n\nUne demande « analyser NVDA la semaine prochaine » est une demande de recherche, pas automatiquement une projection de prix. Identifie entreprise, question et horizon; ask_user uniquement si une ambiguïté change le travail. Lance start_analysis avec une question explicite qui inclut les faits utiles du profil actif et les inconnues. Ne demande pas de chocs arbitraires pour autoriser cette recherche. Conserve analysis_id, puis consulte get_analysis_status ou get_analysis_result lors du suivi. Running ou partial n’est pas completed. Présente faits sourcés, événements datés, risques et informations manquantes. Ne prédis pas le cours. Si le moteur est indisponible, dis-le et propose l’historique réellement disponible. Une réponse de lancement ne constitue pas une analyse terminée.\n\n## Exécution et critères de réussite\n\n- Une demande explicite d’analyse lance réellement start_analysis après découverte et chargement du skill. Décrire un plan sans identifiant confirmé ne remplit pas la demande.\n- Transmets l’horizon relatif sans inventer de dates : le moteur le résout par rapport à son horloge. Demande une recherche en français, couvrant calendrier officiel à venir, communiqués récents, fondamentaux datés, risques et points de surveillance.\n- Utilise les outils pertinents de la plateforme : collecte primaire SEC et émetteur, calendriers officiels pour un horizon futur, calcul historique déterministe et documents RAG disponibles. Les outils de profil/portefeuille ne sont nécessaires que si le contexte personnel ou les expositions changent l’analyse. Les simulations conditionnelles exigent une demande de projection et des hypothèses explicites; ne les lance pas pour remplir une liste d’outils.\n- Inspecte coverage et execution_status : l’exécution peut être terminée et la couverture partielle. N’annonce jamais une analyse complète lorsque le calendrier demandé, les preuves ou la synthèse manquent.\n- Montre le suivi dans Agents, Skills utilisés et Résultats de recherche. Les faits futurs sont des événements annoncés, jamais des résultats financiers ou des variations de cours anticipés.\n",
-      "sha256": "8368cd4f490132b6e0cb61f0045c7e8867f4a76a0b151dbcfae215aa04d45cac"
+      "content": "---\nname: company-analysis\ndescription: \"Analyser une entreprise ou un titre pour un horizon donné : recherche sourcée, événements, fondamentaux et risques.\"\n---\n\n# company-analysis\n\nUne demande « analyser NVDA la semaine prochaine » est une demande de recherche, pas automatiquement une projection de prix. Charge `analysis-planning` pour clarifier l’intention et obtenir la validation du périmètre avant `start_analysis`. Identifie entreprise, question et horizon; demande seulement les précisions qui changent les sources ou la méthode. Ne demande pas de chocs arbitraires pour autoriser cette recherche. Après validation, lance `start_analysis` avec une question explicite qui inclut les faits utiles du profil actif et les axes approuvés. Conserve analysis_id, puis consulte get_analysis_status ou get_analysis_result lors du suivi. Running ou partial n’est pas completed. Présente faits sourcés, événements datés, risques et informations manquantes. Ne prédis pas le cours. Si le moteur est indisponible, dis-le et propose l’historique réellement disponible. Une réponse de lancement ne constitue pas une analyse terminée.\n\n## Exécution et critères de réussite\n\n- Une demande explicite d’analyse ne lance pas immédiatement start_analysis : propose d’abord le plan et attends la validation du périmètre. Une fois validé, lance réellement start_analysis; décrire un plan sans identifiant confirmé ne remplit pas la demande.\n- Transmets l’horizon relatif sans inventer de dates : le moteur le résout par rapport à son horloge. Demande une recherche en français, couvrant calendrier officiel à venir, communiqués récents, fondamentaux datés, risques et points de surveillance.\n- Utilise les outils pertinents de la plateforme : collecte primaire SEC et émetteur, calendriers officiels pour un horizon futur, calcul historique déterministe et documents RAG disponibles. Les outils de profil/portefeuille ne sont nécessaires que si le contexte personnel ou les expositions changent l’analyse. Les simulations conditionnelles exigent une demande de projection et des hypothèses explicites; ne les lance pas pour remplir une liste d’outils.\n- Inspecte coverage et execution_status : l’exécution peut être terminée et la couverture partielle. N’annonce jamais une analyse complète lorsque le calendrier demandé, les preuves ou la synthèse manquent.\n- Montre le suivi dans Agents, Skills utilisés et Résultats de recherche. Les faits futurs sont des événements annoncés, jamais des résultats financiers ou des variations de cours anticipés.\n\n- Lorsque l’utilisateur demande d’afficher le parcours d’une analyse existante et que son résultat est disponible, utilise `prepare_analysis_journey` si présent dans les outils autorisés. Réutilise son UUID et son onglet. Les événements annoncés gardent leurs dates et preuves; une carte géographique exige des relations documentées. Une estimation de référence reste distincte de la semaine étudiée et des chocs hypothétiques.\n\n- Conserve clairement le seul émetteur étudié dans la question transmise à start_analysis; évite les mentions comparatives ou négatives d’autres sociétés qui pourraient détourner une collecte mono-entreprise. Pour afficher un résultat disponible, consulte get_analysis_view_options puis laisse orchestrate_analysis_ui choisir les vues utiles. Un calendrier spécialisé ou un réseau absent doit rester explicitement indisponible.\n",
+      "sha256": "d15817815ece834c6d5642f720be24afc876750fa0e963e43265eda5f82b3234"
     },
     {
       "id": "portfolio-exposures",
@@ -49,32 +54,65 @@
         "positions",
         "pondération",
         "concentration",
-        "diversification"
+        "diversification",
+        "adéquation",
+        "convenir",
+        "actif",
+        "crypto",
+        "secteur",
+        "persona"
       ],
       "required_tools": [
         "analyze_demo_portfolio"
       ],
       "path": "skills/portfolio-exposures/SKILL.md",
-      "content": "---\nname: portfolio-exposures\ndescription: Examiner un portefeuille fictif : pondérations, concentration, diversification et adéquation au profil.\n---\n\n# portfolio-exposures\n\nAppelle analyze_demo_portfolio pour le persona actif avant tout chiffre. Cite la classification fictive, la date et la devise renvoyées. Distingue concentration des lignes et exposition des actifs sous-jacents : un libellé de fonds ne donne ni ses composants ni ses corrélations. Relie les constats aux objectifs et inconnues du profil. Ne calcule pas de volatilité ou de risque historique sans séries validées. Utilise ask_user pour les précisions nécessaires et upsert_tab pour un plan utile.\n",
-      "sha256": "a6ec54cea72390f3ebfa883e5aafe643968c9940fb509afdb2de4a64507f9964"
+      "content": "---\nname: portfolio-exposures\ndescription: \"Examiner un portefeuille fictif : pondérations, concentration, diversification et adéquation au profil.\"\n---\n\n# portfolio-exposures\n\nAppelle analyze_demo_portfolio pour le persona actif avant tout chiffre. Cite la classification fictive, la date et la devise renvoyées. Distingue concentration des lignes et exposition des actifs sous-jacents : un libellé de fonds ne donne ni ses composants ni ses corrélations. Relie les constats aux objectifs et contraintes explicites du persona.\n\nUtilise aussi ce skill quand la personne demande si une idée d’actif, de secteur ou de crypto correspond au profil, ou si son ajout préserverait la diversification. Examine d’abord les expositions existantes, pas le rendement passé. Si l’actif ou ses composants n’est pas couvert par les données, dis-le et limite la comparaison aux informations effectivement calculées. Ajouter un nouveau nom ne prouve pas une diversification : son poids et ses chevauchements avec les positions existantes sont nécessaires pour un calcul avant/après. Ne suppose aucun poids, financement, rendement futur, corrélation ou préférence implicite.\n\nSépare clairement : (1) faits du profil, (2) expositions du portefeuille fictif, (3) couverture disponible pour le nouvel actif, (4) tensions ou compromis, (5) inconnues qui empêchent une conclusion. Une tolérance élevée ne signifie pas que toute concentration est cohérente; une préférence de diversification n’est pas une allocation chiffrée. Ne présente jamais le classement par performance passée comme une adéquation, une recommandation ou une prévision. Ne conseille jamais d’ajouter, d’éviter ou de pondérer un actif; évite les formulations détournées comme « pourrait envisager une petite allocation » ou « je recommande de réfléchir ». La capacité financière à absorber une perte reste inconnue si elle n’a pas été explicitement renseignée.\n\nQuand le calculateur retourne les lignes d’un portefeuille, cite les poids exactement et qualifie le portefeuille de fictif. Les catégories ne permettent pas d’inférer la composition sous-jacente : par exemple, une ligne « actions mondiales » n’établit pas le poids de NVIDIA. Si le portefeuille a déjà une ligne « crypto-actifs », cela ne prouve ni qu’elle contient Bitcoin ni qu’un ajout direct diversifierait le portefeuille.\n\nRéponse de synthèse : (a) rappeler deux ou trois faits du persona; (b) donner les lignes et poids pertinents exactement; (c) dire ce que les données permettent de comparer qualitativement; (d) nommer les inconnues qui empêchent un avant/après; (e) ne pas formuler de choix d’actif ni d’allocation. Si la personne ne demande pas un calcul chiffré, n’interromps pas ce résumé pour demander des poids.\n\nNe pose une question que si une inconnue change l’analyse, par exemple le poids envisagé ou le financement lorsque la personne demande un calcul avant/après. Si les entrées manquent, explique d’abord ce qui est déjà vérifiable et demande au plus quelques précisions. Ne calcule pas de volatilité ou de risque historique sans séries validées. Utilise ask_user pour les précisions nécessaires et upsert_tab pour un plan utile.\n",
+      "sha256": "a59e4d5c571698a9109dd724c4040909e39549a4ba31f9a496acc71cfba21648"
     },
     {
       "id": "historical-market",
-      "description": "Consulter les cours historiques et événements d’un titre, avec dates et limites.",
+      "description": "Consulter et comparer les cours historiques sur des dates communes, avec devises, calculs et limites.",
       "tags": [
         "historique",
         "cours",
         "rendement",
         "dividende",
         "fractionnement",
-        "prix"
+        "prix",
+        "comparer",
+        "comparaison",
+        "actifs"
       ],
       "required_tools": [
         "inspect_simulation_history"
       ],
       "path": "skills/historical-market/SKILL.md",
-      "content": "---\nname: historical-market\ndescription: Consulter les cours historiques et événements d’un titre, avec dates et limites.\n---\n\n# historical-market\n\nAppelle inspect_simulation_history avec le ticker et les dates demandées quand elles sont explicites. Rapporte période, devise, méthode et limites de la sortie. Un rendement après une date n’établit pas une causalité. Les données historiques ne sont pas des prix temps réel. Pour les fondamentaux et événements à rechercher, charge company-analysis. Ne transforme pas un mouvement passé en choc futur.\n\n\nLire get_simulation_capabilities pour vérifier que le ticker et le paquet sont disponibles avant la lecture historique. Conserver l’intervalle demandé. Les valeurs proviennent du dataset configuré avec sa date d’arrêt et sa classification; ne pas les appeler cours actuels ou données en direct. Une erreur de configuration ne doit pas être transformée en résultat de remplacement.\n",
-      "sha256": "b79cd6f85781fdc8d67caa19f13596b42b303e03ca70c46d4f5651d42a15dc42"
+      "content": "---\nname: historical-market\ndescription: Consulter les cours historiques et événements d’un titre, avec dates et limites.\n---\n\n# historical-market\n\nAppelle inspect_simulation_history avec le ticker et les dates demandées quand elles sont explicites. Rapporte période, devise, méthode et limites de la sortie. Un rendement après une date n’établit pas une causalité. Les données historiques ne sont pas des prix temps réel. Pour les fondamentaux et événements à rechercher, charge company-analysis. Ne transforme pas un mouvement passé en choc futur.\n\nSi la question demande pourquoi un titre a fortement bougé sur des séances passées, charge `market-movement-investigation` : une simple lecture de rendement ne permet pas d’en attribuer la cause.\n\n\nLire get_simulation_capabilities pour vérifier que le ticker et le paquet sont disponibles avant la lecture historique. Conserver l’intervalle demandé. Les valeurs proviennent du dataset configuré avec sa date d’arrêt et sa classification; ne pas les appeler cours actuels ou données en direct. Une erreur de configuration ne doit pas être transformée en résultat de remplacement.\n\n\n## Comparaison de plusieurs actifs\n\nSi `compare_market_history` est disponible, utilise-le pour deux à quatre symboles configurés. Il aligne les dates réellement communes et calcule les métriques sur toutes les observations; la courbe affichée est un échantillon déclaré. Conserve dates, devises et comparisonId. La fenêtre par défaut est une année avant la dernière observation commune, jamais une année jusqu’à un cours actuel supposé. Une devise différente empêche de présenter les chiffres comme une comparaison dans la monnaie de l’investisseur. Le profil modifie les questions et compromis à discuter, pas les observations. Ne désigne pas de gagnant depuis le rendement passé et ne confonds pas écart-type par intervalle avec risque de portefeuille. L’outil crée l’onglet comparatif; ne recrée pas ses chiffres avec upsert_tab.\n",
+      "sha256": "40ff256b44915f5d2136035cc3c8478e4aa99141243baba917160e5b172ea224"
+    },
+    {
+      "id": "market-movement-investigation",
+      "description": "Examiner une hausse ou une baisse historique en rapprochant les cours, les références de marché et les documents datés d’un dossier existant.",
+      "tags": [
+        "pourquoi",
+        "baisse",
+        "hausse",
+        "mouvement",
+        "variation",
+        "chute",
+        "cause",
+        "actualités",
+        "presse",
+        "marché",
+        "explication"
+      ],
+      "required_tools": [
+        "list_research_analyses",
+        "inspect_market_movements"
+      ],
+      "path": "skills/market-movement-investigation/SKILL.md",
+      "content": "---\nname: market-movement-investigation\ndescription: Examiner pourquoi un titre a fortement monté ou baissé sur une période passée en reliant ses clôtures, les références de marché et les documents datés d’un dossier existant.\n---\n\n# Examiner un mouvement historique\n\nUtilise ce parcours lorsque la personne demande pourquoi un titre a monté ou baissé pendant une période déjà écoulée. Il complète une analyse existante; il ne lance pas `start_analysis` et ne demande pas une validation de plan pour ce seul rapprochement. Consulte d’abord `list_research_analyses` si l’identifiant du dossier n’est pas déjà dans le contexte. Puis appelle `inspect_market_movements` seulement avec un dossier auquel le titre demandé est effectivement rattaché.\n\n## Vérifications\n\n- Vérifie les deux clôtures ajustées, leurs dates, le fuseau de marché et la classification de la série. Si une clôture manque ou si la place n’est pas prise en charge, ne conclus pas sur le mouvement.\n- Compare les références retournées sur le même intervalle et dans la même devise. SPY et QQQ sont des repères larges, peuvent contenir le titre étudié et ne contrôlent pas tous les facteurs du marché.\n- Examine les documents lus et datés avant la clôture. Distingue un événement confirmé, un document de contexte, un calendrier futur, une date incertaine et une piste de presse indexée dont le contenu n’a pas été lu.\n- Relie une interprétation à l’extrait exact qui la soutient et à son heure de publication. Une annonce postérieure à la séance ne peut pas expliquer le mouvement observé ce jour-là.\n- Si les données ne montrent aucun facteur spécifique, indique qu’aucun déclencheur n’est établi dans les documents examinés. Ne remplis pas ce vide avec une explication de marché générique.\n\n## Limites et restitution\n\nPrésente d’abord la variation mesurée, puis les comparaisons pertinentes et seulement ensuite les pistes documentaires. Distingue observation, document, interprétation et hypothèse. Ne dis jamais qu’une information a causé le mouvement : la proximité temporelle ne mesure pas sa contribution et les clôtures ne montrent pas les mouvements intrajournaliers.\n\nLa collecte d’actualités officielles supplémentaires dépend du titre et de la politique de source active. Dans le déploiement documenté, le lecteur officiel complémentaire ne couvre que les communiqués NVIDIA; pour les autres titres, l’outil peut seulement rapprocher les preuves déjà présentes. Les pistes GDELT sont des entrées d’index non vérifiées, pas des preuves. Si le contenu est indisponible, dis-le.\n\nLa méthode ne fournit pas les flux d’ordres, positions, options, attentes de résultats, mesures sectorielles détaillées ni données de marché chinoises dédiées. N’infère pas une exposition à la Chine à partir d’une mention de pays, d’un titre de presse ou d’une relation fournisseur déclarée. Les comparaisons restent limitées aux séries effectivement configurées.\n",
+      "sha256": "7200466ef924e6ddff7e4bcd7309a96d62b86f2223b0a57e847f8a8eb1ea38fd"
     },
     {
       "id": "conditional-scenarios",
@@ -109,33 +147,47 @@
         "citation",
         "vérifier",
         "contradiction",
-        "esg"
+        "esg",
+        "passage",
+        "retrieval",
+        "rag",
+        "document",
+        "actualité",
+        "média",
+        "déclaration",
+        "controverse",
+        "rumeur"
       ],
       "required_tools": [
         "get_analysis_result"
       ],
       "path": "skills/evidence-review/SKILL.md",
-      "content": "---\nname: evidence-review\ndescription: Vérifier les preuves d’une analyse : attribution, fraîcheur, contradictions et limites des conclusions.\n---\n\n# evidence-review\n\nConsulte les résultats et evidence d’un analysis_id réel. Vérifie dates, unité, devise et périmètre de chaque affirmation. Distingue une source primaire, une déclaration attribuée, une interprétation et une hypothèse. Plusieurs reprises d’un communiqué ne sont pas des preuves indépendantes. Une préférence ESG ne prouve pas une conformité ESG. read_sources fournit des notes de méthode internes, pas une recherche Web ni une donnée d’entreprise. Si la preuve manque, indique la lacune; ne crée pas de citation ni score.\n",
-      "sha256": "cb5add885adcb286ff0f314571f2fe84f49008f7f8d54ace52b5c1d26f3a777e"
+      "content": "---\nname: evidence-review\ndescription: \"Vérifier les preuves d’une analyse : attribution, fraîcheur, contradictions et limites des conclusions.\"\n---\n\n# evidence-review\n\nConsulte les résultats et evidence d’un analysis_id réel. Vérifie dates, unité, devise et périmètre de chaque affirmation. Distingue une source primaire, une déclaration attribuée, une interprétation et une hypothèse. Plusieurs reprises d’un communiqué ne sont pas des preuves indépendantes. Une préférence ESG ne prouve pas une conformité ESG. read_sources fournit des notes de méthode internes, pas une recherche Web ni une donnée d’entreprise. Si la preuve manque, indique la lacune; ne crée pas de citation ni score.\n\n\n## Retrouver le passage effectivement collecté\n\nPour une analyse déjà créée, si `retrieve_analysis_evidence` est disponible, cherche la sous-question dans ses preuves enregistrées. Utilise son UUID confirmé, la requête et éventuellement les identités exactes. Cite l’identifiant de preuve, le lien et le passage exact avec sa date et ses limites. Le classement lexical aide à retrouver un texte : il ne prouve ni véracité, ni indépendance, ni soutien sémantique. Une référence existante sans passage pertinent reste insuffisante. Cet outil ne lance aucune collecte et n’interroge pas une base vectorielle. Les preuves `bedrock-knowledge-base` identifient séparément les passages provenant du RAG AWS. Si la recherche renvoie zéro passage, indique «non trouvé dans les preuves collectées», jamais «le fait est faux». Pour un critère ESG, conserve le critère explicite; aucun label global n’est déduit du nom du fonds ou d’une déclaration isolée.\n\n\n## Affiner une lecture documentaire et vérifier une conclusion\n\nQuand la question demande de consulter les documents d’une entreprise et que `retrieve_company_documents` est disponible, utilise l’UUID existant, une requête précise et le domaine pertinent. Le serveur fixe l’identité et le compte; ne contourne pas un résultat vide en choisissant une autre entreprise ou un autre compte. La lecture RAG garde les passages exacts, dates, licences et liens. Elle ne réécrit pas les preuves du workflow; présente ces extraits supplémentaires comme consultés dans la conversation. Plusieurs passages d’un même rapport restent une source unique.\n\nPour évaluer si les citations soutiennent la synthèse, utilise `review_analysis_conclusions` si disponible. L’outil relit les seuls contenus cités et mobilise un vérificateur Bedrock borné. Le contrôle d’une citation exacte garantit son attribution, pas son soutien sémantique ni sa vérité. Distingue soutien trouvé, soutien partiel, non étayé par ces preuves et contenu insuffisant. Préserve le statut du workflow original : une collecte terminée et une conclusion étayée sont deux états distincts. Un fait non étayé par un passage hors sujet n’est pas automatiquement faux.\n",
+      "sha256": "0d6350f6fb2c6057e8699c90a5706a3b6b0429e8de15b47852814281a7465517"
     },
     {
       "id": "supply-chain",
-      "description": "Explorer fournisseurs, sites et dépendances de chaîne d’approvisionnement uniquement à partir de relations documentées.",
+      "description": "Explorer fournisseurs, sites et dépendances de chaîne documentées, en explicitant les limites géographiques.",
       "tags": [
         "fournisseur",
         "chaîne",
         "approvisionnement",
         "réseau",
         "tarif",
-        "port"
+        "port",
+        "Chine",
+        "chinois",
+        "marché chinois",
+        "géopolitique"
       ],
       "required_tools": [
+        "inspect_supply_chain",
         "start_analysis",
         "get_analysis_result"
       ],
       "path": "skills/supply-chain/SKILL.md",
-      "content": "---\nname: supply-chain\ndescription: Explorer fournisseurs, sites et dépendances de chaîne d’approvisionnement uniquement à partir de relations documentées.\n---\n\n# supply-chain\n\nCadre l’entreprise et le composant ou risque recherché. Utilise start_analysis pour rechercher des relations publiques et leurs preuves. Un fournisseur, un site et un siège sont des entités différentes; ne localise pas une usine au siège par défaut. Distingue liens confirmés, déclarés et inférés. Ne dessine pas de route logistique précise ni part de dépendance sans source. Une preuve documentaire seule ne peuple pas automatiquement la carte de la plateforme : signale cette limite si aucun outil structuré n’existe. Aucun score ni impact sur les coûts sans méthode et entrées.\n",
-      "sha256": "d8d18d235d6be4342dc6c7c37e11965fef1f86a247f01b5ef7dda2f257e19258"
+      "content": "---\nname: supply-chain\ndescription: Explorer fournisseurs, sites et dépendances de chaîne d’approvisionnement uniquement à partir de relations documentées.\n---\n\n# supply-chain\n\nCadre l’entreprise, le niveau de la chaîne et le risque recherché. Utilise `inspect_supply_chain` si disponible pour les relations que la plateforme a structurées; utilise `start_analysis` seulement pour une recherche documentaire autorisée, après cadrage et validation du plan. Un fournisseur, un site et un siège sont des entités différentes; ne localise pas une usine au siège par défaut. Distingue liens confirmés, déclarés et inférés. Ne dessine pas de route logistique précise ni part de dépendance sans source. Une preuve documentaire seule ne peuple pas automatiquement la carte de la plateforme : signale cette limite si aucun outil structuré n’existe. Aucun score ni impact sur les coûts sans méthode et entrées.\n\nDans le déploiement documenté, le graphe structuré est limité à NVIDIA et à des relations déclarées dans son rapport annuel; les repères géographiques sont schématiques et ne sont ni des sites ni des routes. Il ne mesure ni la dépendance commerciale ni son risque financier. Si une analyse exige le marché chinois, vérifie d’abord qu’une source dédiée est autorisée et réellement présente. Une mention de la Chine dans un document ou sur une carte ne suffit pas à inférer une exposition, une chaîne de production ou un choc géopolitique.\n",
+      "sha256": "49867def80f602f6b60dd6bcf3f62fda9ac2517c62c6620acef6b5458d41fd87"
     },
     {
       "id": "workspace-navigation",
@@ -151,8 +203,8 @@
         "upsert_tab"
       ],
       "path": "skills/workspace-navigation/SKILL.md",
-      "content": "---\nname: workspace-navigation\ndescription: Organiser le travail dans InvestorOS : onglets, tâches et passages vers les modules utiles.\n---\n\n# workspace-navigation\n\nRéutilise les onglets par id et respecte le plafond de 12. Pour un travail à étapes, upsert_tab crée des tâches avec URL /app/profiles, /app/analyses, /app/portfolios, /app/network ou /app/scenarios. Le chat et ses onglets sont locaux au navigateur. Ne marque done que les opérations réellement réalisées; une tâche manuelle cochée ne prouve pas une exécution backend. Les skills sont des procédures chargées, pas des spécialistes autonomes; ne crée pas une activité d’agent fictive. Ne force pas l’ouverture des panneaux.\n\n\nL’Assistant commence en conversation seule. Ne pas ouvrir Profil, Tâches et Agents par défaut ni pour un salut. Créer un onglet avec upsert_tab seulement pour un document réellement utile. Les résultats Simulation et les enveloppes graphiques réussies sont révélés automatiquement; ne pas annoncer un résultat après une erreur et ne pas rouvrir le panneau pour une simple réponse. La fermeture visuelle ne supprime pas les données.\n",
-      "sha256": "701b6fdd58e6bd18073af4ffda6f4b953b79cb1372f9d5cd4a3fbbecd51b5a28"
+      "content": "---\nname: workspace-navigation\ndescription: \"Organiser le travail dans InvestorOS : onglets, tâches et passages vers les modules utiles.\"\n---\n\n# workspace-navigation\n\nRéutilise les onglets par id et respecte le plafond de 12. Pour un travail à étapes, upsert_tab crée des tâches avec URL /app/profiles, /app/analyses, /app/portfolios, /app/network ou /app/scenarios. Le chat et ses onglets sont locaux au navigateur. Ne marque done que les opérations réellement réalisées; une tâche manuelle cochée ne prouve pas une exécution backend. Les skills sont des procédures chargées, pas des spécialistes autonomes; ne crée pas une activité d’agent fictive. Ne force pas l’ouverture des panneaux.\n\n\nL’Assistant commence en conversation seule. Ne pas ouvrir Profil, Tâches et Agents par défaut ni pour un salut. Créer un onglet avec upsert_tab seulement pour un document réellement utile. Les résultats Simulation et les enveloppes graphiques réussies sont révélés automatiquement; ne pas annoncer un résultat après une erreur et ne pas rouvrir le panneau pour une simple réponse. La fermeture visuelle ne supprime pas les données.\n",
+      "sha256": "eae5b0d523ac026e0900c5e0f1d493e0e5c71eea92c770018929a6f9b300d299"
     },
     {
       "id": "research-planning",
@@ -211,6 +263,159 @@
       "path": "skills/risk-liquidity/SKILL.md",
       "content": "---\nname: risk-liquidity\ndescription: Spécialiste de la tolérance au risque, capacité de perte, liquidité et contraintes de retrait.\n---\n\n# risk-liquidity\n\nDistingue réaction émotionnelle aux baisses, capacité financière à subir une perte et besoin de disponibilité de l’argent. Une réponse « oui » à « décris ta capacité » est inexploitable. L’absence de retrait déclaré ne prouve ni réserve de précaution ni revenu stable. N’attribue aucun pourcentage de perte acceptable, score d’adéquation ou capacité financière sans fait explicite. Identifie une tension réelle entre horizon, besoins et exposition documentée; sans données de portefeuille, ne mesure pas son risque. Transmets les inconnues au coordinateur pour ask_user. Ne confirme pas un profil à sa place et ne conseille pas d’achat.\n",
       "sha256": "eeb8d4d5e2ecc470ba57b26d7fd61eabd0e61bf0ac81bac7dac998d254b27bee"
+    },
+    {
+      "id": "visualization-authoring",
+      "description": "Composer des vues InvestorOS avec composants approuvés, données serveur, preuves et révisions vérifiables.",
+      "tags": [
+        "visualisation",
+        "composant",
+        "graphique",
+        "interface",
+        "carte",
+        "paramètres"
+      ],
+      "required_tools": [
+        "get_analysis_view_options",
+        "get_ui_component_registry",
+        "read_analysis_workspace",
+        "publish_ui_component"
+      ],
+      "path": "skills/visualization-authoring/SKILL.md",
+      "content": "---\nname: visualization-authoring\ndescription: Composer des cartes InvestorOS à partir de composants approuvés et de données calculées côté serveur, avec références et versions vérifiables.\n---\n\n# Composer une vue d’analyse\n\nLis `get_analysis_view_options` pour identifier les vues réellement possibles et leurs limites pour cette analyse. Utilise `get_ui_component_registry` pour connaître les composants et leurs schémas de paramètres, puis `read_analysis_workspace` pour lire l’analyse autorisée et sa révision. Choisis un composant selon la question et les données disponibles. Les outils sont liés au compte et à l’analyse par le serveur; n’ajoute aucun identifiant de compte, rôle ou droit dans leurs paramètres.\n\n`publish_ui_component` accepte une référence de composant, un emplacement, un titre, des paramètres et `expectedRevision`. Le serveur calcule ou lit les données, valide le résultat et conserve sa provenance. Ne fournis ni prix, ni série, ni HTML/JavaScript, ni image illustrative pour remplir une carte. Les observations historiques ne sont pas des cotations actuelles; une simulation exige des hypothèses utilisateur explicites et des unités temporelles exactes.\n\nPour `market_history`, relève le ticker explicitement présent dans le contexte autorisé, puis choisis une période autorisée et les calques utiles. N’invente pas de ticker de remplacement. Pour `research_summary`, utilise les preuves conservées de l’analyse; ses paramètres sont vides et son résultat peut être partiel. Le modèle ne réécrit pas les preuves dans le payload de publication.\n\nPour le parcours complet d’une recherche existante, utilise `prepare_analysis_journey` si cet outil est disponible. Il ajoute uniquement les vues manquantes et conserve les paramètres déjà publiés; ne crée pas une seconde recherche ni un second onglet pour le même identifiant. La référence sur cinq observations est sans choc et part de la dernière clôture, distincte de la semaine civile recherchée.\n\nPour `market_forecast`, utilise le bootstrap serveur en observations avec sa validation chronologique et sa date source. Une référence zéro sans choc est permise; toute branche non nulle d’un agent conserve les hypothèses explicitement demandées. Les quantiles et la couverture historique ne sont pas des probabilités futures ni des réactions prédites aux événements.\n\nPour `analysis_view`, fournis seulement `{view}` parmi les vues disponibles. Le serveur valide l’enveloppe existante ou construit un graphe à partir de relations structurées réellement sourcées pour cette entreprise. La référence NVIDIA relue reste limitée à NVIDIA. Sans coordonnées, seul le graphe est proposé; sans relation, aucune carte n’est créée. Les repères sont des pays schématiques; les risques inconnus restent inconnus. Une enveloppe invalide ou un autre titre sans couverture ne peut pas être remplacé par des données inventées.\n\nAvant une modification, lis la révision actuelle et conserve l’intention de la carte. Un conflit exige une relecture. Si un autre acteur a changé le même emplacement, conserve son travail et signale le conflit. Si seul un autre emplacement a changé, le runtime peut réessayer une fois la même intention après synchronisation. Les identifiants d’acteur et d’idempotence sont attribués par le serveur.\n\nUne carte n’est publiée que lorsque l’outil confirme son identifiant, sa version et la révision du tableau. En cas de données absentes ou d’outil indisponible, conserve les autres cartes et expose la limite; une description de carte n’est pas une publication.\n\n\n`research_events` prend des paramètres vides et expose uniquement les événements datés des preuves, même sans cours disponible. Quand un historique inclut déjà ces événements, réutilise sa carte. Ne confonds pas date annoncée, date de publication et clôture observée.\n",
+      "sha256": "7958627553c897562f0d3dc71a8b4870065def8379f6704bfea243c9d4c9cac3"
+    },
+    {
+      "id": "analysis-ui-orchestration",
+      "description": "Coordonner des agents réels pour publier des vues complémentaires dans un tableau d’analyse partagé.",
+      "tags": [
+        "orchestration",
+        "agents",
+        "parallèle",
+        "tableau",
+        "visualisation",
+        "coordination"
+      ],
+      "required_tools": [
+        "get_analysis_view_options",
+        "orchestrate_analysis_ui",
+        "get_ui_component_registry",
+        "read_analysis_workspace",
+        "publish_ui_component"
+      ],
+      "path": "skills/analysis-ui-orchestration/SKILL.md",
+      "content": "---\nname: analysis-ui-orchestration\ndescription: Choisir les vues InvestorOS selon les preuves disponibles et coordonner leurs publications réelles sans doublons ni données inventées.\n---\n\n# Coordonner les vues d’une analyse\n\nCette procédure s’applique à une analyse existante et autorisée. Un skill ne confère aucune permission. Vérifie les outils disponibles avant d’agir.\n\nLe coordinateur lit `get_analysis_view_options` pour connaître les identités confirmées, composants disponibles et raisons d’indisponibilité. Il ne déduit pas un ticker d’un exemple ou d’un nom approximatif. Une synthèse ou des événements peuvent être disponibles sans cours; un réseau peut être consultable sans coordonnées. Une carte exige des positions documentées et une estimation exige un historique suffisant.\n\n`orchestrate_analysis_ui` lance un planificateur Bedrock réel qui choisit une à quatre options utiles et donne une justification courte par choix. Le serveur refuse les options indisponibles ou redondantes. Les événements déjà inclus dans un historique ne demandent pas une seconde carte; une seule carte réseau expose ses différents modes. Une recherche encore en cours doit attendre ses preuves avant ce choix.\n\nChaque option retenue et manquante est assignée à un spécialiste réel dans un emplacement distinct. Le runtime charge les skills du rôle, le registre et le tableau. Le spécialiste publie exactement les paramètres fournis par le serveur; il ne fournit ni prix, ni série, ni choc supplémentaire. Le ticker et les références restent ceux de cette analyse. Les emplacements existants sont conservés.\n\nUne sélection ou une publication n’a réussi que lorsque son outil l’a confirmé. Les traces visibles conservent les opérations, acteurs, versions, révisions et erreurs réels. Les raisons de sélection sont de courtes justifications de produit, jamais du raisonnement privé.\n\nLe runtime borne les tours, sorties et reprises de conflit. Une défaillance laisse les autres cartes accessibles et un état partiel explicite. Ne lance pas une autre collecte pour remplir une vue manquante et n’écrase pas un emplacement modifié par un autre acteur. Une explication de courbe lit son snapshot/version et ne demande pas de nouvelle orchestration.\n",
+      "sha256": "0aeb2bf92d3d9d4579e674fb7ac204abe50f2712c17de356538b8e0eef2ce02f"
+    },
+    {
+      "id": "analysis-planning",
+      "description": "Clarifier l’objectif, choisir un parcours d’analyse InvestorOS et proposer un plan sourcé adapté à l’usage, avec peu de questions ciblées.",
+      "tags": [
+        "analyse",
+        "plan",
+        "cadrage",
+        "intention",
+        "questions",
+        "use case",
+        "cas d’usage",
+        "recherche",
+        "entreprise",
+        "fondamentaux",
+        "actualité",
+        "média",
+        "déclaration",
+        "catalyseur",
+        "portefeuille",
+        "scénario",
+        "historique",
+        "esg",
+        "plan d’analyse"
+      ],
+      "required_tools": [
+        "search_skills",
+        "load_skill",
+        "ask_user"
+      ],
+      "path": "skills/analysis-planning/SKILL.md",
+      "content": "---\nname: analysis-planning\ndescription: Clarifier l’objectif, sélectionner un parcours InvestorOS et proposer un plan d’analyse sourcé adapté au cas d’usage, avec peu de questions.\n---\n\n# analysis-planning\n\nTransforme la demande en question d’analyse claire avant une collecte importante. Comprends ce que la personne veut apprendre ou décider, et propose un périmètre cohérent avec les outils et les sources réellement disponibles. Ne transforme pas chaque demande en rapport standard.\n\n## Choisir le parcours\n\nCharge ce skill et les skills spécialisés réellement utiles. `available_tools` et le catalogue de sources de la session priment sur toute description : un outil absent ou une donnée non couverte est une limite, jamais un résultat à simuler.\n\n| Intention | Skill de parcours | Garde-fou central |\n|---|---|---|\n| Modèle d’affaires, fondamentaux, risques d’un émetteur; événements à venir | `company-analysis` | Faits d’entreprise et annonces datées; pas de prévision du cours ni de recommandation. |\n| Déclaration, nouvelle ou controverse | `evidence-review`, puis `company-analysis` si l’enquête porte sur un émetteur | Attribuer l’affirmation, vérifier les sources primaires et distinguer preuve de déclaration. |\n| Rendement ou mouvement déjà observé | `historical-market`; `evidence-review` pour une cause alléguée | Série configurée et fenêtre réelle; la proximité temporelle ne prouve pas la causalité. |\n| Pourquoi un titre a fortement monté ou baissé | `market-movement-investigation` pour un mouvement historique confirmé dans un dossier existant | Comparer les mêmes séances, dates de publication et documents lus; une piste de presse ou une proximité temporelle n’établit pas la cause. |\n| Poids, concentration, diversification ou objectif personnel | `portfolio-exposures`; `investor-profile` si une inconnue change l’interprétation | Portefeuille fictif et expositions retournées; une catégorie ne révèle pas ses actifs sous-jacents. |\n| Choc hypothétique explicite | `conditional-scenarios` | Garder les chocs, jalons, unités et horizon choisis; calcul conditionnel seulement. |\n| Trajectoire statistique sans choc | `conditional-scenarios` | Estimation historique bornée, ni prévision ni probabilité. |\n| Fournisseur ou dépendance documentée | `supply-chain` | Relations sourcées; ne pas inférer criticité, poids ou perte. |\n| Capacités ou limites de la plateforme | `platform-capabilities` | Répondre depuis les outils et données configurés, sans lancer d’analyse d’actif. |\n| ESG, crypto ou donnée spécialisée | `platform-capabilities`, puis `company-analysis`/`evidence-review` si l’objet est précis | Vérifier critère, mesure et couverture; une préférence n’est pas un score ou une conformité. |\n\nN’appelle que les outils utiles aux sous-questions retenues. Une recherche documentaire n’autorise pas une simulation par défaut; un historique n’établit ni adéquation personnelle ni conseil.\n\n## Comprendre sans multiplier les questions\n\n1. Résume mentalement le but en une phrase : « comprendre quoi, sur quel objet, pour quelle période et pour quel usage ? »\n2. Réutilise le dernier message, l’historique et le profil. Une déclaration déjà faite est une réponse, même si le profil est vide; ne demande pas de la confirmer.\n3. Pose une question uniquement si des réponses différentes changeraient le parcours, les sources, la méthode ou le sens du résultat. Par défaut, pose zéro ou une question groupée; ne dépasse pas trois questions au total pour cadrer la demande. Réutilise chaque réponse et ne relance pas un questionnaire au tour suivant pour compléter le profil. Si l’inconnue n’empêche pas une recherche valable, garde-la visible comme limite du plan.\n4. Si une hypothèse raisonnable permet d’avancer, annonce-la dans le périmètre proposé et laisse la personne la corriger. Ne demande pas ce qu’un outil peut mesurer.\n\nRepères : « analyse NVDA pour la semaine prochaine » contient cible et période; demande l’angle uniquement s’il modifie la collecte, sinon propose une veille équilibrée. « Est-ce un bon moment pour investir ? » ne dit pas si la personne cherche les fondamentaux, un événement ou l’effet sur son portefeuille : clarifie ce choix sans conseiller. « Simule une baisse » exige un choc et un horizon; demande seulement ce qui manque.\n\n## Squelette d’un bon plan\n\nPour une collecte documentaire importante, affiche un aperçu modifiable de **trois à cinq étapes** (au plus six). Chaque étape répond à la question; retire les axes décoratifs. Le plan visible est un contrat de périmètre, pas des requêtes internes ni une chaîne de pensée.\n\n1. **Question et périmètre** : cible, période, objectif ou comparaison.\n2. **Preuves et méthode** : types de sources autorisées et vérifications/mesures qu’elles permettent.\n3. **Analyse et contrepoints** : facteurs favorables, défavorables, risques ou autre explication utile.\n4. **Restitution et limites** : résultat attendu, couverture possible et données manquantes.\n\nEn général, quatre étapes suffisent. Donne les sources par type utile (dépôt réglementaire, calendrier officiel, série historique), sans inventer de couverture ni afficher l’inventaire technique. Le catalogue `source_ids` de la session est la limite : ne promets pas une recherche web libre ou une donnée seulement parce qu’elle existe publiquement.\n\n### Axes selon le cas\n\n- **Entreprise / fondamentaux** : modèle d’affaires et moteurs; revenus, marges, trésorerie et bilan sur des périodes comparables; industrie ou pairs uniquement si le périmètre est comparable; risques et éléments contraires. Pas de valorisation ni recommandation si l’outil ne les calcule pas.\n- **Événements à venir** : annonces confirmées dans la fenêtre, dates et sources primaires; facteur macro seulement s’il change l’analyse; séparer confirmé, attendu et inconnu. Ne pas anticiper résultats ou cours.\n- **Nouvelle / controverse** : auteur, date, affirmation; vérification primaire quand possible; preuves contraires; éléments non vérifiés.\n- **Historique** : actif, événement et fenêtre; observations effectivement retournées; nouvelles concurrentes; conclusion descriptive, sans causalité inventée.\n- **Mouvement observé** : variation confirmée entre deux clôtures, comparaison aux références disponibles sur les mêmes séances, documents lus et antérieurs à la clôture; séparer les pistes d’actualité de leurs vérifications. Ce suivi exploite un dossier existant et ne justifie pas un nouveau plan de recherche par défaut.\n- **Profil / portefeuille** : objectif et horizon concernés; expositions réelles du portefeuille fictif; contraintes explicites de risque, perte et liquidité; tensions et inconnues. Aucun avant/après chiffré sans poids et financement explicites.\n- **Scénario** : actif/portefeuille, chocs, jalons, horizon et unités donnés par la personne; calcul conditionnel et limites du modèle. Aucun choc dérivé d’une actualité.\n- **Chaîne d’approvisionnement** : entreprise, niveau de chaîne et enjeu; relations prouvées seulement; limites géographiques et de couverture.\n- **ESG / mesure spécialisée** : critère si cela change la recherche; matérialité, période, méthode, comparabilité et couverture; pas de score global tiré d’une préférence ou d’un indicateur isolé.\n\n### Adapter le plan au contexte déclaré\n\n- Si la personne veut **diversifier** et accepte les fluctuations, examiner d’abord la concentration et les chevauchements réellement observables. Une tolérance élevée n’est pas une demande de risque supplémentaire et ne prouve pas la diversification.\n- Si elle donne des **critères ESG ou personnels**, demander lesquels seulement s’ils ne sont pas déjà exprimés et changent les sources. Vérifier les preuves pour le critère concerné; distinguer préférence, politique déclarée et résultat vérifié.\n- Si l’objectif a un **horizon court** et que l’actualité suscite une décision, séparer l’échéance et le besoin de liquidité des réactions médiatiques. Attribuer les affirmations et privilégier la confirmation primaire; ne pas assimiler le bruit médiatique à une prévision.\n\nCes exemples personnalisent les priorités, pas les observations de marché. Le profil influence les questions et compromis, jamais les cours constatés.\n\n## Sources et qualité d’analyste\n\nHiérarchise les sources primaires réellement autorisées : dépôts réglementaires et documents de l’émetteur pour les faits d’entreprise; calendriers officiels pour les annonces; séries déterministes pour les cours; médias ou publications autorisés pour le contexte. Vérifie entité, date, période, unité et périmètre avant de comparer. Un extrait RAG prouve seulement qu’un passage a été récupéré; un post X reste une déclaration attribuée. Pour une conclusion liée à une actualité, exige un document effectivement lu et daté avant l’événement observé. Une piste indexée ne prouve ni son contenu ni sa causalité.\n\nLes bonnes pratiques d’analyse donnent un cadre, pas une liste de tâches obligatoire : partir de la question, collecter et comparer des entrées pertinentes, interpréter les résultats, confronter les explications et communiquer les limites. Pour une entreprise, examiner le modèle d’affaires, ses moteurs, les résultats et la position financière ainsi que les risques lorsque les preuves le permettent. N’affirme pas avoir analysé marges, flux de trésorerie, pairs ou valorisation si les outils ne retournent pas ces données. Pour ESG, sélectionne les facteurs matériellement pertinents et indique la qualité et la comparabilité de leur couverture. Pour une demande liée à la personne, distingue objectifs par projet, horizons, tolérance, capacité financière à subir une perte, liquidité et préférences explicites; laisse les inconnues visibles.\n\nRéférences de méthode, non preuves sur le cas : [CFA Institute — Company Analysis](https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/company-analysis-past-and-present), [CFA Institute — Equity Research Report Essentials](https://www.cfainstitute.org/sites/default/files/-/media/documents/support/research-challenge/challenge/rc-equity-research-report-essentials.pdf), [CFA Institute — ESG Integration](https://rpc.cfainstitute.org/research/reports/2023/guidance-for-integrating-esg-information-into-equity-analysis-and-research-reports), [Investor.gov — Asset Allocation and Diversification](https://www.investor.gov/introduction-investing/getting-started/asset-allocation) et [FINRA — Know Your Risk Tolerance](https://www.finra.org/investors/investing/investing-basics/know-your-risk-tolerance).\n\n## Validation et restitution\n\nAprès le plan visible, demande l’accord avant `start_analysis` avec `ask_user`, `purpose: \"plan_approval\"`, une question `single_choice` et les libellés exacts « Oui, lancer ce plan » et « Modifier le plan ». Si la personne veut un changement, ajuste les axes touchés, réaffiche le plan et redemande l’accord. « Lance sans autre question » valide le périmètre déjà formulé.\n\nN’impose pas ce sas aux questions factuelles, calculs immédiats, scénarios complets, lectures historiques ciblées ou questions générales sur les capacités. Après lancement, contrôle état, couverture, preuves, périodes et contradictions : la fin technique ne prouve pas que la question est couverte. À la remise, distingue faits, interprétations et hypothèses, cite les preuves retournées et explique les inconnues. Ne prétends pas qu’un plan est une analyse terminée, ne révèle pas de raisonnement privé et ne donne pas de conseil d’achat/vente.\n",
+      "sha256": "45fa3ac6ba0f9916611a694b3ff644f8eb9f3d9b315e754630d15e3ad1137940"
+    },
+    {
+      "id": "profile-investment-alignment",
+      "description": "Relier une demande au profil et aux expositions; expliquer les tensions étayées et les inconnues sans recommandation.",
+      "tags": [
+        "profil",
+        "incohérence",
+        "alignement",
+        "risque",
+        "prudent",
+        "demande",
+        "capital",
+        "court terme",
+        "diversification",
+        "esg",
+        "tension",
+        "capacité de perte",
+        "critères",
+        "personnel",
+        "préférences",
+        "stabilité",
+        "actualité",
+        "média",
+        "rumeur"
+      ],
+      "required_tools": [
+        "publish_profile_insight",
+        "update_profile",
+        "ask_user"
+      ],
+      "path": "skills/profile-investment-alignment/SKILL.md",
+      "content": "---\nname: profile-investment-alignment\ndescription: Relier une demande d’investissement fictive aux objectifs, à l’horizon, aux expositions observées et à la capacité de perte; expliquer les tensions étayées et les inconnues.\n---\n\n# Relier le profil à une demande\n\nUtilise les déclarations du persona actif et le contexte courant. Une curiosité pour un titre ne prouve pas une intention d’achat. Distingue le projet concerné, son horizon, la tolérance émotionnelle aux fluctuations, la capacité financière à subir une perte, les besoins de liquidité et les préférences. Ne complète pas une inconnue par une supposition.\n\n## Construire une interprétation utile\n\n- Commence par les faits du profil et les chiffres retournés par `analyze_demo_portfolio`. Qualifie clairement le portefeuille de fictif et conserve dates, devise, catégories et poids tels quels.\n- Compare les caractéristiques observées de l’actif ou du portefeuille aux objectifs déclarés. Une conclusion qualitative conditionnelle est permise si ses deux côtés sont étayés : indique la preuve ou la déclaration sur laquelle elle repose, puis ce qui reste incertain.\n- Si une propriété de l’actif n’est pas mesurée ou documentée, ne la déduis ni de son nom ni de son secteur. Présente alors une tension de profil (si elle existe) séparément d’une conclusion sur le produit.\n- Un horizon court, une forte dépendance aux fonds ou une faible capacité de perte rend la stabilité et la liquidité particulièrement pertinentes. Ce contexte ne prouve pas à lui seul qu’un titre précis est instable ou inadapté.\n- Tolérance élevée et recherche de diversification peuvent coexister : examine concentration et chevauchements disponibles. La tolérance élevée ne demande pas automatiquement davantage de risque; le nombre de lignes ne prouve pas une diversification.\n\nLes catégories « crypto-actifs », « technologies et IA » ou « actions mondiales » ne prouvent pas que le portefeuille détient Bitcoin, NVIDIA ou un titre particulier. Sans composition sous-jacente, ne calcule pas de chevauchement. Sans poids envisagé et source de financement, ne chiffre pas l’effet d’un ajout.\n\n## Outils et questions\n\nAppelle `analyze_demo_portfolio` avant tout chiffre d’exposition ou de concentration. Utilise `compare_profile_instruments` seulement pour une comparaison explicitement historique; ses rendements ne mesurent ni adéquation ni diversification. Une erreur de devise est une limite, pas une invitation à convertir. Pour une comparaison de risques, n’utilise que les mesures historiques effectivement retournées et rappelle leur période; ne dérive pas un risque de portefeuille en moyennant les risques des actifs.\n\nDemande une précision avec `ask_user` seulement si elle change réellement l’interprétation : projet et horizon concernés, nature du critère ESG, poids/financement pour un avant-après, ou rôle des fonds lorsque la perte survient. Une seule question ciblée suffit souvent. Ne bloque pas une observation indépendante du portefeuille parce que tout le profil n’est pas rempli. Enregistre les déclarations nouvelles avec `update_profile`; ne convertis pas un « oui » à une question ouverte en capacité financière.\n\nPublie avec `publish_profile_insight` une carte concise contenant la question, les faits du profil, les preuves effectivement reçues, l’interprétation (ou la tension conditionnelle), les autres lectures possibles et les inconnues. N’utilise que les `evidenceIds` reçus dans ce tour; sans preuve marché, distingue clairement une tension fondée sur les seules déclarations d’un constat sur un actif. Ouvre la vue `alignment` quand cette carte aide la personne.\n\n## Repères de contexte\n\n- **Diversification malgré une tolérance élevée** : examiner les expositions et concentrations visibles, puis les chevauchements que la couverture permet de vérifier. Dire si l’exposition est inconnue lorsque le portefeuille ne donne que des catégories.\n- **Préférences ESG ou personnelles** : reprendre les critères explicitement formulés et vérifier leur matérialité et les preuves disponibles. Distinguer une préférence, une politique déclarée par l’émetteur et une mesure vérifiée; ne pas fabriquer de note ESG.\n- **Horizon court et actualité** : relier l’échéance du projet à ses besoins de liquidité, puis traiter les affirmations médiatiques comme des déclarations à vérifier. Ne pas transformer l’actualité en mouvement de cours anticipé.\n\nN’attribue aucun score de convenance. Ne conseille pas d’acheter, vendre ou pondérer un actif, même indirectement. Une tension démontrée peut être expliquée clairement; si les éléments disponibles ne permettent pas d’évaluer le produit, dis exactement quels éléments manquent plutôt que de conclure automatiquement que tout est indéterminé. Toute simulation ou allocation reste fictive et conditionnelle aux hypothèses explicites.\n\n## Rendre les pistes discutables dans Profile\n\nLa carte `publish_profile_insight` alimente une fiche distincte des règles déterministes des champs. Renseigne `alternatives` avec deux ou trois pistes courtes à examiner, sans les présenter comme des prescriptions. Un clic reprend la piste dans le chat avec la question d’origine; les champs liés et les références restent consultables dans leurs vues. Renseigne `limits` avec les inconnues qui empêchent une conclusion; ne les enterre pas dans un long paragraphe. Si le profil a changé, actualise l’analyse avant de réutiliser une ancienne piste. Les dates et horizons exprimés en mois doivent garder leur unité et être reliés au projet concerné.\n",
+      "sha256": "ea47ada38d854387c84adbf39671a8c535756b17ee3e87ab4855c4d7d38431b4"
+    },
+    {
+      "id": "profile-workspace",
+      "description": "Piloter les sous-onglets Profil, Alignement, Comparer, Scénarios, Preuves et Mémoire.",
+      "tags": [
+        "profil",
+        "onglet",
+        "comparaison",
+        "comparer",
+        "mémoire",
+        "interface"
+      ],
+      "required_tools": [
+        "open_profile_view",
+        "compare_profile_instruments",
+        "publish_profile_insight",
+        "close_profile_document"
+      ],
+      "path": "skills/profile-workspace/SKILL.md",
+      "content": "---\nname: profile-workspace\ndescription: Piloter les sous-onglets interactifs du profil investisseur pour structurer une comparaison, une clarification et ses preuves, en conservant le contexte.\n---\n\n# Travailler dans le panneau Profile\n\nLe chat se trouve à gauche. Les vues du panneau droit sont profile, alignment, comparison, scenarios, evidence et memory. Utiliser open_profile_view pour ouvrir la vue pertinente, sans annoncer une action effectuée si aucun événement ne la confirme.\n\n- Déclarations nouvelles : update_profile, uniquement pour les faits donnés. Le navigateur conserve la provenance, la version et synchronise le profil avec la mémoire serveur par persona. L’utilisateur confirme lui-même ses réponses.\n- Comparaison d’actifs historiques : compare_profile_instruments reçoit deux ou trois tickers et éventuellement startDate/endDate. Le serveur publie automatiquement le document et ouvre comparison. Il fournit rendement, repli, variabilité non annualisée, dates, méthode et courbes. Le texte de l’agent explique les résultats, sans inventer de statistiques.\n- Tension/contextualisation : publish_profile_insight produit une carte structurée dans alignment. Résumer le lien entre demande et champs explicites; employer clarification, tension, information ou partial. Les références de preuves doivent réellement avoir été reçues.\n- Scénarios conditionnels : les outils de simulation existants publient leurs trajectoires dans scenarios. Ne pas remplacer le résultat par une note narrative. Clarifier les chocs manquants lorsqu’ils sont requis par l’outil.\n- Sources : evidence montre les références effectivement reçues et les sources de comparaisons. Une référence n’établit pas la vérité de toute une interprétation.\n- Mémoire : memory rend visibles provenance et version; une sauvegarde en erreur n’est pas une mémoire serveur confirmée. Ne pas demander de réinitialiser l’historique pour corriger un manque du profil.\n\nPréférer un résultat court dans le chat et les détails utiles dans la vue. Ne pas créer une longue liste de notes redondantes. Réutiliser les documents dédiés profile-comparison et profile-alignment, qui sont mis à jour. Les rubriques ignorées restent à préciser; un profil complet textuellement n’est pas une preuve de convenance.\n\nUne fermeture explicitement demandée se fait via close_profile_document avec l’id réellement présent dans le contexte. La fermeture ne modifie pas les champs du profil. Ne pas supprimer des documents sans demande pour contourner une limite de capacité; demander lequel fermer ou réutiliser le document approprié. Les scénarios volumineux restent des documents de simulation, pas des notes textuelles.\n\nLa vue `documents` peut être ouverte avec `open_profile_view`; fournis `documentId` pour sélectionner une note ou un résultat réellement présent dans le contexte. La création ou mise à jour d’une note par `upsert_tab` ouvre automatiquement Documents en mode Profile et sélectionne ce document. N’invente pas un identifiant et ne remplace pas une carte d’alignement ou une comparaison structurée par une note.\n",
+      "sha256": "9cc5ac1af244b14428ed4be45c89239c37d10de7efcc567562314b5057b43670"
+    },
+    {
+      "id": "platform-capabilities",
+      "description": "Expliquer les capacités et limites réelles de la plateforme à partir des outils disponibles et des données couvertes.",
+      "tags": [
+        "plateforme",
+        "capacité",
+        "capacités",
+        "outil",
+        "outils",
+        "fonctionnalité",
+        "ESG",
+        "limites",
+        "vérifier",
+        "disponible",
+        "Chine",
+        "marché chinois",
+        "couverture"
+      ],
+      "required_tools": [],
+      "path": "skills/platform-capabilities/SKILL.md",
+      "content": "---\nname: platform-capabilities\ndescription: Expliquer ce qu’InvestorOS peut mesurer ou vérifier avec les outils réellement disponibles, et nommer ses limites sans lancer une analyse.\n---\n\n# Capacités réelles d’InvestorOS\n\nUtilise ce skill quand la personne demande ce que la plateforme sait faire, ce qu’elle peut vérifier ou quelles données lui manquent. Vérifie `platform_available_tools` dans le contexte lorsqu’il est fourni; sinon, vérifie `available_tools`. Cet inventaire de la session prime sur le récapitulatif ci-dessous. Une question de capacité appelle une réponse directe, pas une recherche d’entreprise, un exemple d’action choisi par l’assistant ou un calcul de démonstration non demandé.\n\n## Parcours que la plateforme peut prendre en charge\n\n- **Profil et objectifs** : conserver les déclarations explicites sur objectifs, horizon, tolérance, capacité de perte, liquidité et préférences. Les inconnues restent visibles; la tolérance émotionnelle ne remplace pas la capacité financière.\n- **Portefeuille fictif** : calculer les poids et la concentration des lignes configurées pour un persona. Ce ne sont pas des avoirs de courtage. Les libellés sont des catégories larges, sans composition sous-jacente; le calcul ne fournit pas à lui seul rendement, volatilité, repli historique, adéquation ou diversification effective.\n- **Cours historiques** : lire les séries historiques uniquement pour les actifs présents dans l’univers configuré et sur leurs dates disponibles. Une série n’est pas un cours en direct. Les comparaisons utilisent les dates communes et restent descriptives; elles ne démontrent ni causalité ni adéquation.\n- **Trajectoires sans choc** : certaines séries permettent une estimation bootstrap bornée, accompagnée de validations et limites historiques. Ce n’est ni une prévision ni la réaction attendue à une actualité.\n- **Scénarios hypothétiques** : appliquer un choc explicite fourni ou choisi par la personne, sur les positions et horizons acceptés par l’outil. Le résultat est conditionnel; il ne simule pas automatiquement corrélations, liquidité ou comportement réel.\n- **Recherche d’entreprise** : si `start_analysis` et le moteur de recherche sont disponibles, collecter des preuves provenant des sources autorisées pour une cible et une question précises. Les résultats peuvent être partiels; une recherche ne produit pas automatiquement un prix cible, une recommandation ou une couverture exhaustive.\n- **Mouvements historiques** : si `inspect_market_movements` est disponible, rapprocher un mouvement confirmé dans un dossier existant des références configurées et des documents lus. Les pistes de presse restent à vérifier et le résultat ne prouve pas une causalité.\n- **Chaîne d’approvisionnement** : consulter les relations et documents effectivement couverts. Dans le déploiement documenté, le graphe structuré concerne NVIDIA et ses fournisseurs déclarés dans un rapport annuel; ses points sont des repères géographiques schématiques. La présence d’un lien ne donne pas son poids, sa criticité ou la perte financière attendue.\n- **Publications X** : uniquement les comptes autorisés et les publications réellement lues. Un post est une déclaration attribuée, pas une preuve indépendante ni une cause de mouvement de cours.\n\n## Capacités absentes ou conditionnelles\n\n- Ne promets pas de score ESG fiable, de classement ESG comparable ou d’exclusion de controverses. Une préférence ESG, une déclaration et une preuve isolée ne constituent pas une évaluation complète; il faut une entreprise, un indicateur défini, des sources pertinentes et une couverture vérifiée.\n- Ne promets pas de données de marché chinoises ni de veille exhaustive sur la chaîne d’approvisionnement. Vérifie la présence d’une source dédiée dans le catalogue de la session; sans elle, présente explicitement cette couverture comme indisponible.\n- Ne suppose pas que Bitcoin ou NVIDIA est détenu parce que le portefeuille contient une catégorie « crypto-actifs », « technologies » ou « actions mondiales ».\n- N’appelle aucun outil qui exige une cible si la personne pose seulement une question générale sur la plateforme. N’utilise pas AAPL, NVDA ou une autre valeur comme exemple implicite.\n- Les noms d’outils ne sont pas des capacités garanties. Si l’outil n’est pas dans `available_tools`, dis que cette action n’est pas disponible dans la session; ne simule pas son résultat.\n\n## Format de réponse\n\nRéponds en quelques rubriques courtes : ce que la plateforme mesure, ce qu’elle peut rechercher, et les limites qui changent l’interprétation. Sépare clairement une capacité codée, les sources actuellement configurées et les données réellement disponibles pour la question. Ne dis pas « en direct », « vérifié » ou « complet » sans preuve de cette session. N’ajoute pas de questionnaire si la personne demande seulement un aperçu des capacités.\n",
+      "sha256": "4ecd0f887dafc99109eb29f29609cb77b4c295cdb80a4dd53435431092e58e30"
     }
   ]
 }

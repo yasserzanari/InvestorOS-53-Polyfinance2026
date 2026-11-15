@@ -11,6 +11,7 @@ from investoros_api.demo_contexts import PersonaId, context_for
 from investoros_api.profiles.models import ScenarioAnalysisInput
 from investoros_api.profiles.portfolio import analyze_configured_scenario
 from investoros_api.profiles.router import router as profiles_router
+from investoros_api.profiles.forecast import router as forecast_router
 from investoros_api.research.router import router as research_router
 from investoros_api.knowledge.router import router as knowledge_router
 from investoros_api.simulation import router as simulation_router
@@ -35,7 +36,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
     allow_headers=["accept", "authorization", "content-type"],
 )
+from investoros_api.profiles.memory import router as profile_memory_router
+app.include_router(profile_memory_router)
 app.include_router(profiles_router)
+app.include_router(forecast_router)
 app.include_router(research_router)
 app.include_router(knowledge_router)
 app.include_router(simulation_router)

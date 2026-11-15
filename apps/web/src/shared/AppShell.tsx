@@ -83,7 +83,6 @@ export function AppShell() {
             <select id="active-demo-account" className="account-switcher" value={activeAccount.id} onChange={(event) => setActiveAccountId(event.target.value)} aria-label="Compte de démonstration actif">
               {demoAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
             </select>
-            <span className="topbar-simulation">Espace de démonstration</span><Link to="/" className="topbar-public-link">Site public</Link>
             {auth.enabled && <button className="topbar-logout" type="button" onClick={() => { void auth.signOut(); }}><LogOut size={14} aria-hidden="true" /> Déconnexion</button>}
           </div>
         </header>

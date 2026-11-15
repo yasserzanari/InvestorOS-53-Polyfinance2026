@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 from investoros_api.profiles.skills import search_skills, load_skill
 from investoros_api.profiles.research_bridge import research_tool
-from investoros_api.profiles.service import run_chat
-from investoros_api.profiles.models import ChatRequest
+from investoros_api.profiles.service import SYSTEM, run_chat
+from investoros_api.profiles.models import AskUserInput, ChatRequest
 from test_profile_service import RuntimeStub, stream_tool
 
 
@@ -20,11 +20,43 @@ class SkillSequence(RuntimeStub):
 
 
 class AgentSkillTests(unittest.TestCase):
+    def test_system_prompt_exposes_a_user_facing_plan_without_revealing_private_reasoning(self):
+        self.assertIn('plan de décision visible de trois à six étapes', SYSTEM)
+        self.assertIn('chaîne de pensée privée', SYSTEM)
+        self.assertNotIn('aucun plan annoncé', SYSTEM)
+
+    def test_plan_approval_form_has_a_distinct_validated_purpose(self):
+        form = AskUserInput.model_validate({
+            'title': 'Valider le plan', 'purpose': 'plan_approval',
+            'questions': [{'id': 'approval', 'label': 'Que souhaitez-vous faire ?', 'kind': 'single_choice',
+                'required': True, 'allowOther': True,
+                'options': [{'id': 'launch', 'label': 'Oui, lancer ce plan'}, {'id': 'edit', 'label': 'Modifier le plan'}]}],
+        })
+        self.assertEqual(form.purpose, 'plan_approval')
+        with self.assertRaisesRegex(ValueError, 'validation doit proposer'):
+            AskUserInput.model_validate({'title': 'Valider', 'purpose': 'plan_approval', 'questions': [{
+                'id': 'approval', 'label': 'Valider ?', 'kind': 'single_choice', 'options': [
+                    {'id': 'yes', 'label': 'Oui'}, {'id': 'no', 'label': 'Non'}]}]})
+
     def test_french_search_is_accent_insensitive_and_content_is_lazy(self):
         results = search_skills('chaine approvisionnement')
         self.assertEqual(results['skills'][0]['id'], 'supply-chain')
         self.assertNotIn('content', results['skills'][0])
         self.assertIn('start_analysis', load_skill('company-analysis')['required_tools'])
+
+    def test_analysis_use_cases_discover_the_planning_and_domain_skills(self):
+        cases = {
+            'diversification portefeuille tolérance risque': {'analysis-planning', 'portfolio-exposures', 'profile-investment-alignment'},
+            'critères ESG personnels preuves entreprise': {'analysis-planning', 'profile-investment-alignment', 'evidence-review', 'company-analysis'},
+            'horizon court stabilité rumeur média NVDA': {'analysis-planning', 'profile-investment-alignment', 'company-analysis', 'evidence-review'},
+            'pourquoi NVDA a chuté hier explication mouvement bourse': {'market-movement-investigation'},
+            'Chine exposition marché fournisseur NVDA': {'supply-chain', 'platform-capabilities'},
+            'plateforme capacités score ESG couvertures': {'platform-capabilities'},
+        }
+        for query, expected in cases.items():
+            with self.subTest(query=query):
+                found = {item['id'] for item in search_skills(query)['skills']}
+                self.assertTrue(expected <= found, f'{query}: missing {expected-found}')
 
     def test_unknown_path_and_bad_query_are_rejected(self):
         for identifier in ('../service.py', 'invented'):
@@ -59,7 +91,7 @@ class AgentSkillTests(unittest.TestCase):
         with patch('investoros_api.profiles.service.research_tool') as dispatch:
             events = list(run_chat(ChatRequest(message='Analyse NVDA'), client))
         dispatch.assert_not_called()
-        self.assertTrue(any('search_skills' in event.get('error', '') for event in events))
+        self.assertTrue(any('analysis-planning' in event.get('error', '') for event in events))
 
     @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model', 'RESEARCH_API_URL': 'https://example.com'})
     def test_discover_load_start_runs_once_and_duplicate_is_blocked(self):
@@ -67,15 +99,58 @@ class AgentSkillTests(unittest.TestCase):
             def converse_stream(self, **kwargs):
                 response = super().converse_stream(**kwargs)
                 if len(self.calls) == 2:
+                    return stream_tool('load_skill', {'skill_id': 'analysis-planning'})
+                if len(self.calls) == 3:
                     return stream_tool('load_skill', {'skill_id': 'company-analysis'})
-                if len(self.calls) in (3, 4):
+                if len(self.calls) in (4, 5):
                     return stream_tool('start_analysis', {'question': 'Analyse NVDA cette semaine'})
                 return response
-        client = Sequence(stream_tool('search_skills', {'query': 'analyse entreprise'}))
+        client = Sequence(stream_tool('search_skills', {'query': 'analyse plan entreprise'}))
         with patch('investoros_api.profiles.service.research_tool', return_value={'analysis_id': 'confirmed', 'status': 'queued'}) as dispatch:
-            events = list(run_chat(ChatRequest(message='Analyse NVDA'), client))
+            events = list(run_chat(ChatRequest(message='Analyse NVDA; lance sans autre question.'), client))
         dispatch.assert_called_once_with('start_analysis', {'question': 'Analyse NVDA cette semaine'}, 'mateo')
         self.assertTrue(any('Une seule tentative' in event.get('error', '') for event in events))
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model', 'RESEARCH_API_URL': 'https://example.com'})
+    def test_start_analysis_is_blocked_until_plan_is_explicitly_approved(self):
+        class Sequence(RuntimeStub):
+            def converse_stream(self, **kwargs):
+                response = super().converse_stream(**kwargs)
+                if len(self.calls) == 2:
+                    return stream_tool('load_skill', {'skill_id': 'analysis-planning'})
+                if len(self.calls) == 3:
+                    return stream_tool('load_skill', {'skill_id': 'company-analysis'})
+                if len(self.calls) == 4:
+                    return stream_tool('start_analysis', {'question': 'Analyse NVDA cette semaine'})
+                return response
+        client = Sequence(stream_tool('search_skills', {'query': 'analyse plan entreprise'}))
+        with patch('investoros_api.profiles.service.research_tool') as dispatch:
+            events = list(run_chat(ChatRequest(message='Analyse NVDA cette semaine'), client))
+        dispatch.assert_not_called()
+        self.assertTrue(any(event.get('status') == 'failed' and 'validation du plan' in event.get('error', '') for event in events))
+
+    @patch.dict(os.environ, {'BEDROCK_MODEL_ID': 'test-model', 'RESEARCH_API_URL': 'https://example.com'})
+    def test_start_analysis_accepts_the_selected_plan_approval(self):
+        class Sequence(RuntimeStub):
+            def converse_stream(self, **kwargs):
+                response = super().converse_stream(**kwargs)
+                if len(self.calls) == 2:
+                    return stream_tool('load_skill', {'skill_id': 'analysis-planning'})
+                if len(self.calls) == 3:
+                    return stream_tool('load_skill', {'skill_id': 'company-analysis'})
+                if len(self.calls) == 4:
+                    return stream_tool('start_analysis', {'question': 'Analyse NVDA cette semaine'})
+                return response
+        form = {'id': 'plan-question', 'title': 'Valider le plan', 'purpose': 'plan_approval', 'questions': [{
+            'id': 'approval', 'label': 'Que faire ?', 'kind': 'single_choice', 'required': True, 'allowOther': True,
+            'options': [{'id': 'launch', 'label': 'Oui, lancer ce plan'}, {'id': 'edit', 'label': 'Modifier le plan'}]}]}
+        answer = {'requestId': 'plan-question', 'answers': [{'questionId': 'approval', 'selectedOptionIds': ['launch'], 'text': ''}]}
+        request = ChatRequest(message='Oui, lancer ce plan', history=[{'role': 'assistant', 'content': '1. Définir la question\n2. Vérifier les sources\n3. Comparer les faits et les limites'}], questionRequest=form, questionAnswer=answer)
+        client = Sequence(stream_tool('search_skills', {'query': 'analyse plan entreprise'}))
+        with patch('investoros_api.profiles.service.research_tool', return_value={'analysis_id': 'approved', 'status': 'queued'}) as dispatch:
+            events = list(run_chat(request, client))
+        dispatch.assert_called_once_with('start_analysis', {'question': 'Analyse NVDA cette semaine'}, 'mateo')
+        self.assertTrue(any(event.get('name') == 'start_analysis' and event.get('status') == 'done' for event in events))
 
     @patch('investoros_api.profiles.research_bridge._call')
     def test_persona_comes_from_server_context(self, call):
@@ -114,10 +189,12 @@ class ResearchSnapshotTests(unittest.TestCase):
     def test_event_pagination_keeps_skill_and_completion_events(self, call):
         from investoros_api.profiles.research_bridge import research_snapshot
         call.side_effect=[{'status':'running'}, {'events':[{'type':'source_opened'}],'next_after':'cursor'},
-                          {'events':[{'type':'skills_loaded'}]}]
+                          {'events':[{'type':'skills_loaded'}]}, {'evidence':[{'evidence_id':'partial-proof'}]}]
         result=research_snapshot('3ca004a7-6a66-4c8e-b82a-9d751a058c0a','mateo')
         self.assertEqual([event['type'] for event in result['events']],['source_opened','skills_loaded'])
         self.assertFalse(result['events_truncated'])
+        self.assertEqual(result['evidence'][0]['evidence_id'],'partial-proof')
+        self.assertEqual(call.call_args.args[1],'/analyses/3ca004a7-6a66-4c8e-b82a-9d751a058c0a/evidence')
 
     @patch('investoros_api.profiles.research_bridge._call')
     def test_invalid_identifier_never_reaches_backend(self, call):

@@ -116,9 +116,9 @@ class PrimaryDocumentTests(unittest.TestCase):
         self.assertEqual(dates_in('Thu, 12 Nov 2026 et le 12 novembre 2026'),{'2026-11-12'})
 
     def test_iam_entry_rejects_administration_and_outer_http_events(self):
-        for method,path in [('PATCH','/v1/research/sources/sec-edgar'),('POST','/v1/profiles/chat'),('GET','/v1/research/sources')]:
+        for method,path in [('PATCH','/v1/research/sources/sec-edgar'),('POST','/v1/profiles/chat')]:
             with self.subTest(path=path),patch.object(iam_handler,'_handler') as handler:
-                event={'source':'investoros.research-iam','request':{'rawPath':path,'requestContext':{'http':{'method':method}}}}
+                event={'source':'investoros.research-iam','request':{'version':'2.0','rawPath':path,'requestContext':{'http':{'method':method,'path':path}}}}
                 self.assertEqual(iam_handler.handle(event,None)['statusCode'],403)
                 handler.assert_not_called()
         with patch.object(iam_handler,'_handler') as handler:
@@ -127,7 +127,21 @@ class PrimaryDocumentTests(unittest.TestCase):
             handler.assert_not_called()
 
     def test_iam_entry_allows_only_valid_research_reads_without_fake_claims(self):
-        event={'source':'investoros.research-iam','request':{'rawPath':'/v1/research/analyses/94dc0688-a302-49b7-9dd3-691d1c0173ea/events','requestContext':{'http':{'method':'GET'}}}}
+        path='/v1/research/analyses/94dc0688-a302-49b7-9dd3-691d1c0173ea/events'
+        event={'source':'investoros.research-iam','request':{'version':'2.0','rawPath':path,'requestContext':{'http':{'method':'GET','path':path}}}}
+        with patch.object(iam_handler,'_handler',return_value={'statusCode':200}) as handler:
+            self.assertEqual(iam_handler.handle(event,None)['statusCode'],200)
+            self.assertNotIn('authorizer',handler.call_args.args[0]['requestContext'])
+
+    def test_iam_entry_rejects_mismatched_mangum_path(self):
+        event={'source':'investoros.research-iam','request':{'version':'2.0','rawPath':'/v1/research/sources','requestContext':{'http':{'method':'GET','path':'/v1/profiles/chat'}}}}
+        with patch.object(iam_handler,'_handler') as handler:
+            self.assertEqual(iam_handler.handle(event,None)['statusCode'],403)
+            handler.assert_not_called()
+
+    def test_iam_entry_allows_read_only_source_catalog(self):
+        path='/v1/research/sources'
+        event={'source':'investoros.research-iam','request':{'version':'2.0','rawPath':path,'requestContext':{'http':{'method':'GET','path':path}}}}
         with patch.object(iam_handler,'_handler',return_value={'statusCode':200}) as handler:
             self.assertEqual(iam_handler.handle(event,None)['statusCode'],200)
             self.assertNotIn('authorizer',handler.call_args.args[0]['requestContext'])

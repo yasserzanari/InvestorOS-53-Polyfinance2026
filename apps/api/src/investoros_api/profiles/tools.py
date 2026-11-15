@@ -12,7 +12,7 @@ TOOLS = [
          SimulationHistoryInput.model_json_schema()['properties'], ['ticker']),
     spec('project_market_scenarios', 'Calculer des trajectoires Simulation sur un ticker configuré. Appeler uniquement lorsque la personne a explicitement fourni chaque choc en pourcentage et son jalon; sinon utiliser ask_user. Les quantiles historiques sont marginaux, sans probabilité ni valeur prédictive.',
          ScenarioProjectionRequest.model_json_schema()['properties'], ['ticker', 'horizonObservations', 'branches']),
-    spec('analyze_demo_portfolio', 'Lire le portefeuille fictif fixe de ce déploiement et calculer ses pondérations et sa concentration. Pour toute question sur les positions ou la répartition, appeler cet outil avant de répondre. Les rendements et risques historiques sont indisponibles sans série de prix.', {}, []),
+    spec('analyze_demo_portfolio', 'Lire le portefeuille fictif fixe de ce déploiement et calculer ses pondérations et sa concentration. Obligatoire avant de répondre à une question sur l’adéquation d’un actif, une préférence, une diversification, les positions ou la répartition du persona. Les rendements et risques historiques sont indisponibles sans série de prix; ne pas déduire les titres sous-jacents des catégories.', {}, []),
     spec('analyze_demo_scenario', 'Calculer un scénario conditionnel sur les positions du persona actif. N’appeler cet outil que si l’utilisateur a fourni les variations en pourcentage ou les a choisies explicitement après ask_user; ne jamais inventer les chocs. Résultat arithmétique seulement, jamais une prévision ni une recommandation.', ScenarioAnalysisInput.model_json_schema()['properties'], ['name', 'shocks']),
     spec('update_profile', 'Mettre à jour seulement les faits explicitement fournis par l’utilisateur. Ne pas inventer ni confirmer le profil.',
          {'fields': {'type': 'object', 'properties': {key: {'type': 'string', 'maxLength': 2000} for key in sorted(PROFILE_FIELDS)}, 'additionalProperties': False}}, ['fields']),
@@ -32,7 +32,7 @@ TOOLS[5]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_s
 
 ASK_USER_SCHEMA = AskUserInput.model_json_schema()
 TOOLS.append(spec('ask_user',
-    'Obligatoire dès qu’une réponse utilisateur est nécessaire, même pour une seule question ou une question de suivi après update_profile. Ne pas poser la question uniquement en prose. Poser une à trois questions interactives adaptées aux informations manquantes. Choisir single_choice pour une réponse exclusive, multiple_choice pour plusieurs besoins/préférences, text pour une explication personnelle. Fournir des choix neutres, sans réponse présélectionnée, et permettre la réponse libre si utile. Cet outil suspend le tour en attendant les réponses réelles de l’utilisateur.',
+    'Obligatoire dès qu’une réponse utilisateur est nécessaire, même pour une seule question ou une question de suivi après update_profile. Ne pas poser la question uniquement en prose. Poser une à trois questions interactives adaptées aux informations manquantes. Choisir single_choice pour une réponse exclusive, multiple_choice pour plusieurs besoins/préférences, text pour une explication personnelle. Fournir des choix neutres, sans réponse présélectionnée, et permettre la réponse libre si utile. Pour confirmer une recherche importante, seulement après avoir montré le plan visible en trois à six étapes, utiliser purpose="plan_approval" avec une unique question single_choice et les options exactes « Oui, lancer ce plan » et « Modifier le plan ». Cet outil suspend le tour en attendant les réponses réelles de l’utilisateur.',
     ASK_USER_SCHEMA['properties'], ['title', 'questions']))
 TOOLS[-1]['toolSpec']['inputSchema']['json']['$defs'] = ASK_USER_SCHEMA.get('$defs', {})
 
@@ -44,6 +44,13 @@ TOOLS.extend([
          {'skill_id': {'type': 'string', 'maxLength': 64}}, ['skill_id']),
 ])
 RESEARCH_TOOLS = [
+    spec('list_research_analyses', 'Retrouver les dossiers de recherche existants du compte actif, avec identifiant, question, état et dates. Utiliser avant inspect_market_movements quand l’identifiant de l’analyse n’est plus dans le contexte; ne pas demander à la personne de copier un UUID ni relancer un dossier existant.', {}, []),
+    spec('inspect_market_movements', 'Rapprocher les fortes variations historiques d’un titre des documents effectivement lus dans une analyse existante du compte actif. Lecture complémentaire bornée du flux officiel seulement si sa politique l’autorise. Conserve les dates/heures, liens et extraits. Un contexte proche d’une hausse ou d’une baisse ne prouve pas sa cause; ne jamais inventer un scandale ou déduire une raison d’un titre. Cet outil ne lance pas une nouvelle analyse.',
+         {'analysis_id': {'type': 'string', 'format': 'uuid'},
+          'ticker': {'type': 'string', 'pattern': '^[A-Za-z0-9.^=-]{1,16}$'},
+          'startDate': {'type': 'string', 'format': 'date'},
+          'endDate': {'type': 'string', 'format': 'date'},
+          'thresholdPct': {'type': 'number', 'minimum': .5, 'maximum': 30}}, ['analysis_id', 'ticker']),
     spec('start_analysis', 'Lancer une recherche documentaire DEV2 pour le persona actif. Question entreprise, horizon et contexte utiles. Aucun choc en pourcentage requis. Conserver analysis_id. Un lancement n’est pas une conclusion.',
          {'question': {'type': 'string', 'minLength': 12, 'maxLength': 2400}}, ['question']),
     *[spec(name, description, {'analysis_id': {'type': 'string', 'format': 'uuid'}}, ['analysis_id']) for name, description in [
@@ -60,3 +67,18 @@ TOOLS.extend([
     spec('read_authorized_x_posts', 'Lire les publications publiques réelles des profils X autorisés du compte actif et chercher celles liées au sujet. Citer les posts utiles avec leur citation_index, auteur, date et URL fournis. La liste publique peut être partielle; un tweet est une déclaration, pas une preuve de causalité. Huit profils maximum par appel, sélectionner ceux pertinents; remainingProfiles indique les suivants.',
          {'query': {'type':'string','minLength':2,'maxLength':500}, 'usernames': {'type':'array','items':{'type':'string','pattern':'^@?[A-Za-z0-9_]{1,15}$'},'minItems':1,'maxItems':8}}, ['query']),
 ])
+
+TOOLS.extend([
+ spec('estimate_market_trajectories', 'Estimer une référence quantitative par bootstrap historique, sans demander de choc. Utiliser pour une demande de trajectoires estimées; indiquer date de départ, horizon en séances, diagnostic de validation et limites. Ne prédit pas l’effet d’un événement.', {'ticker':{'type':'string','pattern':'^[A-Za-z0-9.^=-]{1,16}$'},'horizonObservations':{'type':'integer','minimum':1,'maximum':120}}, ['ticker','horizonObservations']),
+ spec('inspect_supply_chain', 'Lire les relations fournisseur vérifiées et leurs preuves pour un titre. Les positions sont des repères schématiques de pays; aucun risque ni poids de dépendance n’est inféré. Signaler une absence de couverture.', {'ticker':{'type':'string','pattern':'^[A-Za-z0-9.^=-]{1,16}$'}}, ['ticker']),
+])
+
+
+from .decision import CompareInput, InsightInput
+TOOLS.extend([
+    spec('compare_profile_instruments', 'À utiliser uniquement si la personne demande explicitement une comparaison historique de cours ou de rendements. Interdit pour évaluer l’adéquation au profil, un objectif, une tolérance au risque ou la diversification : charger portfolio-exposures et appeler analyze_demo_portfolio à la place. Comparer deux ou trois actifs sur mêmes dates/devise; historique descriptif seulement, sans verdict de convenance ni recommandation. Un titre absent de l’univers reste non couvert; ne pas improviser de réponse de substitution.', CompareInput.model_json_schema()['properties'], ['tickers']),
+    spec('publish_profile_insight', 'Publier une carte de tension, de clarification ou de synthèse dans Alignement. Relier les champs du profil aux preuves réellement reçues; sans preuve marché, décrire seulement une tension conditionnelle ou une inconnue. Ne pas inventer de mesure, classement de risque ou convenance.', InsightInput.model_json_schema()['properties'], ['title','question','status','summary','fields']),
+    spec('open_profile_view', 'Ouvrir un sous-onglet du profil à droite. Les vues restent accessibles à la personne; cet outil ne fabrique aucun résultat.', {'view':{'type':'string','enum':['profile','alignment','comparison','scenarios','evidence','memory','documents']},'documentId':{'type':'string','minLength':1,'maxLength':80,'description':'Identifiant du document existant à sélectionner dans Documents.'}}, ['view']),
+])
+
+TOOLS.append(spec('close_profile_document', 'Fermer un document de travail seulement si la personne le demande explicitement. Le profil personnel reste intact. Ne pas fermer automatiquement un document pour libérer une place.', {'id':{'type':'string','minLength':1,'maxLength':80,'pattern':'^[a-zA-Z0-9_-]+$'}}, ['id']))

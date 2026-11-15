@@ -3,7 +3,7 @@ import type { AgentEvent, ToolEvent, WorkspaceTab } from './profile-api';
 export type SkillUse = { id: string; version?: string; sha256?: string; actor: string; role: string };
 export type ResearchEvent = { event_id: string; type: string; at: string; agent_id?: string; room_id?: string; source_id?: string; status?: string; title: string; detail?: string; data?: { url?: string; evidence_id?: string; skills?: Omit<SkillUse,'actor'|'role'>[]; trace?: {actor?: string;tool?: string;input?: {skill_id?: string}}[] } };
 export type ResearchEvidence = {evidence_id:string;source_id:string;source_name?:string;url?:string;method?:string;collected_at?:string;content?:unknown;limits?:string};
-export type ResearchRun = { analysis_id: string; status: string; question?: string; events?: ResearchEvent[]; evidence?:ResearchEvidence[]; error?: string; trackingError?: string; events_truncated?: boolean; result?: {
+export type ResearchRun = { created_at?:string;completed_at?:string; analysis_id: string; status: string; question?: string; events?: ResearchEvent[]; evidence?:ResearchEvidence[]; error?: string; trackingError?: string; events_truncated?: boolean; result?: {
   summary?: string;answer?: string;execution_status?:string;
   coverage?:{status:string;window?:{start:string;end:string;timezone:string};checks?:{id:string;label:string;status:string;evidence_ids:string[]}[];missing?:string[]};
   sections?:{title:string;text:string;evidence_ids:string[]}[];
@@ -36,7 +36,7 @@ export function usedSkills(tools: ToolEvent[], specialists: AgentEvent[], runs: 
   const skills:SkillUse[]=[];
   for(const tool of tools) if(tool.name==='load_skill'&&tool.status==='done'&&tool.output&&typeof tool.output==='object') {
     const value=tool.output as {id?:string;version?:string;sha256?:string};
-    if(value.id)skills.push({...value,id:value.id,actor:'Modèle',role:'Assistant'});
+    if(value.id)skills.push({...value,id:value.id,actor:tool.actor==='runtime-bootstrap'?'Chargement du runtime':'Modèle',role:'Assistant'});
   }
   for(const agent of specialists)for(const skill of agent.skills??[])skills.push({...skill,role:agent.name,actor:agent.skill_trace?.find(t=>t.tool==='load_skill'&&t.input?.skill_id===skill.id)?.actor==='runtime-bootstrap'?'Chargement du runtime':'Modèle'});
   for(const run of runs)for(const event of run.events??[])if(event.type==='skills_loaded')for(const skill of event.data?.skills??[]) {

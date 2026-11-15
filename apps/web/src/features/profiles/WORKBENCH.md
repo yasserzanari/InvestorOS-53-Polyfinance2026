@@ -1,0 +1,59 @@
+# Espace Profile interactif
+
+## Fonctionnement
+
+La route `/app/profiles` conserve le chat partagé à gauche. `ProfileWorkbench.tsx` affiche à droite six vues permanentes : Profil, Alignement, Comparer, Scénarios, Preuves et Mémoire. Une vue Documents apparaît lorsqu’un agent crée des notes, tâches, activités ou résultats de recherche. Sur mobile, Conversation et Profil et analyses se présentent dans deux panneaux alternatifs; le chat ne s’empile plus au-dessus d’un long formulaire. Le panneau est redimensionnable et agrandissable.
+
+Profil regroupe les huit rubriques en quatre pages courtes; chaque changement conserve sa provenance, date et version et retire la confirmation. Seule une action de la personne confirme les réponses. Un profil textuellement complet n’est pas une certification de convenance.
+
+Alignement affiche d’abord les tensions des règles explicites, puis les inconnues; les cartes de l’agent sont des interprétations contextualisées. La version des champs utilisée pour une carte est conservée et une modification déclenche un signal de péremption. Les boutons permettent de revenir au champ et de reprendre le dialogue.
+
+Comparer appelle `POST /v1/profiles/compare`. Les rendements ajustés et replis proviennent des mêmes dates communes et de la même devise. La variabilité est un écart-type échantillonnal non annualisé entre observations communes. La courbe est en base 100; seuls les points affichés sont échantillonnés. Le calcul, ses métriques, méthode, limites et empreinte des entrées restent dans le document. Des devises différentes sont refusées; aucun FX implicite ni volatilité de portefeuille inventée.
+
+Scénarios réutilise les outils de simulation. `ProfileScenario.tsx` propose Synthèse, Paramètres et Méthode; le réglage des branches est compact. Les anciens résultats sont indisponibles si les hypothèses changent, jusqu’au recalcul ou au rétablissement. Le résultat modifié est conservé dans le document. Les centiles restent conditionnels, sans probabilité future annoncée.
+
+## Outils et skills de l’agent
+
+- `compare_profile_instruments` calcule et conserve la comparaison, puis ouvre la vue correspondante.
+- `publish_profile_insight` valide une carte liée aux champs explicites du profil; aucune référence de preuve non reçue n’est acceptée.
+- `open_profile_view` sélectionne une vue. Chaque événement est distinct, même si la vue avait déjà été ouverte avant une navigation manuelle.
+- `update_profile`, `ask_user`, les outils historiques/scénarios et `upsert_tab` restent partagés. Les IDs réservés aux comparaisons et cartes ne peuvent pas être remplacés par une note arbitraire.
+- `workspaceMode: profiles` charge les procédures investor-profile et profile-investment-alignment dans le vrai contexte modèle; la trace indique runtime-bootstrap. Le modèle peut découvrir d’autres skills selon la demande. Le skill profile-workspace décrit les commandes et les vues.
+
+Le dépôt source `../InvestorOS-skills` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Le catalogue a évolué pendant les travaux parallèles : lire la version actuelle dans `/v1/profiles/status` et le SHA-256 de chaque chargement, plutôt que supposer une version à partir de cette note.
+
+## Mémoire
+
+`useProfileMemory.ts` charge la mémoire serveur avant d’autoriser les éditions et synchronise profil, documents et références de sources après modification. Les références conservées sont bornées aux 80 dernières. Au chargement, la mémoire serveur est la référence pour éviter qu’un ancien onglet du navigateur écrase un document plus récent. Les conversations restent dans le stockage local du navigateur, séparées par persona. Une nouvelle session de navigateur peut restaurer le profil et les documents depuis le serveur, mais ne retrouve pas l’historique local d’un autre navigateur.
+
+`GET/PUT /v1/profiles/memory/{amira|mateo|robert}` utilise une révision optimiste. Un conflit 409 bloque l’écrasement et invite à recharger la mémoire. Les données locales ne sont pas présentées comme sauvegardées si la requête échoue.
+
+- Local : SQLite dans `~/.local/share/investoros/profile-memory.sqlite3`, configurable avec `PROFILE_MEMORY_DB`.
+- AWS : `PROFILE_WORKSPACE_TABLE`, ou `SOURCE_WORKSPACE_TABLE`, active DynamoDB. Le mapping `DEMO_CONTEXTS` fournit les clés de comptes autorisées côté serveur; seule la propriété `profile_workspace` est modifiée. Les permissions GetItem et UpdateItem sur la table sont nécessaires. Le wrapper API Gateway/Cognito existant protège les routes déployées; le serveur de développement reste local.
+- Aucun Terraform global n’a été appliqué pour cette tranche. Le code actuel peut exploiter la table de comptes de la stack assistant-simulation sans nouvelle table.
+
+## Vérifications du 15 novembre 2026
+
+- 35 tests API ciblés : calculs sur dates communes, refus FX, références de preuve, révisions/isolation, conservation finale des scénarios, orchestration/outils/skills et contenu des procédures fourni au modèle.
+- 10 tests des règles de cohérence, notamment les négations et les formulations rapportées (« fluctuations élevées », « ne peut pas absorber »).
+- TypeScript et build de production vérifiés. Le build conserve un avertissement de taille sur le bundle principal préexistant; il ne démontre pas une performance de réseau public.
+- Chrome/Playwright : six vues, comparaison réelle, erreurs de devise, édition et restauration dans une nouvelle session, agrandissement, mobile. À 1440×950, pas de défilement du corps des six vues de référence; les longues preuves et formulaires avancés peuvent défiler dans leur zone.
+- Bedrock réel depuis le navigateur : comparaison AAPL/MSFT et ouverture de vue; mise à jour du profil et carte d’alignement avec clarification interactive; deux scénarios AAPL; remplissage des huit champs de Robert et confirmation par clic, conservée après rechargement. Ces observations portent sur le modèle et le contexte de ces essais, sans garantie pour toute formulation future.
+- DynamoDB réel via l’adaptateur HTTP : écriture, relecture du profil fictif et refus d’une révision concurrente. Test effectué sur la table de comptes de développement.
+
+Commandes reproductibles :
+
+```sh
+npm run typecheck --workspace @investoros/web
+npm run build --workspace @investoros/web
+PYTHONPATH=apps/api/src:apps/api/tests .venv/profile-api/bin/python -m unittest test_profile_decision test_profile_service test_agent_skills -q
+node --test apps/web/src/features/profiles/profile-consistency.test.mjs
+node scripts/test-profile-workbench.cjs
+node scripts/test-profile-scenario-workbench.cjs
+```
+
+Les essais navigateur supposent le frontend local 5175 et l’API 8010. Les traces et captures des essais réels sont conservées localement dans `docs/prep/profile-workbench-evidence/`, ignoré par Git. Cette tranche décrit du code et des vérifications locales avec appels AWS réels; elle n’atteste pas d’une publication de cette nouvelle interface sur le site public.
+
+## Dernier état de session AWS
+
+Les essais Bedrock et DynamoDB ci-dessus ont réussi avant expiration des identifiants locaux. Une vérification ultérieure a confirmé ExpiredTokenException sur DynamoDB et une session expirée côté MCP. Le code traite maintenant cette situation explicitement (503 mémoire / événement aws_session_expired pour le chat), conserve les données locales et ne prétend pas sauvegarder sur AWS. La reconnexion est en attente de l’autorisation de lancer aws login ou du renouvellement de la session du hackathon par l’utilisateur. La vérification AWS courante et une éventuelle publication de la nouvelle UI restent à faire après reconnexion; ne pas présenter les anciennes traces réussies comme preuve d’une session encore valide.
