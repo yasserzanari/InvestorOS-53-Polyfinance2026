@@ -166,6 +166,7 @@ resource "aws_lambda_function" "api" {
       ENVIRONMENT                      = var.environment
       PORTFOLIOS_TABLE_NAME            = local.portfolio_table_name
       PORTFOLIO_MONITOR_TABLE_NAME     = aws_dynamodb_table.portfolio_monitor.name
+      PORTFOLIO_MONITOR_FUNCTION_NAME  = aws_lambda_function.portfolio_monitor.function_name
       SOURCE_WORKSPACE_TABLE           = local.accounts_table_name
       POWERTOOLS_SERVICE_NAME          = "investoros-assistant-simulation"
       SIMULATION_X_SEARCH_ENABLED      = "false"

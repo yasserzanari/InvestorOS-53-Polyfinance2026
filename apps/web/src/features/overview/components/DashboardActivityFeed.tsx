@@ -1,7 +1,7 @@
-import { ArrowRight, BookOpenCheck, Clock3, ExternalLink, Newspaper } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, Clock3, ExternalLink, Newspaper, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { loadPortfolioNewsCases, updatePortfolioNewsCase, type PortfolioNewsCase, type SimulationNewsArticle } from '../../../shared/api';
+import { getPortfolioNewsScan, loadPortfolioNewsCases, startPortfolioNewsScan, updatePortfolioNewsCase, type PortfolioNewsCase, type SimulationNewsArticle } from '../../../shared/api';
 import type { DemoApiConnection } from '../../../shared/api';
 
 type ActivityRecord = Record<string, unknown>;
@@ -47,6 +47,9 @@ export function DashboardActivityFeed({
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [cases, setCases] = useState<PortfolioNewsCase[]>([]);
   const [openCase, setOpenCase] = useState<string | null>(null);
+  const [scanId, setScanId] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'pending' | 'running' | 'completed' | 'failed'>('idle');
+  const [scanMessage, setScanMessage] = useState('');
   const connected = api.status === 'connected';
   const accountKey = connected ? api.overview.persona : api.status;
   useEffect(() => {
@@ -54,6 +57,9 @@ export function DashboardActivityFeed({
     setReadAll(false);
     setDismissed(new Set());
     setOpenCase(null);
+    setScanId(null);
+    setScanStatus('idle');
+    setScanMessage('');
   }, [accountKey]);
   useEffect(() => {
     if (!connected) { setCases([]); return; }
@@ -63,6 +69,42 @@ export function DashboardActivityFeed({
     }).catch(() => { if (!controller.signal.aborted) setCases([]); });
     return () => controller.abort();
   }, [connected, accountKey]);
+  useEffect(() => {
+    if (!connected || !scanId) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const scan = await getPortfolioNewsScan(api.overview.persona, scanId, controller.signal);
+        if (controller.signal.aborted) return;
+        setScanStatus(scan.status);
+        if (scan.status === 'completed') {
+          const latest = await loadPortfolioNewsCases(api.overview.persona, controller.signal);
+          if (controller.signal.aborted) return;
+          setCases(latest.cases);
+          setCleared(false);
+          setDismissed(new Set());
+          setReadAll(false);
+          setScanMessage(`Recherche terminée · ${scan.result?.newCases ?? 0} nouveau(x) dossier(s).`);
+          setScanId(null);
+        } else if (scan.status === 'failed') {
+          setScanMessage(scan.message ?? 'La recherche a échoué. Réessaie dans un instant.');
+          setScanId(null);
+        } else {
+          setScanMessage(scan.status === 'pending' ? 'Recherche en attente…' : 'Recherche en cours…');
+          timer = setTimeout(poll, 1500);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setScanStatus('failed');
+          setScanMessage(error instanceof Error ? error.message : 'Impossible de suivre la recherche.');
+          setScanId(null);
+        }
+      }
+    };
+    void poll();
+    return () => { controller.abort(); if (timer) clearTimeout(timer); };
+  }, [connected, scanId, accountKey]);
   const analyses = connected ? api.overview.analyses.slice(0, 4) : [];
   const rows = useMemo(() => [
     ...analyses.map((record, index) => {
@@ -105,6 +147,20 @@ export function DashboardActivityFeed({
     } catch { /* Keep the case visible; the user can retry. */ }
   }
 
+  async function refreshNews() {
+    if (!connected || scanId) return;
+    setScanStatus('pending');
+    setScanMessage('Recherche en attente…');
+    try {
+      const scan = await startPortfolioNewsScan(api.overview.persona);
+      setScanId(scan.id);
+      setScanStatus(scan.status);
+    } catch (error) {
+      setScanStatus('failed');
+      setScanMessage(error instanceof Error ? error.message : 'Impossible de démarrer la recherche.');
+    }
+  }
+
   return (
     <section className="dashboard-panel activity-panel" aria-labelledby="dashboard-activity-title">
       <div className="dashboard-panel-heading">
@@ -114,10 +170,15 @@ export function DashboardActivityFeed({
         </div>
         <span className="activity-count" aria-label={`${cleared ? 0 : rows.length - dismissed.size} notifications`}>{cleared ? 0 : rows.length - dismissed.size}</span>
         <div className="activity-feed-actions">
+          <button className="activity-refresh-button" type="button" onClick={() => void refreshNews()} disabled={!connected || scanId !== null || scanStatus === 'pending' || scanStatus === 'running'} aria-label="Relancer la recherche de nouvelles">
+            <RefreshCw size={13} className={scanStatus === 'pending' || scanStatus === 'running' ? 'is-spinning' : undefined} />
+            {scanStatus === 'pending' ? 'En attente' : scanStatus === 'running' ? 'En cours' : 'Actualiser'}
+          </button>
           <button type="button" onClick={() => setReadAll(true)} disabled={readAll || rows.length === 0}>Tout lire</button>
           <button type="button" onClick={() => setCleared(true)} disabled={cleared || rows.length === 0}>Effacer</button>
         </div>
       </div>
+      {scanMessage && <p className={`activity-refresh-status is-${scanStatus}`} role="status">{scanMessage}</p>}
 
       {!connected && (
         <div className="activity-empty-grid" role="status">
