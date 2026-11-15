@@ -169,10 +169,10 @@
   gap: 13px;
 }
 .dashboard-main-column {
-  height: 100%;
-  align-self: stretch;
-  align-content: stretch;
-  grid-template-rows: auto minmax(210px, 1fr) auto;
+  height: fit-content;
+  align-self: start;
+  align-content: start;
+  grid-template-rows: max-content max-content;
 }
 .dashboard-side-column { height: fit-content; align-self: start; align-content: start; grid-template-rows: auto; }
 .dashboard-panel {
@@ -623,7 +623,7 @@
   .dashboard-prompt-center { width: 100%; }
   .dashboard-main-column,
   .dashboard-side-column { height: auto; gap: 8px; }
-  .dashboard-main-column { grid-template-rows: auto max-content auto; }
+  .dashboard-main-column { grid-template-rows: max-content max-content; }
   .dashboard-side-column { grid-template-rows: minmax(250px, auto); }
   .dashboard-panel-heading h2 { font-size: 14px; }
   .dashboard-panel-heading p { font-size: 11px; }
