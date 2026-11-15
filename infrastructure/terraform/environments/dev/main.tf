@@ -52,6 +52,8 @@ module "backend" {
 
   name_prefix                    = local.name_prefix
   environment                    = var.environment
+  aws_region                     = var.aws_region
+  bedrock_model_id               = var.bedrock_model_id
   package_path                   = "${path.root}/../../../../apps/api/build/investoros-api.zip"
   frontend_origin                = "https://${module.frontend.cloudfront_domain_name}"
   table_names                    = module.data.table_names
@@ -65,4 +67,5 @@ module "backend" {
   simulation_x_search_enabled    = var.simulation_x_search_enabled
   x_api_bearer_token_secret_arn  = var.x_api_bearer_token_secret_arn
   admin_console_token_secret_arn = var.admin_console_token_secret_arn
+
 }

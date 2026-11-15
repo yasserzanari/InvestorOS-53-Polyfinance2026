@@ -15,6 +15,7 @@
 .assistant-scenario-branch[data-branch-index="3"] .assistant-scenario-branch-title>span{background:#8e6ca7}
 .assistant-scenario-branch-title h3{margin:0;color:#435875;font-size:12px;font-weight:650}
 .assistant-scenario-branch-title p{margin:4px 0 0;color:#8592a4;font-size:10px;line-height:1.45}
+.assistant-scenario-branch-source{display:inline-flex;align-items:center;gap:5px;margin:8px 0 0;color:#5578b1;font-size:10px;text-decoration:none}.assistant-scenario-branch-source:hover{text-decoration:underline;text-underline-offset:2px}
 .assistant-scenario-chart{margin:10px 0 4px}
 .assistant-scenario-chart svg{display:block;width:100%;height:82px;overflow:visible}
 .assistant-scenario-band{fill:#4779d0;fill-opacity:.11}

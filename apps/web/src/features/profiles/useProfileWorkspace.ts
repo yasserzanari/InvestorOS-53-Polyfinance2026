@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../../shared/auth';
 import { toolActivityLabel } from './components/ToolActivityFeed';
 import { researchTabs, terminalResearch, type ResearchRun } from './research-workspace';
 import { type AskUserRequest, type AskUserAnswer, formatQuestionAnswer } from './question-model';
@@ -62,7 +63,7 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     const poll=async()=>{
       for(const analysisId of [...pending]) {
         try {
-          const response=await fetch(`${profileApiBase}/v1/profiles/research/${encodeURIComponent(analysisId)}?accountId=${encodeURIComponent(owner)}`,{signal:controller.signal});
+          const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/research/${encodeURIComponent(analysisId)}?accountId=${encodeURIComponent(owner)}`,{signal:controller.signal});
           if(!response.ok)throw new Error(`Suivi indisponible (${response.status}).`);
           const data=await response.json() as ResearchRun;
           if(data.analysis_id!==analysisId)throw new Error('Identifiant de recherche incohérent.');

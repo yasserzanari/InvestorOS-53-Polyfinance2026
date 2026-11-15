@@ -1,13 +1,17 @@
+import { authenticatedFetch } from '../../shared/auth';
+
 export type Citation = { id: string; index: number; title: string; url: string; snippet?: string };
 export type FollowUp = { id: string; label: string };
 export type WorkspaceTab = { id: string; title: string; kind: 'profile'|'note'|'tasks'|'agents'|'sources'|'simulation'; content: string; items?: {id: string; title: string; status?: string; url?: string}[] };
 export type ToolEvent = { phase?: 'preparing'|'executing'; startedAt?:number; finishedAt?:number; id: string; name: string; status: 'running'|'done'|'failed'; input?: unknown; output?: unknown; error?: string };
 export type AgentEvent = { id: string; name: string; status: 'running'|'done'|'failed'; task: string; summary?: string; startedAt?: number; durationMs?: number; kind?: 'bedrock'|'collector'; skills?: {id:string;version?:string;sha256?:string}[]; skill_trace?: {tool:string;actor?:string;input?:{skill_id?:string}}[] };
 export type ProfileEvent = {type: string; [key: string]: unknown};
-export const profileApiBase = import.meta.env.DEV ? '/profile-api' : (import.meta.env.VITE_API_BASE_URL || '');
+export const profileApiBase = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_TARGET ? '/api' : '/profile-api')
+  : (import.meta.env.VITE_API_BASE_URL || '');
 
 export async function streamProfile(body: unknown, signal: AbortSignal, onEvent: (event: ProfileEvent) => void) {
-  const response = await fetch(`${profileApiBase}/v1/profiles/chat`, { method:'POST', headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'}, body:JSON.stringify(body), signal });
+  const response = await authenticatedFetch(`${profileApiBase}/v1/profiles/chat`, { method:'POST', headers:{'Content-Type':'application/json',Accept:'application/x-ndjson'}, body:JSON.stringify(body), signal });
   if (!response.ok) throw new Error(`L’API est indisponible (${response.status}).`);
   if (!response.body) throw new Error('Le navigateur ne prend pas en charge ce flux.');
   const reader=response.body.getReader(); const decoder=new TextDecoder(); let pending=''; let ended=false;

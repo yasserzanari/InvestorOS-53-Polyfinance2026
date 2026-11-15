@@ -38,3 +38,28 @@ output "demo_table_names" {
   description = "Tables DynamoDB de démonstration."
   value       = module.data.table_names
 }
+
+output "cognito_user_pool_id" {
+  description = "User Pool Cognito de l’application InvestorOS."
+  value       = module.backend.cognito_user_pool_id
+}
+
+output "cognito_client_id" {
+  description = "Client public Cognito de l’application web."
+  value       = module.backend.cognito_client_id
+}
+
+output "cognito_issuer" {
+  description = "Émetteur des JWT Cognito validés par API Gateway."
+  value       = module.backend.cognito_issuer
+}
+
+output "cognito_domain" {
+  description = "Domaine géré Cognito Hosted UI."
+  value       = module.backend.cognito_domain
+}
+
+output "cognito_hosted_ui_url" {
+  description = "URL de connexion gérée par Cognito."
+  value       = module.backend.cognito_hosted_ui_url
+}

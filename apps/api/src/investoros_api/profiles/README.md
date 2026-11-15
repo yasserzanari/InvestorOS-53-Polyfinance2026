@@ -245,3 +245,4 @@ scripts/build-api.sh refuse un paquet incomplet avant sa publication.
 ### Activité des outils dans les messages
 
 Les événements `tool` sont affichés dans le message concerné via `ToolActivityFeed`, avec libellé français, paramètres utiles et résultat confirmé. La phase `preparing` commence au signal `contentBlockStart.toolUse` de Bedrock; `executing` indique le début d’exécution serveur. Le frontend garde les heures de réception et marque les opérations non confirmées comme interrompues à la fin ou à l’arrêt du flux. Le transport ferme sa lecture dès `done`/`error`, même si la connexion reste ouverte. La carte de `start_analysis` reprend les événements du run déjà suivis dans `researchRuns`, sans lancer une nouvelle analyse ni ajouter de polling.
+

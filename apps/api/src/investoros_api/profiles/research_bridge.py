@@ -5,6 +5,7 @@ import re
 from functools import lru_cache
 from contextlib import contextmanager
 from contextvars import ContextVar
+
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
@@ -23,6 +24,7 @@ def forward_research_authorization(value: str):
         yield
     finally:
         _authorization.reset(token)
+
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -74,6 +76,7 @@ def _invoke_research(method: str, path: str, persona: str, body: dict | None) ->
 def _call(method: str, path: str, persona: str, body: dict | None = None) -> dict:
     if os.getenv('RESEARCH_LAMBDA_FUNCTION', '').strip():
         return _invoke_research(method, path, persona, body)
+
     origin = os.getenv('RESEARCH_API_URL', '').strip().rstrip('/')
     parts = urlsplit(origin)
     if parts.scheme != 'https' or not parts.netloc or parts.username or parts.password or parts.query or parts.fragment:
@@ -86,6 +89,7 @@ def _call(method: str, path: str, persona: str, body: dict | None = None) -> dic
         headers['Authorization'] = _authorization.get()
     request = Request(url, data=json.dumps(body).encode() if body is not None else None,
                       headers=headers, method=method)
+
     try:
         with build_opener(_NoRedirect()).open(request, timeout=15) as response:
             raw = response.read(262145)
@@ -139,3 +143,4 @@ def research_snapshot(analysis_id: str, persona: str) -> dict:
         cursor = page.get('next_after')
     evidence = _call('GET', '/analyses/' + identifier + '/evidence', persona) if result.get('result') else {}
     return {**result, 'events': items, 'events_truncated': bool(cursor), 'evidence': evidence.get('evidence', [])}
+

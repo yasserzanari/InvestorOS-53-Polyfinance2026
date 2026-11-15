@@ -60,3 +60,4 @@ TOOLS.extend([
     spec('read_authorized_x_posts', 'Lire les publications publiques réelles des profils X autorisés du compte actif et chercher celles liées au sujet. Citer les posts utiles avec leur citation_index, auteur, date et URL fournis. La liste publique peut être partielle; un tweet est une déclaration, pas une preuve de causalité. Huit profils maximum par appel, sélectionner ceux pertinents; remainingProfiles indique les suivants.',
          {'query': {'type':'string','minLength':2,'maxLength':500}, 'usernames': {'type':'array','items':{'type':'string','pattern':'^@?[A-Za-z0-9_]{1,15}$'},'minItems':1,'maxItems':8}}, ['query']),
 ])
+

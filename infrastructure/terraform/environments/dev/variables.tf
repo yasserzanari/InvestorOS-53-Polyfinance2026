@@ -15,6 +15,17 @@ variable "environment" {
   }
 }
 
+variable "bedrock_model_id" {
+  description = "Profil d’inférence US Amazon Bedrock pour les conversations de l’API."
+  type        = string
+  default     = "us.amazon.nova-lite-v1:0"
+
+  validation {
+    condition     = can(regex("^us\\.[A-Za-z0-9._:-]+$", var.bedrock_model_id))
+    error_message = "bedrock_model_id doit être un ID de profil d’inférence US, par exemple us.amazon.nova-lite-v1:0."
+  }
+}
+
 variable "simulation_x_search_enabled" {
   description = "Active les recherches X payantes pour Simulation; false par défaut."
   type        = bool

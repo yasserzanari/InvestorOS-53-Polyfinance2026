@@ -22,12 +22,15 @@ Après le calcul, les courbes conditionnelles sont sélectionnables directement 
 
 Depuis une observation sélectionnée, le bouton de relais envoie à l’Assistant le ticker, la date, la source et les rendements calculés disponibles. Depuis le chat, `inspect_simulation_history` lit aussi le jeu historique configuré pour le ticker et `project_market_scenarios` appelle le même moteur de quantiles que cette page, avec deux à quatre chocs et jalons explicitement fournis par l’utilisateur. Les deux résultats donnent accès au ticker dans Simulation. L’Assistant ne lance pas de recherche GDELT, Federal Register, EDGAR ou X; ces sources restent consultables dans le module. Les prompts séparent la coïncidence temporelle de la causalité et demandent quelles preuves manquent. Une analyse d’une déclaration SEC récente doit dire explicitement quand la série de prix s’arrête avant le dépôt.
 
+Le relais d’un événement vers les hypothèses copie aussi son URL HTTPS dans chaque branche (Federal Register, EDGAR, GDELT ou page historique du ticker). Le lien reste affiché et cliquable dans le formulaire, la carte de résultat et l’onglet Simulation ouvert depuis l’Assistant. Une URL peut aussi être saisie par branche. L’API refuse les liens non HTTPS ou contenant des identifiants. Le calcul ne vérifie pas le contenu du lien : cette provenance reste déclarative et ne signifie pas que l’événement a causé le choc choisi.
+
 Les personas Amira, Mateo et Robert restent des profils de démonstration séparés de l’univers des tickers. Aucun symbole de ce jeu ne doit être présenté comme une position réelle d’un persona sans correspondance documentée.
 
 ## API
 
 - `GET /v1/simulation/assets` : univers configuré.
 - `GET /v1/simulation/history/{ticker}` : prix, événements d’entreprise et rendement observé après événement.
+- `GET /v1/simulation/event-study/{ticker}?event_date=YYYY-MM-DD` : comparaison des rendements observés du titre et d’un indice proxy dans la même devise (SPY en USD, XIU.TO en CAD) sur 1, 5 et 20 séances. Les dates de début et de fin mesurées sont renvoyées avec les rendements et l’écart en points de pourcentage. Cette lecture descriptive ne mesure pas un effet causal; les jours fériés peuvent décaler l’alignement et les horizons incomplets restent absents.
 - `GET /v1/simulation/regulations?topic=...&page=1` : documents datés par thème dans une fenêtre de cinq ans par défaut; `start_date` et `end_date` limitent la période et `page` parcourt les résultats. La page Simulation lie ces dates à la période choisie pour son graphique.
 - `GET /v1/simulation/filings/{ticker}` : dépôts EDGAR; nécessite `SEC_USER_AGENT`.
 - `GET /v1/simulation/news/{ticker}` : couverture récente GDELT, avec cache et gestion des limitations.

@@ -8,6 +8,20 @@ variable "environment" {
   type        = string
 }
 
+variable "aws_region" {
+  description = "Région du compte et de l’API Bedrock; le modèle utilise un profil d’inférence US."
+  type        = string
+}
+
+variable "bedrock_model_id" {
+  description = "Profil d’inférence Bedrock autorisé pour le chat de l’API."
+  type        = string
+  validation {
+    condition     = can(regex("^us\\.[A-Za-z0-9._:-]+$", var.bedrock_model_id))
+    error_message = "bedrock_model_id doit être un ID de profil d’inférence US, par exemple us.amazon.nova-lite-v1:0."
+  }
+}
+
 variable "package_path" {
   description = "Chemin local vers l’archive Lambda empaquetée pour Python 3.12."
   type        = string

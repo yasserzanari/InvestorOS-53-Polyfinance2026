@@ -1,3 +1,5 @@
+import { authenticatedFetch } from './auth';
+
 export type DemoOverview = {
   mode: 'demo';
   source: 'aws-dynamodb';
@@ -67,6 +69,25 @@ export type SimulationHistory = {
   sourceAsOf: string;
   method: string;
   limitations: string[];
+};
+export type SimulationEventStudy = {
+  ticker: string;
+  benchmarkTicker: string | null;
+  eventDate: string;
+  sourceAsOf: string;
+  source: string;
+  method: string;
+  limitations: string[];
+  points: Array<{
+    horizonObservations: 1 | 5 | 20;
+    stockStartDate: string | null;
+    stockEndDate: string | null;
+    stockReturnPct: number | null;
+    benchmarkStartDate: string | null;
+    benchmarkEndDate: string | null;
+    benchmarkReturnPct: number | null;
+    excessReturnPct: number | null;
+  }>;
 };
 export type SimulationRegulation = {
   id: string;
@@ -161,6 +182,7 @@ export type ScenarioBranchInput = {
   id: string;
   title: string;
   event: string;
+  sourceUrl?: string;
   shockPct: number;
   eventAfterObservations: number;
 };
@@ -187,7 +209,7 @@ export async function loadDemoOverview(persona: DemoOverview['persona'] = 'mateo
   if (!base) return { status: 'not_configured' };
 
   try {
-    const response = await fetch(`${base}/v1/demo/overview?persona=${encodeURIComponent(persona)}`, {
+    const response = await authenticatedFetch(`${base}/v1/demo/overview?persona=${encodeURIComponent(persona)}`, {
       headers: { Accept: 'application/json' },
       signal,
     });
@@ -212,7 +234,7 @@ export async function calculateDemoScenario(
 ): Promise<PortfolioScenarioImpact> {
   const base = getApiBase();
   if (!base) throw new Error('La connexion à l’API de démonstration n’est pas configurée.');
-  const response = await fetch(`${base}/v1/demo/scenarios/impact?persona=${encodeURIComponent(persona)}`, {
+  const response = await authenticatedFetch(`${base}/v1/demo/scenarios/impact?persona=${encodeURIComponent(persona)}`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -236,7 +258,7 @@ export async function calculateDemoScenario(
 async function getSimulation<T>(path: string, signal?: AbortSignal): Promise<T> {
   const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
   if (!base) throw new Error('La connexion à l’API de Simulation n’est pas configurée.');
-  const response = await fetch(`${base}/v1/simulation/${path}`, { headers: { Accept: 'application/json' }, signal });
+  const response = await authenticatedFetch(`${base}/v1/simulation/${path}`, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) {
     let message = 'Les données historiques sont indisponibles.';
     try {
@@ -251,6 +273,8 @@ async function getSimulation<T>(path: string, signal?: AbortSignal): Promise<T> 
 export const loadSimulationAssets = (signal?: AbortSignal) => getSimulation<SimulationAssetList>('assets', signal);
 export const loadSimulationHistory = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationHistory>(`history/${encodeURIComponent(ticker)}`, signal);
+export const loadSimulationEventStudy = (ticker: string, eventDate: string, signal?: AbortSignal) =>
+  getSimulation<SimulationEventStudy>(`event-study/${encodeURIComponent(ticker)}?event_date=${encodeURIComponent(eventDate)}`, signal);
 export const loadSimulationRegulations = (topic: string, page = 1, startDate?: string, endDate?: string, signal?: AbortSignal) => {
   const params = new URLSearchParams({ topic, page: String(page) });
   if (startDate) params.set('start_date', startDate);
@@ -272,7 +296,7 @@ export async function runSimulationProjection(input: {
 }, signal?: AbortSignal): Promise<SimulationProjection> {
   const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
   if (!base) throw new Error('La connexion à l’API de Simulation n’est pas configurée.');
-  const response = await fetch(`${base}/v1/simulation/scenarios`, {
+  const response = await authenticatedFetch(`${base}/v1/simulation/scenarios`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -300,14 +324,14 @@ export const loadSourceWorkspace = (account: string, signal?: AbortSignal) => ge
 export async function saveSourceWorkspace(account: string, workspace: SourceWorkspace): Promise<SourceWorkspace> {
   const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
   if (!base) throw new Error('La connexion au serveur n’est pas configurée.');
-  const response = await fetch(`${base}/v1/simulation/source-workspace/${encodeURIComponent(account)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(workspace) });
+  const response = await authenticatedFetch(`${base}/v1/simulation/source-workspace/${encodeURIComponent(account)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(workspace) });
   if (!response.ok) throw new Error('Impossible d’enregistrer les modifications sur le serveur.');
   return response.json();
 }
 export type SourceLearning = { status: 'running' | 'complete' | 'error'; events: Array<{message: string; at?: string}>; url?: string; frame: number; site?: string; result?: { signature?: string; error?: string }; };
 export const sourceLearningBase = () => `${getApiBase() ?? '/profile-api'}/v1/simulation/source-learning`;
 export async function startSourceLearning(account: string, url: string): Promise<{id:string}> {
-  const r = await fetch(`${sourceLearningBase()}/${account}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  const r = await authenticatedFetch(`${sourceLearningBase()}/${account}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
   if (!r.ok) { const data = await r.json(); throw new Error(data.detail || 'Apprentissage indisponible.'); }
   return r.json();
 }

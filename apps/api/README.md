@@ -6,7 +6,7 @@ FastAPI est l’application HTTP commune au développement local et à AWS Lambd
 
 `GET /v1/demo/overview` renvoie un compte fictif fixe, son profil, son portefeuille et jusqu’à 25 analyses. Les objets portent `is_demo: true`, `data_class: fictional`, `source: fictional_fixture` ou `data_source: fictional_fixture`. Il n’existe aucun endpoint qui accepte un identifiant de compte choisi par le navigateur; les clés sont fixées par configuration Lambda. Les lectures DynamoDB utilisent ces clés de partition et l’API vérifie l’association compte/profil/portefeuille avant de répondre.
 
-Cette première route ne constitue pas une authentification multi-utilisateur. Elle ne doit contenir aucune donnée financière personnelle. Avant l’ajout de profils privés, ajouter Cognito/JWT, valider le sujet du jeton côté API et dériver l’association utilisateur/compte du jeton, jamais du body envoyé par le client.
+La démonstration AWS est protégée par un User Pool Cognito, un client OAuth public avec Authorization Code + PKCE, des mots de passe forts, MFA TOTP obligatoire et des routes API Gateway qui valident les JWT. Les inscriptions publiques et la récupération de compte autonome sont désactivées; les comptes sont créés par un administrateur. Les routes démo restent limitées aux fixtures fictives fixes et ne constituent pas un accès à des comptes financiers personnels. Le mode local ne demande aucune connexion et garde ses fixtures locales.
 
 ## Développement local
 
@@ -18,9 +18,11 @@ pip install -r requirements.txt
 uvicorn investoros_api.main:app --app-dir src --reload --port 8000
 ```
 
-Le contrôle de vie est `http://localhost:8000/health`. Pour appeler l’API distante depuis le frontend, copier `apps/web/.env.aws.example` vers `apps/web/.env.aws`, mettre l’URL API fournie par Terraform dans `VITE_API_TARGET`, puis lancer `npm run dev:aws` depuis `apps/web`. Le navigateur ne reçoit aucun credential AWS : c’est le rôle Lambda qui lit les tables. Ne stocker aucune clé dans le frontend ou dans un fichier versionné.
+Le contrôle de vie est `http://localhost:8000/health`. Le mode normal `npm run dev` utilise les services locaux et ne demande pas de connexion. Pour viser AWS depuis un navigateur local, copier `apps/web/.env.aws.example` vers `apps/web/.env.aws`, remplir l’URL API et les quatre paramètres Cognito depuis Terraform, puis lancer `npm run dev:aws` depuis `apps/web`; ce parcours distant exige le compte administrateur et MFA. Le navigateur ne reçoit aucun credential IAM : c’est le rôle Lambda qui lit les tables. Ne stocker aucune clé AWS dans le frontend ou dans un fichier versionné.
 
 Le script `scripts/dev-profile-api.sh` active explicitement `DEMO_PORTFOLIO_MODE=local_fixture` pour les parcours de chat locaux. Ces portefeuilles fictifs partagent la source JSON que Terraform utilise pour initialiser DynamoDB. L’environnement Lambda force `DEMO_PORTFOLIO_MODE=dynamodb`; le mode local est refusé dans Lambda.
+
+Sur AWS, `GET /health` reste public pour le contrôle de vie. Les routes HTTP API exigent le JWT Cognito et les routes applicatives protégées vérifient aussi que le jeton validé par API Gateway contient le groupe `administrators`. Les inscriptions publiques sont désactivées, MFA TOTP est obligatoire, le client web utilise Authorization Code + PKCE sans secret client, les jetons du navigateur restent dans `sessionStorage` et les jetons d’accès expirent après 15 minutes. Cognito force le changement du mot de passe temporaire puis l’enrôlement TOTP à la première connexion. Le fichier local `AWS_ADMIN_CREDENTIALS.txt` est ignoré par Git, a des permissions privées et ne contient qu’un mot de passe temporaire; ne le copier ni dans une issue ni dans un commit. Le serveur local laisse `REQUIRE_ADMIN_AUTH` désactivé par défaut; l’authentification est activée par configuration Terraform AWS.
 
 ## Paquet Lambda
 
@@ -30,6 +32,8 @@ Depuis la racine du dépôt :
 uv python install 3.12
 ./scripts/build-api.sh
 ```
+
+Pour connecter Assistant/Profils et Simulation à l’API AWS sans remplacer la Lambda actuellement utilisée par les routes de recherche et de connaissances, utiliser la stack à state séparé [`assistant-simulation`](../../infrastructure/terraform/environments/assistant-simulation/README.md). Le paquet contient les CSV locaux ignorés; ils ne sont jamais ajoutés à Git.
 
 Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terraform attend exactement ce chemin. Le répertoire `apps/api/build/` est ignoré par Git. Le zip doit être construit avant `terraform plan` ou `terraform apply`; Terraform échoue volontairement si le paquet manque.
 
@@ -41,6 +45,7 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/demo/overview` | Lecture du contexte fictif DynamoDB |
 | GET | `/v1/simulation/assets` | Univers historique configuré et ses limites |
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
+| GET | `/v1/simulation/event-study/{ticker}?event_date=YYYY-MM-DD` | Rendements descriptifs du titre et d’un indice proxy de même devise après une date; sans attribution causale |
 | GET | `/v1/simulation/regulations?topic=...&page=1` | Documents Federal Register dans une période datée, paginés par date de publication, avec liens officiels associés |
 | GET | `/v1/simulation/filings/{ticker}?start_date=YYYY-MM-DD` | Déclarations EDGAR récentes et historiques depuis le début de la série visible; nécessite `SEC_USER_AGENT` côté serveur |
 | GET | `/v1/simulation/news/{ticker}` | Couverture secondaire récente indexée par GDELT; cache positif et pause après erreur ou limitation |

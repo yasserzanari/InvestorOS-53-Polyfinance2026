@@ -4,6 +4,7 @@ from typing import Any
 
 import boto3
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
 from investoros_api.demo_contexts import PersonaId, context_for
@@ -17,7 +18,23 @@ from investoros_api.source_store import router as source_store_router
 from investoros_api.source_learning import router as source_learning_router
 from investoros_api.admin_console import router as admin_router
 
+def _cors_allowed_origins() -> list[str]:
+    configured = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    origins = [origin.strip().rstrip("/") for origin in configured.split(",") if origin.strip()]
+    if not origins:
+        origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    if "*" in origins:
+        raise RuntimeError("CORS_ALLOWED_ORIGINS must list explicit origins")
+    return list(dict.fromkeys(origins))
+
+
 app = FastAPI(title="InvestorOS API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_allowed_origins(),
+    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allow_headers=["accept", "authorization", "content-type"],
+)
 app.include_router(profiles_router)
 app.include_router(research_router)
 app.include_router(knowledge_router)
@@ -141,17 +158,29 @@ _mangum_handler = Mangum(app)
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Require a Cognito administrators-group JWT for deployed app routes.
+
+    API Gateway verifies signature, issuer, and audience. This second check
+    narrows access to app administrators. Local FastAPI development bypasses
+    the wrapper because REQUIRE_ADMIN_AUTH is unset.
+    """
     if event.get('source') == 'investoros.research-iam' and 'requestContext' not in event:
         from investoros_api.research.iam_handler import handle
         return handle(event, context)
-    if os.getenv('REQUIRE_ADMIN_AUTH', 'false').lower() == 'true':
-        request_context = event.get('requestContext', {})
-        route_key = request_context.get('routeKey', '')
-        if route_key != 'GET /health' and not route_key.startswith('OPTIONS '):
-            claims = request_context.get('authorizer', {}).get('jwt', {}).get('claims', {})
-            groups = claims.get('cognito:groups', [])
-            groups = [groups] if isinstance(groups, str) else groups
-            if 'administrators' not in groups:
-                return {'statusCode': 403, 'headers': {'content-type':'application/json'},
-                        'body':json.dumps({'detail':'Administrator access required'})}
+    if os.getenv("REQUIRE_ADMIN_AUTH", "false").lower() == "true":
+        request_context = event.get("requestContext", {})
+        route_key = request_context.get("routeKey", "")
+        if route_key != "GET /health" and not route_key.startswith("OPTIONS "):
+            authorizer = request_context.get("authorizer", {}).get("jwt", {})
+            claims = authorizer.get("claims", {})
+            groups = claims.get("cognito:groups", [])
+            if isinstance(groups, str):
+                groups = [groups]
+            if "administrators" not in groups:
+                return {
+                    "statusCode": 403,
+                    "headers": {"content-type": "application/json"},
+                    "body": json.dumps({"detail": "Administrator access required"}),
+                }
+
     return _mangum_handler(event, context)

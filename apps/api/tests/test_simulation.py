@@ -21,9 +21,17 @@ class SimulationHistoryTests(unittest.TestCase):
         self.directory = self.temp.name
         self.write_csv("assets_universe.csv", [
             {"asset_id": "A1", "ticker": "ABC", "name": "Example Corp", "asset_class": "equity", "market": "NYSE", "currency": "USD", "sector": "Technology"},
+            {"asset_id": "A2", "ticker": "BTC-USD", "name": "Bitcoin", "asset_class": "crypto", "market": "Crypto", "currency": "USD", "sector": "Digital assets"},
+            {"asset_id": "A3", "ticker": "XIU.TO", "name": "Canada index ETF", "asset_class": "etf_equity", "market": "TSX", "currency": "CAD", "sector": "Broad market"},
         ])
         self.write_csv("prices_daily.csv", [
             {"date": f"2025-01-0{day}", "ticker": "ABC", "adj_close": str(price), "volume": "100", "currency": "USD"}
+            for day, price in enumerate((100, 110, 99, 121), 1)
+        ] + [
+            {"date": f"2025-01-0{day}", "ticker": "SPY", "adj_close": str(price), "volume": "100", "currency": "USD"}
+            for day, price in enumerate((200, 220, 220, 242), 1)
+        ] + [
+            {"date": f"2025-01-0{day}", "ticker": "BTC-USD", "adj_close": str(price), "volume": "100", "currency": "USD"}
             for day, price in enumerate((100, 110, 99, 121), 1)
         ])
         self.write_csv("corporate_actions.csv", [
@@ -75,6 +83,25 @@ class SimulationHistoryTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as raised:
             simulation.history("unknown")
         self.assertEqual(raised.exception.status_code, 404)
+
+    def test_event_study_compares_stock_and_same_currency_benchmark_without_claiming_causality(self):
+        result = simulation.event_study("abc", event_date=date(2025, 1, 2))
+
+        self.assertEqual(result["benchmarkTicker"], "SPY")
+        self.assertEqual(result["points"][0]["stockStartDate"], "2025-01-02")
+        self.assertEqual(result["points"][0]["stockEndDate"], "2025-01-03")
+        self.assertEqual(result["points"][0]["stockReturnPct"], -10.0)
+        self.assertEqual(result["points"][0]["benchmarkReturnPct"], 0.0)
+        self.assertEqual(result["points"][0]["excessReturnPct"], -10.0)
+        self.assertIsNone(result["points"][1]["stockReturnPct"])
+        self.assertIn("ne démontre ni causalité", result["limitations"][0])
+
+    def test_event_study_does_not_assign_an_equity_benchmark_to_crypto(self):
+        result = simulation.event_study("BTC-USD", event_date=date(2025, 1, 2))
+
+        self.assertIsNone(result["benchmarkTicker"])
+        self.assertEqual(result["points"][0]["stockReturnPct"], -10.0)
+        self.assertIsNone(result["points"][0]["benchmarkReturnPct"])
 
     def test_invalid_date_order_is_rejected(self):
         from datetime import date
@@ -129,7 +156,7 @@ class SimulationHistoryTests(unittest.TestCase):
             ticker="ABC",
             horizonObservations=20,
             branches=[
-                ScenarioBranch(id="down", title="Baisse", event="Tarif", shockPct=-10, eventAfterObservations=0),
+                ScenarioBranch(id="down", title="Baisse", event="Tarif", sourceUrl="https://www.federalregister.gov/documents/2025-1", shockPct=-10, eventAfterObservations=0),
                 ScenarioBranch(id="base", title="Stable", event="Tarif", shockPct=0, eventAfterObservations=10),
             ],
         )
@@ -138,10 +165,19 @@ class SimulationHistoryTests(unittest.TestCase):
 
         self.assertEqual(result["asOf"], "2025-05-31")
         self.assertEqual(result["branches"][0]["path"][0]["medianPrice"], 225.0)
+        self.assertEqual(result["branches"][0]["sourceUrl"], "https://www.federalregister.gov/documents/2025-1")
+        self.assertNotIn("sourceUrl", result["branches"][1])
         base_path = result["branches"][1]["path"]
         self.assertFalse(base_path[0]["eventApplied"])
         self.assertTrue(any(point["eventApplied"] for point in base_path))
         self.assertIn("pas une prévision", " ".join(result["limitations"]))
+        self.assertIn("liens de branche", " ".join(result["limitations"]))
+
+    def test_projection_source_urls_must_be_https_without_credentials(self):
+        with self.assertRaises(ValueError):
+            ScenarioBranch(id="bad", title="Source invalide", event="Tarif", sourceUrl="http://example.com", shockPct=-10, eventAfterObservations=0)
+        with self.assertRaises(ValueError):
+            ScenarioBranch(id="bad", title="Source invalide", event="Tarif", sourceUrl="https://user:pass@example.com", shockPct=-10, eventAfterObservations=0)
 
     def test_projection_rejects_duplicate_branch_ids_and_offsets_after_horizon(self):
         with self.assertRaises(ValueError):

@@ -10,6 +10,8 @@ Le state canonique est `s3://investoros-tfstate-010928221556-us-east-1/dev/terra
 
 **Avant toute mutation AWS**, vérifier l’identité et le state, puis lire intégralement le plan. N’appliquer que si le plan ne remplace ni ne détruit une ressource du site actif. Ne jamais supprimer les buckets préfixés simplement parce qu’ils ne sont plus ciblés par ce code.
 
+L’état AWS actuel contient aussi les ressources de recherche et de Knowledge Base gérées depuis une autre tranche; ce root `dev` ne les décrit pas toutes. Le plan complet courant propose leur suppression ainsi que le remplacement des routes de l’API. Ne pas l’appliquer avant réconciliation de cette configuration. La stack [`assistant-simulation`](../assistant-simulation/README.md) utilise un état séparé et ajoute uniquement des routes spécifiques pour ces deux espaces.
+
 ## Préparer et examiner le plan
 
 Depuis la racine du dépôt :
@@ -44,7 +46,7 @@ Après déploiement contrôlé de l’API, ajouter la variable de dépôt GitHub
 ## Modèle de sécurité et coûts
 
 - Le rôle runtime Lambda est distinct du rôle CI GitHub OIDC. Sa confiance est limitée au service Lambda.
-- La policy runtime utilise les actions identifiées par analyse statique du code Boto3 (`dynamodb:GetItem`, `dynamodb:Query`, permission dépendante `dynamodb:ReadDataForReplication`) sur les seuls ARNs des quatre tables de cette stack. Les droits CloudWatch sont limités au groupe `/aws/lambda/investoros-dev-api` et ses streams (`logs:CreateLogStream`, `logs:PutLogEvents`). Cette policy runtime n’accorde aucun droit d’écriture DynamoDB.
+- La policy runtime utilise les actions identifiées par analyse statique du code Boto3 (`dynamodb:GetItem`, `dynamodb:Query`, permission dépendante `dynamodb:ReadDataForReplication`) sur les seuls ARNs des quatre tables de cette stack. Les droits CloudWatch sont limités au groupe `/aws/lambda/investoros-dev-api` et ses streams (`logs:CreateLogStream`, `logs:PutLogEvents`). Cette policy runtime n’accorde aucun droit d’écriture DynamoDB. `bedrock:InvokeModel` et `bedrock:InvokeModelWithResponseStream` sont limités au profil d’inférence configuré et au modèle de base routé. Le défaut de code est `us.amazon.nova-lite-v1:0`; l’inférence peut être facturée et routée entre régions US.
 - L’API ne transforme jamais un identifiant fourni par le navigateur en clé DynamoDB. Elle accepte uniquement les personas connus (`amira`, `mateo`, `robert`), puis résout leurs clés fixes depuis `DEMO_CONTEXTS`, injecté par Terraform. Les trois comptes, profils et portefeuilles restent des fixtures fictives. CORS autorise le domaine CloudFront précis et `localhost:5173`.
 - API Gateway `$default` configure 5 requêtes/s et burst 10; Lambda a une concurrence réservée de 5. Une surcharge API Gateway produit `429`. Le proxy `ANY /{proxy+}` transmet les autres routes documentées à FastAPI; l’intégration HTTP reste limitée à 10 secondes.
 - Le groupe de logs Lambda conserve 14 jours. Deux alarmes CloudWatch couvrent erreurs et throttles. Elles ne notifient personne sans destination SNS/action ajoutée.
@@ -63,13 +65,13 @@ L’analyse automatique du plan (`iam-policy-autopilot`) est utile pour repérer
 | Composant | État |
 | --- | --- |
 | Frontend CloudFront/S3 et workflow GitHub | Déployé avant cette tranche; inventaire confirmé |
-| API FastAPI `/health`, `/v1/demo/overview`, Assistant et Simulation | Code et proxy API Gateway prêts, non déployés |
+| API FastAPI `/health`, `/v1/demo/overview`, Assistant et Simulation | API Gateway et Lambda existent; le déploiement du modèle Bedrock configuré par Terraform reste à appliquer et à vérifier par un appel réel |
 | Tables DynamoDB et trois fixtures fictives | Code Terraform prêt, non déployées |
 | Limites API/Lambda, logs et alarmes | Code Terraform prêt, non déployés |
 | Frontend configuré à une URL API | Code prêt; `VITE_API_BASE_URL` reste à configurer après l’API |
 | Simulation historique, événements datés, sources et scénarios conditionnels | Code prêt; déploiement et configuration des données restent à faire |
 | Step Functions pour travaux longs | À ajouter ensuite, non déployé |
-| Bedrock | Catalogue/quota consultables; invocation modèle non validée, aucun appel effectué |
+| Bedrock | Profil US Nova Lite actif dans le compte et utilisé par le worker de recherche; l’API conversation n’avait pas `BEDROCK_MODEL_ID`. Cette modification le configure via Terraform, mais son invocation depuis l’API n’est pas encore validée |
 | X Recent Search | Connecteur optionnel codé, désactivé par défaut; jeton et budget non configurés |
 | Knowledge Base/RAG | Non branchés |
 | Auth utilisateur/données privées | Absentes; ne pas y placer de données réelles |
