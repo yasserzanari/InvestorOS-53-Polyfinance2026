@@ -19,6 +19,7 @@ export function AssistantChatPanel({
   error,
   conversations = [],
   activeConversationId = '',
+  historyStatus = 'Historique synchronisé avec le compte actif',
   onSelectConversation,
   assistantMode = false,
   landing = false,
@@ -40,6 +41,7 @@ export function AssistantChatPanel({
   error?: ReactNode;
   conversations?: ConversationHistoryItem[];
   activeConversationId?: string;
+  historyStatus?: string;
   onSelectConversation?: (id:string) => void;
   assistantMode?: boolean;
   landing?: boolean;
@@ -65,7 +67,7 @@ export function AssistantChatPanel({
             <Clock3 size={15}/><span>Historique</span><ChevronDown size={13}/>
           </button>
           {historyOpen&&<section className="pw-history-popover" id="pw-conversation-history" aria-label="Historique des conversations">
-            <header><div><strong>Conversations</strong><span>{conversations.length} enregistrée{conversations.length===1?'':'s'}</span></div><button type="button" className="pw-history-new" onClick={()=>{onReset();setHistoryOpen(false);}} disabled={resetDisabled}><Plus size={14}/>Nouvelle</button></header>
+            <header><div><strong>Conversations</strong><span>{historyStatus}</span></div><button type="button" className="pw-history-new" onClick={()=>{onReset();setHistoryOpen(false);}} disabled={resetDisabled}><Plus size={14}/>Nouvelle</button></header>
             {conversations.length?<ul>{conversations.map(item=><li key={item.id}><button type="button" className={item.id===activeConversationId?'is-current':''} onClick={()=>{onSelectConversation?.(item.id);setHistoryOpen(false);}}><span className="pw-history-title">{item.title}</span><time dateTime={new Date(item.lastUsedAt).toISOString()}>{formatLastUsed(item.lastUsedAt)}</time></button></li>)}</ul>:<p className="pw-history-empty">Vos conversations apparaîtront ici après votre premier message.</p>}
           </section>}
         </div>;
@@ -84,7 +86,7 @@ export function AssistantChatPanel({
       {activity && <div className="pw-current-activity">{activity}</div>}
       {!landing&&<div className={`pw-composer ${composerClassName}`}>
         {composer}
-        <span>Conversation et espace de travail enregistrés dans ce navigateur. Les messages sont envoyés à Amazon Bedrock.</span>
+        <span>Conversations synchronisées avec le compte actif. Les messages sont envoyés à Amazon Bedrock.</span>
         {error && <p className="pw-error" role="alert">{error}</p>}
       </div>}
     </section>

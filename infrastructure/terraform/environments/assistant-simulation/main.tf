@@ -162,6 +162,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       PROFILE_CHAT_JOBS_TABLE          = aws_dynamodb_table.profile_chat_jobs.name
+      PROFILE_CONVERSATIONS_TABLE      = aws_dynamodb_table.profile_conversations.name
       PROFILE_CHAT_WORKER_FUNCTION     = aws_lambda_function.profile_chat_worker.function_name
       BEDROCK_MODEL_ID                 = var.bedrock_model_id
       CORS_ALLOWED_ORIGINS             = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
@@ -179,7 +180,7 @@ resource "aws_lambda_function" "api" {
     }
   }
 
-  depends_on = [aws_iam_role_policy.api, aws_transcribe_vocabulary.finance_fr_ca]
+  depends_on = [aws_iam_role_policy.api, aws_iam_role_policy.profile_conversations, aws_transcribe_vocabulary.finance_fr_ca]
   tags       = local.common_tags
 }
 

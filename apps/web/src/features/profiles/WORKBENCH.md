@@ -11,7 +11,7 @@ La route `/app/profiles` conserve le chat à gauche et six vues à droite : Prof
 - **Preuves** : les références reçues sont conservées par identifiant, y compris lorsque deux preuves partagent une URL. Le filtre « Liées au constat » utilise les `evidenceIds` de la carte. Une référence ouverte ne prouve pas que toute son information a été validée.
 - **Mémoire** : état de synchronisation, version, confirmation, provenance des huit rubriques, rechargement et export du contexte.
 
-Dans Assistant, l’action **Notes** ajoute un onglet de conversation à droite. Les notes Markdown s’ouvrent en lecture confortable avec aperçu, estimation du temps de lecture, copie et téléchargement; le mode Modifier garde le texte éditable. Les notes de conversation restent dans le navigateur avec l’historique local. Dans Profil, les notes restent dans la mémoire de démonstration synchronisée par l’API.
+Dans Assistant, l’action **Notes** ajoute un onglet de conversation à droite. Les notes Markdown s’ouvrent en lecture confortable avec aperçu, estimation du temps de lecture, copie et téléchargement; le mode Modifier garde le texte éditable. Les notes et l’historique de conversation sont synchronisés avec le compte actif. Dans Profil, les notes restent dans la mémoire de démonstration synchronisée par l’API.
 
 ## Outils et skills
 
@@ -48,7 +48,7 @@ Exemple de discussion : « Mon portefeuille correspond-il à mon objectif de pr�
 | Sans table AWS | SQLite dans `~/.local/share/investoros/profile-memory.sqlite3`, configurable avec `PROFILE_MEMORY_DB`. |
 | `PROFILE_WORKSPACE_TABLE` ou `SOURCE_WORKSPACE_TABLE` | Attribut `profile_workspace` de la table de comptes DynamoDB; clés autorisées par le mapping serveur `DEMO_CONTEXTS`. Permissions `GetItem` et `UpdateItem`. |
 
-Les conversations restent locales au navigateur, séparées par persona. Un nouveau navigateur restaure le profil et les documents, mais pas l’historique des messages ni le suivi local complet des recherches. Cette mémoire de démonstration n’est pas un système de comptes clients réels.
+Les conversations sont synchronisées côté serveur et isolées par compte de démonstration. Après migration initiale, elles se rouvrent depuis un autre navigateur connecté au même compte. Cette mémoire de démonstration n’est pas un système de comptes clients réels.
 
 ## Transport AWS des réponses
 

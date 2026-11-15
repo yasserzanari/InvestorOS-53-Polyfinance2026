@@ -38,7 +38,9 @@ app.add_middleware(
     allow_headers=["accept", "authorization", "content-type"],
 )
 from investoros_api.profiles.memory import router as profile_memory_router
+from investoros_api.profiles.conversations import router as profile_conversations_router
 app.include_router(profile_memory_router)
+app.include_router(profile_conversations_router)
 app.include_router(profiles_router)
 app.include_router(profile_jobs_router)
 app.include_router(forecast_router)
