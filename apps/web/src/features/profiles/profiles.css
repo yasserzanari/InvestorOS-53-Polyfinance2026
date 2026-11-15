@@ -121,6 +121,11 @@
 .pw-prompt-mic:hover{background:var(--canvas);color:var(--text)}
 .pw-prompt-mic svg,.pw-shared-prompt button svg{flex-shrink:0;min-width:16px;min-height:16px}
 .pw-prompt-mic.is-recording{color:#b33c50;background:#fff0f2}
+.pw-prompt-mic-toggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;flex:none;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:11px;white-space:nowrap;cursor:pointer}
+.pw-prompt-mic-toggle:hover{background:var(--canvas);color:var(--text)}
+.pw-prompt-mic-toggle:disabled{opacity:.5;cursor:default}
+.pw-prompt-mic-toggle.is-active{border-color:#f0cbd2;background:#fff6f7;color:#a83c4c}
+.pw-prompt-mic-toggle svg{flex:none}
 .pw-prompt-hint{font-size:11px;color:var(--muted);padding-inline:6px}
 .pw-prompt-root>.pw-prompt-notice{max-width:none;margin:10px 4px 0;text-align:left;color:#966820;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
 .pw-voice-live{position:relative;display:flex;min-height:170px;margin:0 0 12px;flex-direction:column;align-items:center;justify-content:center;gap:7px;overflow:hidden;border:1px solid #dfe8fa;border-radius:18px;background:radial-gradient(ellipse at 50% 45%,#f5f8ff 0%,#fff 68%);color:#253655}
