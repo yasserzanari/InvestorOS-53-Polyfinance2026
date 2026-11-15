@@ -11,7 +11,7 @@ La route `/app/portfolios` affiche les positions de la fixture AWS du compte de 
 ## Structure
 
 - `PortfolioPage.tsx` assemble la page et lit le compte de démonstration actif.
-- `components/` contient les panneaux des positions, de l’allocation, de la source AWS et des risques IA.
+- `components/` contient la watchlist des positions, la répartition et l’analyse des risques IA.
 - `styles/portfolio.css` définit la grille responsive et les styles du module.
 - `charts/portfolio-chart/` conserve le composant graphique existant pour les usages qui lui fournissent une série réelle documentée.
 
