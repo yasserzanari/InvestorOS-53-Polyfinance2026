@@ -98,7 +98,8 @@ jobs:
             echo "Terraform: aucun changement à appliquer."
             exit 0
           elif [[ "$plan_status" -ne 2 ]]; then
-            echo "::error::terraform plan a échoué (code ${plan_status}); détails masqués pour éviter d'exposer des valeurs du state ou des URL AWS temporaires."
+            echo "::error::terraform plan a échoué (code ${plan_status}); résumé diagnostique expurgé :"
+            python "$GITHUB_WORKSPACE/scripts/summarize-terraform-error.py" "$plan_log"
             exit "$plan_status"
           fi
 
