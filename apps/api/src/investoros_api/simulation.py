@@ -15,6 +15,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -87,8 +88,63 @@ class ScenarioProjectionRequest(BaseModel):
 
 _SEC_CACHE: dict[str, tuple[float, Any]] = {}
 _NEWS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_NEWS_CACHE_TABLE = None
+_NEWS_CACHE_TABLE_NAME = ""
 _X_POSTS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _X_SECRET_CACHE: tuple[float, str] | None = None
+
+
+def _news_cache_table():
+    """Use the TTL-enabled monitor table as a shared cache across Lambda workers."""
+    global _NEWS_CACHE_TABLE, _NEWS_CACHE_TABLE_NAME
+    table_name = os.getenv("PORTFOLIO_MONITOR_TABLE_NAME", "")
+    if not table_name:
+        return None
+    if _NEWS_CACHE_TABLE is None or _NEWS_CACHE_TABLE_NAME != table_name:
+        _NEWS_CACHE_TABLE = boto3.resource(
+            "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+        ).Table(table_name)
+        _NEWS_CACHE_TABLE_NAME = table_name
+    return _NEWS_CACHE_TABLE
+
+
+def _news_cache_item_key(ticker: str) -> dict[str, str]:
+    return {"account_id": "shared#market-news", "record_id": f"news#{ticker}"}
+
+
+def _read_shared_news_cache(ticker: str, now: float) -> tuple[float, dict[str, Any]] | None:
+    table = _news_cache_table()
+    if table is None:
+        return None
+    try:
+        response = table.get_item(Key=_news_cache_item_key(ticker), ConsistentRead=True)
+        item = response.get("Item")
+        if not item or float(item.get("expiresAt", 0)) <= now:
+            return None
+        payload = json.loads(item.get("payload", ""))
+        if not isinstance(payload, dict) or payload.get("ticker") != ticker:
+            return None
+        expires_at = float(item["expiresAt"])
+        _NEWS_CACHE[ticker] = (expires_at, payload)
+        return expires_at, payload
+    except (BotoCoreError, ClientError, TypeError, ValueError, json.JSONDecodeError):
+        # News should remain available when optional cache storage is degraded.
+        return None
+
+
+def _write_shared_news_cache(ticker: str, result: dict[str, Any], expires_at: float) -> None:
+    table = _news_cache_table()
+    if table is None:
+        return
+    try:
+        table.put_item(Item={
+            **_news_cache_item_key(ticker),
+            "payload": json.dumps(result, ensure_ascii=False),
+            "expiresAt": int(expires_at),
+        })
+    except (BotoCoreError, ClientError, TypeError, ValueError):
+        # Keep the in-process cache even if DynamoDB is temporarily unavailable.
+        return
 
 
 def _data_dir() -> Path:
@@ -633,11 +689,15 @@ def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
     if not asset:
         raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
 
-    cache_key = f"{normalized}:{limit}"
+    # Keep one canonical result per ticker, independent of the caller's page size.
+    cache_key = normalized
     now = datetime.now(timezone.utc).timestamp()
     cached = _NEWS_CACHE.get(cache_key)
-    if cached and now - cached[0] < (600 if cached[1]["available"] else 120):
-        return cached[1]
+    if cached and now < cached[0]:
+        return {**cached[1], "articles": cached[1].get("articles", [])[:limit]}
+    cached = _read_shared_news_cache(normalized, now)
+    if cached:
+        return {**cached[1], "articles": cached[1].get("articles", [])[:limit]}
 
     # GDELT is discovery coverage, not a primary source or an issuer-identity check.
     # Keep the query bounded and escape user-visible company text through urlencode.
@@ -647,7 +707,8 @@ def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
         "mode": "ArtList",
         "format": "json",
         "sort": "DateDesc",
-        "maxrecords": limit,
+        # Query once for the maximum supported result set, then slice per caller.
+        "maxrecords": 25,
         "timespan": "30d",
     })
     request = Request(
@@ -714,8 +775,18 @@ def issuer_news(ticker: str, limit: int = 15) -> dict[str, Any]:
         result = {"ticker": normalized, "company": asset["name"], "available": False, "reason": reason, "source": "GDELT DOC 2.0", "sourceUrl": GDELT_DOCS_URL, "articles": []}
     except (URLError, TimeoutError, json.JSONDecodeError, OSError, AttributeError):
         result = {"ticker": normalized, "company": asset["name"], "available": False, "reason": reason, "source": "GDELT DOC 2.0", "sourceUrl": GDELT_DOCS_URL, "articles": []}
-    _NEWS_CACHE[cache_key] = (now, result)
-    return result
+    # Cache successful empty results too: an empty but available response is a
+    # meaningful observation and should not cause repeat calls every refresh.
+    if result["available"]:
+        ttl = 600
+    elif "limitée" in result.get("reason", ""):
+        ttl = 300
+    else:
+        ttl = 120
+    expires_at = now + ttl
+    _NEWS_CACHE[cache_key] = (expires_at, result)
+    _write_shared_news_cache(normalized, result, expires_at)
+    return {**result, "articles": result.get("articles", [])[:limit]}
 
 
 @router.get("/social/{ticker}")

@@ -296,6 +296,34 @@ class SimulationHistoryTests(unittest.TestCase):
         self.assertEqual(open_url.call_count, 1)
 
     @patch("investoros_api.simulation.urlopen")
+    @patch("investoros_api.simulation._news_cache_table")
+    def test_news_cache_is_shared_across_worker_instances_and_limits(self, cache_table, open_url):
+        rows = {}
+
+        class Table:
+            def get_item(self, Key, **_kwargs):
+                item = rows.get((Key["account_id"], Key["record_id"]))
+                return {"Item": item} if item else {}
+
+            def put_item(self, Item):
+                rows[(Item["account_id"], Item["record_id"])] = Item
+
+        cache_table.return_value = Table()
+        open_url.return_value = BytesIO(json.dumps({"articles": [{
+            "url": "https://news.example/story", "title": "Example Corp market coverage",
+            "domain": "news.example", "seendate": "20251114T153000Z",
+        }]}).encode())
+
+        first = simulation.issuer_news("ABC", limit=1)
+        simulation._NEWS_CACHE.clear()  # Simulate a cold Lambda worker.
+        second = simulation.issuer_news("ABC", limit=2)
+
+        self.assertTrue(first["available"])
+        self.assertEqual(second["articles"], first["articles"])
+        self.assertEqual(open_url.call_count, 1)
+        self.assertEqual(parse_qs(urlsplit(open_url.call_args.args[0].full_url).query)["maxrecords"], ["25"])
+
+    @patch("investoros_api.simulation.urlopen")
     def test_x_search_is_disabled_by_default_without_spending(self, open_url):
         with patch.dict(os.environ, {"SIMULATION_X_SEARCH_ENABLED": "", "X_API_BEARER_TOKEN": ""}):
             result = simulation.issuer_social_posts("ABC")
