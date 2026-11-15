@@ -118,7 +118,7 @@ jobs:
                   and item.get("change", {}).get("replace_paths", []) == [["key"]]
               )
               if rotation:
-                  print("Rotation de l'archive Lambda adressée par contenu.")
+                  print("Rotation de l’archive Lambda adressée par contenu.")
               else:
                   blocked.append(item)
           if blocked:
