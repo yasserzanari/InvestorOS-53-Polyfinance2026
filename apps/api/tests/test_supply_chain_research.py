@@ -77,6 +77,12 @@ class SupplyChainResearchTests(unittest.TestCase):
         self.assertEqual(client.config['toolChoice']['tool']['name'],'publish_result')
         self.assertEqual(result['skills'][0]['id'],'supply-chain')
 
+    def test_bond_underwriters_and_trustees_are_not_operational_suppliers(self):
+        quote='Acme appointed Example Bank as trustee and Contoso Securities as underwriting representative for its notes.'
+        raw={'suppliers':[{'name':'Example Bank','role':'Fiduciaire','sourceId':'filing','quote':quote},{'name':'Contoso Securities','role':'Représentant des souscripteurs','sourceId':'filing','quote':quote}], 'events':[]}
+        suppliers,_=validate_extraction(raw,[{'id':'filing','text':quote}])
+        self.assertEqual(suppliers,[])
+
     def test_fixed_origins_block_ssrf(self):
         for url in ['http://data.sec.gov/','https://localhost/','https://data.sec.gov@127.0.0.1/','https://data.sec.gov:444/']:
             with self.subTest(url=url),self.assertRaises(ValueError): read(url)
