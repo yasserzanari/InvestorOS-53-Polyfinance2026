@@ -16,6 +16,8 @@ locals {
   cognito_client_id    = data.terraform_remote_state.foundation.outputs.cognito_client_id
   portfolio_table_name = data.terraform_remote_state.foundation.outputs.demo_table_names.portfolios
   portfolio_table_arn  = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.portfolio_table_name}"
+  accounts_table_name  = data.terraform_remote_state.foundation.outputs.demo_table_names.accounts
+  accounts_table_arn   = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.accounts_table_name}"
   common_tags = {
     Project     = "InvestorOS"
     Environment = var.environment
@@ -73,6 +75,12 @@ resource "aws_iam_role_policy" "api" {
         Resource = local.portfolio_table_arn
       },
       {
+        Sid      = "PersistAuthorizedSources"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+        Resource = local.accounts_table_arn
+      },
+      {
         Sid      = "WriteFunctionLogs"
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
@@ -109,6 +117,7 @@ resource "aws_lambda_function" "api" {
       DEMO_PORTFOLIO_MODE           = "dynamodb"
       ENVIRONMENT                   = var.environment
       PORTFOLIOS_TABLE_NAME         = local.portfolio_table_name
+      SOURCE_WORKSPACE_TABLE        = local.accounts_table_name
       POWERTOOLS_SERVICE_NAME       = "investoros-assistant-simulation"
       SIMULATION_X_SEARCH_ENABLED   = "false"
       X_API_BEARER_TOKEN_SECRET_ARN = ""
