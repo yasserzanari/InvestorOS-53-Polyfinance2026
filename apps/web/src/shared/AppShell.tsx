@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import { productModules } from '../app/modules';
 import { demoAccounts, useDemoAccount } from './DemoAccountContext';
+import { useAuth } from './auth';
 import './app-shell.css';
 
 const groups = ['Décider', 'Explorer'] as const;
@@ -11,6 +12,7 @@ export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
   const { activeAccount, setActiveAccountId } = useDemoAccount();
+  const auth = useAuth();
 
   useEffect(() => setDrawerOpen(false), [location.pathname]);
   useEffect(() => {
@@ -77,6 +79,7 @@ export function AppShell() {
               {demoAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
             </select>
             <span className="topbar-simulation">Espace de démonstration</span><Link to="/" className="topbar-public-link">Site public</Link>
+            {auth.enabled && <button className="topbar-logout" type="button" onClick={() => { void auth.signOut(); }}><LogOut size={14} aria-hidden="true" /> Déconnexion</button>}
           </div>
         </header>
         <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}${['/app/profiles','/app/assistant'].includes(location.pathname) ? ' is-profiles-content' : ''}`}><Outlet /></main>

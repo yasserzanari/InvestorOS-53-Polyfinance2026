@@ -6,7 +6,7 @@ FastAPI est l’application HTTP commune au développement local et à AWS Lambd
 
 `GET /v1/demo/overview` renvoie un compte fictif fixe, son profil, son portefeuille et jusqu’à 25 analyses. Les objets portent `is_demo: true`, `data_class: fictional`, `source: fictional_fixture` ou `data_source: fictional_fixture`. Il n’existe aucun endpoint qui accepte un identifiant de compte choisi par le navigateur; les clés sont fixées par configuration Lambda. Les lectures DynamoDB utilisent ces clés de partition et l’API vérifie l’association compte/profil/portefeuille avant de répondre.
 
-Cette première route ne constitue pas une authentification multi-utilisateur. Elle ne doit contenir aucune donnée financière personnelle. Avant l’ajout de profils privés, ajouter Cognito/JWT, valider le sujet du jeton côté API et dériver l’association utilisateur/compte du jeton, jamais du body envoyé par le client.
+La démonstration AWS est protégée par un User Pool Cognito, un client OAuth public avec Authorization Code + PKCE, des mots de passe forts, MFA TOTP obligatoire et des routes API Gateway qui valident les JWT. Les inscriptions publiques et la récupération de compte autonome sont désactivées; les comptes sont créés par un administrateur. Les routes démo restent limitées aux fixtures fictives fixes et ne constituent pas un accès à des comptes financiers personnels. Le mode local ne demande aucune connexion et garde ses fixtures locales.
 
 ## Développement local
 
@@ -18,9 +18,11 @@ pip install -r requirements.txt
 uvicorn investoros_api.main:app --app-dir src --reload --port 8000
 ```
 
-Le contrôle de vie est `http://localhost:8000/health`. Pour appeler l’API distante depuis le frontend, copier `apps/web/.env.aws.example` vers `apps/web/.env.aws`, mettre l’URL API fournie par Terraform dans `VITE_API_TARGET`, puis lancer `npm run dev:aws` depuis `apps/web`. Le navigateur ne reçoit aucun credential AWS : c’est le rôle Lambda qui lit les tables. Ne stocker aucune clé dans le frontend ou dans un fichier versionné.
+Le contrôle de vie est `http://localhost:8000/health`. Le mode normal `npm run dev` utilise les services locaux et ne demande pas de connexion. Pour viser AWS depuis un navigateur local, copier `apps/web/.env.aws.example` vers `apps/web/.env.aws`, remplir l’URL API et les quatre paramètres Cognito depuis Terraform, puis lancer `npm run dev:aws` depuis `apps/web`; ce parcours distant exige le compte administrateur et MFA. Le navigateur ne reçoit aucun credential IAM : c’est le rôle Lambda qui lit les tables. Ne stocker aucune clé AWS dans le frontend ou dans un fichier versionné.
 
 Le script `scripts/dev-profile-api.sh` active explicitement `DEMO_PORTFOLIO_MODE=local_fixture` pour les parcours de chat locaux. Ces portefeuilles fictifs partagent la source JSON que Terraform utilise pour initialiser DynamoDB. L’environnement Lambda force `DEMO_PORTFOLIO_MODE=dynamodb`; le mode local est refusé dans Lambda.
+
+Sur AWS, `GET /health` reste public pour le contrôle de vie. Les autres routes HTTP API exigent le JWT Cognito. Les routes Assistant/Simulation vérifient également que le JWT validé par API Gateway contient le groupe `administrators`. Les jetons du navigateur sont limités à l’onglet (sessionStorage), les jetons d’accès expirent après 15 minutes et Cognito force la configuration du mot de passe puis TOTP lors de la première connexion.
 
 ## Paquet Lambda
 

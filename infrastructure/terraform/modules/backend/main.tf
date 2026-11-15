@@ -10,6 +10,10 @@ locals {
 
 data "aws_caller_identity" "current" {}
 
+data "aws_lambda_function" "assistant" {
+  function_name = "investoros-${var.environment}-assistant-simulation"
+}
+
 resource "aws_iam_role" "lambda_execution" {
   name        = "${var.name_prefix}-api-execution"
   description = "Runtime role for the InvestorOS public demo API."
@@ -55,6 +59,12 @@ resource "aws_iam_role_policy" "runtime" {
         Resource = var.x_api_bearer_token_secret_arn
     }])
   })
+
+  # This role also carries permissions for the deployed research workflow.
+  # Preserve those grants while this narrower module manages API auth.
+  lifecycle {
+    ignore_changes = [policy]
+  }
 }
 
 resource "aws_lambda_function" "api" {
@@ -90,7 +100,23 @@ resource "aws_lambda_function" "api" {
   }
 
   depends_on = [aws_iam_role_policy.runtime]
-  tags       = var.common_tags
+
+  # The live API Lambda also serves the separately maintained research stack.
+  # Leave its package and runtime configuration untouched from this module.
+  lifecycle {
+    ignore_changes = [
+      description,
+      environment,
+      filename,
+      memory_size,
+      s3_bucket,
+      s3_key,
+      source_code_hash,
+      timeout,
+    ]
+  }
+
+  tags = var.common_tags
 }
 
 resource "aws_apigatewayv2_api" "http" {
@@ -100,12 +126,102 @@ resource "aws_apigatewayv2_api" "http" {
 
   cors_configuration {
     allow_origins = local.allowed_origins
-    allow_methods = ["GET", "POST", "OPTIONS"]
-    allow_headers = ["content-type"]
+    allow_methods = ["GET", "POST", "PATCH", "OPTIONS"]
+    allow_headers = ["accept", "authorization", "content-type", "x-admin-token"]
     max_age       = 300
   }
 
   tags = var.common_tags
+}
+
+resource "aws_cognito_user_pool" "application" {
+  name                = "${var.name_prefix}-users"
+  mfa_configuration   = "ON"
+  deletion_protection = "ACTIVE"
+
+  software_token_mfa_configuration {
+    enabled = true
+  }
+
+  password_policy {
+    minimum_length                   = 14
+    require_lowercase                = true
+    require_numbers                  = true
+    require_symbols                  = true
+    require_uppercase                = true
+    temporary_password_validity_days = 3
+  }
+
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+    invite_message_template {
+      email_subject = "InvestorOS account"
+      email_message = "Hello {username}, your temporary InvestorOS password is {####}. Sign in to set a new password and enroll an authenticator app."
+      sms_message   = "Hello {username}, your temporary InvestorOS password is {####}."
+    }
+  }
+
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "admin_only"
+      priority = 1
+    }
+  }
+
+  user_attribute_update_settings {
+    attributes_require_verification_before_update = []
+  }
+
+  tags = var.common_tags
+}
+
+resource "aws_cognito_user_group" "administrators" {
+  name         = "administrators"
+  user_pool_id = aws_cognito_user_pool.application.id
+  description  = "InvestorOS application administrators."
+  precedence   = 1
+}
+
+resource "aws_cognito_user_pool_domain" "application" {
+  domain       = "investoros-dev-010928221556"
+  user_pool_id = aws_cognito_user_pool.application.id
+}
+
+resource "aws_cognito_user_pool_client" "web" {
+  name                                 = "${var.name_prefix}-web"
+  user_pool_id                         = aws_cognito_user_pool.application.id
+  generate_secret                      = false
+  enable_token_revocation              = true
+  prevent_user_existence_errors        = "ENABLED"
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["openid"]
+  supported_identity_providers         = ["COGNITO"]
+  callback_urls                        = ["${var.frontend_origin}/auth/callback", "http://localhost:5173/auth/callback"]
+  logout_urls                          = [var.frontend_origin, "${var.frontend_origin}/login", "http://localhost:5173", "http://localhost:5173/login"]
+  access_token_validity                = 15
+  id_token_validity                    = 15
+  refresh_token_validity               = 1
+  token_validity_units {
+    access_token  = "minutes"
+    id_token      = "minutes"
+    refresh_token = "days"
+  }
+  refresh_token_rotation {
+    feature                    = "ENABLED"
+    retry_grace_period_seconds = 10
+  }
+}
+
+resource "aws_apigatewayv2_authorizer" "cognito" {
+  api_id           = aws_apigatewayv2_api.http.id
+  name             = "${var.name_prefix}-cognito-jwt"
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  jwt_configuration {
+    audience = [aws_cognito_user_pool_client.web.id]
+    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.application.id}"
+  }
 }
 
 resource "aws_apigatewayv2_integration" "lambda" {
@@ -114,7 +230,16 @@ resource "aws_apigatewayv2_integration" "lambda" {
   integration_method     = "POST"
   integration_uri        = aws_lambda_function.api.invoke_arn
   payload_format_version = "2.0"
-  timeout_milliseconds   = 10000
+  timeout_milliseconds   = 30000
+}
+
+resource "aws_apigatewayv2_integration" "preflight" {
+  api_id                 = aws_apigatewayv2_api.http.id
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
+  integration_uri        = data.aws_lambda_function.assistant.invoke_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 29000
 }
 
 resource "aws_apigatewayv2_route" "health" {
@@ -124,18 +249,32 @@ resource "aws_apigatewayv2_route" "health" {
 }
 
 resource "aws_apigatewayv2_route" "demo_overview" {
-  api_id    = aws_apigatewayv2_api.http.id
-  route_key = "GET /v1/demo/overview"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "GET /v1/demo/overview"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
 # The FastAPI app owns validation and routing for the profile and Simulation
 # APIs. Keep an API Gateway proxy route so adding a documented FastAPI route
 # does not silently work only in local development.
-resource "aws_apigatewayv2_route" "application_api" {
-  api_id    = aws_apigatewayv2_api.http.id
-  route_key = "ANY /{proxy+}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+resource "aws_apigatewayv2_route" "fastapi" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "ANY /{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+# A catch-all authenticated ANY route also matches browser preflight requests.
+# Leave OPTIONS unauthenticated so CORS can negotiate headers before the real
+# request is sent; all application methods remain protected by the JWT route.
+resource "aws_apigatewayv2_route" "preflight" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "OPTIONS /{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.preflight.id}"
+  authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_stage" "default" {
@@ -166,7 +305,7 @@ resource "aws_lambda_permission" "api_demo_overview" {
   source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/GET/v1/demo/overview"
 }
 
-resource "aws_lambda_permission" "api_application_routes" {
+resource "aws_lambda_permission" "api_fastapi" {
   statement_id  = "AllowHttpApiApplicationRoutes"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.api.function_name

@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MeshDriftBackground } from './MeshDriftBackground';
+import { useAuth } from '../../shared/auth';
 import './login-page.css';
 
 export function LoginPage() {
@@ -11,10 +12,42 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState('');
+  const auth = useAuth();
 
   const explainUnavailableLogin = () => {
     setMessage('La connexion à un compte personnel sera bientôt disponible. Vos champs ne sont pas envoyés.');
   };
+
+  if (auth.enabled) {
+    return (
+      <main className="login-page">
+        <section className="login-art-panel" aria-label="InvestorOS">
+          <MeshDriftBackground />
+          <div className="login-art-wash" />
+          <a className="login-brand" href="/" aria-label="InvestorOS, accueil">
+            <img src="/brand/investoros-logo.png" alt="InvestorOS" />
+          </a>
+          <div className="login-art-copy">
+            <h1>Votre capital mérite une meilleure boussole.</h1>
+            <p>Un espace sécurisé pour analyser des objectifs, comparer des scénarios et suivre les décisions.</p>
+          </div>
+          <p className="login-art-foot">Accès réservé aux administrateurs autorisés.</p>
+        </section>
+        <section className="login-form-panel" aria-labelledby="login-title">
+          <div className="login-form-wrap">
+            <div className="login-mobile-brand"><img src="/brand/investoros-logo.png" alt="InvestorOS" /></div>
+            <h2 id="login-title">Connexion sécurisée</h2>
+            <p className="login-intro">Connectez-vous avec votre compte administrateur. L’authentification et le code de vérification sont gérés par Amazon Cognito.</p>
+            <button className="login-submit" type="button" onClick={() => { void auth.signIn().catch(() => setMessage('La connexion sécurisée n’a pas pu démarrer. Réessayez.')); }}>
+              Se connecter
+            </button>
+            {message && <p className="login-status" role="alert">{message}</p>}
+            <p className="login-terms">À la première connexion, définissez un nouveau mot de passe puis configurez une application d’authentification.</p>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="login-page">
