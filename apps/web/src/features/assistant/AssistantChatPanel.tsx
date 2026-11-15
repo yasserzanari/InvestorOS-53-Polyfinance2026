@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, Clock3, Plus, RotateCcw, Sparkles } from 'lucide-react';
+import { ChevronDown, Clock3, PanelRight, Plus, RotateCcw, Sparkles } from 'lucide-react';
 import type { ConversationHistoryItem } from '../profiles/useProfileWorkspace';
 
 function formatLastUsed(timestamp:number){return new Intl.DateTimeFormat('fr-CA',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Toronto'}).format(timestamp);}
@@ -25,6 +25,8 @@ export function AssistantChatPanel({
   showStatus = true,
   workspaceToggle,
   workspaceOverview,
+  workspaceOpen = false,
+  onToggleWorkspace,
 }: {
   status: string;
   provider: string;
@@ -44,6 +46,8 @@ export function AssistantChatPanel({
   showStatus?: boolean;
   workspaceToggle?: ReactNode;
   workspaceOverview?: ReactNode;
+  workspaceOpen?: boolean;
+  onToggleWorkspace?: () => void;
 }) {
   const [historyOpen,setHistoryOpen]=useState(false);
   const historyRef=useRef<HTMLDivElement>(null);
@@ -75,7 +79,7 @@ export function AssistantChatPanel({
         <button type="button" className="pw-new-chat" onClick={onReset} disabled={resetDisabled} aria-label={assistantMode?'Nouvelle conversation':'Réinitialiser le profil'} title={assistantMode?'Démarrer une nouvelle conversation':'Réinitialiser le profil et la conversation'}>{assistantMode?<Plus size={15}/>:<RotateCcw size={15}/>}</button>
       </header>}
       {assistantMode&&topbarTarget&&createPortal(<>{historyControl}</>,topbarTarget)}
-      {assistantMode&&<div className="pw-floating-actions">{workspaceOverview}<button type="button" className="pw-new-chat pw-floating-new" onClick={onReset} disabled={resetDisabled} aria-label="Nouvelle conversation" title="Nouvelle conversation"><Plus size={18}/></button></div>}
+      {assistantMode&&<div className="pw-floating-actions"><button type="button" className={`pw-chat-workspace-toggle${workspaceOpen?' is-open':''}`} aria-controls="assistant-workspace-panel" aria-expanded={workspaceOpen} aria-label={workspaceOpen?'Fermer les onglets':'Ouvrir les onglets'} title={workspaceOpen?'Fermer les onglets':'Ouvrir les onglets'} onClick={onToggleWorkspace}><PanelRight size={16}/></button>{workspaceOverview}<button type="button" className="pw-new-chat pw-floating-new" onClick={onReset} disabled={resetDisabled} aria-label="Nouvelle conversation" title="Nouvelle conversation"><Plus size={18}/></button></div>}
       {children}
       {activity && <div className="pw-current-activity">{activity}</div>}
       {!landing&&<div className={`pw-composer ${composerClassName}`}>
