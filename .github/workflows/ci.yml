@@ -42,6 +42,10 @@ jobs:
       - run: terraform validate
         working-directory: infrastructure/terraform/environments/dev
       - run: terraform init -backend=false
+        working-directory: infrastructure/terraform/environments/assistant-simulation
+      - run: terraform validate
+        working-directory: infrastructure/terraform/environments/assistant-simulation
+      - run: terraform init -backend=false
         working-directory: infrastructure/terraform/bootstrap
       - run: terraform validate
         working-directory: infrastructure/terraform/bootstrap
