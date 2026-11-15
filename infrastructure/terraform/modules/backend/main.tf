@@ -1,10 +1,14 @@
 locals {
-  function_name = "${var.name_prefix}-api"
+  function_name       = "${var.name_prefix}-api"
+  bedrock_profile_arn = "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}"
+  bedrock_model_arn   = "arn:aws:bedrock:*::foundation-model/${trimprefix(var.bedrock_model_id, "us.")}"
   allowed_origins = distinct([
     var.frontend_origin,
     "http://localhost:5173"
   ])
 }
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_iam_role" "lambda_execution" {
   name        = "${var.name_prefix}-api-execution"
@@ -37,6 +41,12 @@ resource "aws_iam_role_policy" "runtime" {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${var.lambda_log_group_arn}:*"
+      },
+      {
+        Sid      = "InvokeConfiguredBedrockModel"
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        Resource = [local.bedrock_profile_arn, local.bedrock_model_arn]
       }
       ], !var.simulation_x_search_enabled || var.x_api_bearer_token_secret_arn == "" ? [] : [{
         Sid      = "ReadXSearchToken"
@@ -49,7 +59,7 @@ resource "aws_iam_role_policy" "runtime" {
 
 resource "aws_lambda_function" "api" {
   function_name                  = local.function_name
-  description                    = "Read-only FastAPI endpoint for InvestorOS fictional demo data."
+  description                    = "InvestorOS demo data, Simulation, and Amazon Bedrock chat API."
   role                           = aws_iam_role.lambda_execution.arn
   runtime                        = "python3.12"
   handler                        = "investoros_api.main.handler"
@@ -73,6 +83,7 @@ resource "aws_lambda_function" "api" {
       DEMO_PORTFOLIO_MODE           = "dynamodb"
       POWERTOOLS_SERVICE_NAME       = "investoros-api"
       ENVIRONMENT                   = var.environment
+      BEDROCK_MODEL_ID              = var.bedrock_model_id
       SIMULATION_X_SEARCH_ENABLED   = tostring(var.simulation_x_search_enabled)
       X_API_BEARER_TOKEN_SECRET_ARN = var.simulation_x_search_enabled ? var.x_api_bearer_token_secret_arn : ""
     }
