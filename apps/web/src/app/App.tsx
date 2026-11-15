@@ -12,6 +12,7 @@ const PortfolioPage = lazy(() => import('../features/portfolios').then(({ Portfo
 const ScenariosPage = lazy(() => import('../features/scenarios/ScenariosPage').then(({ ScenariosPage: Page }) => ({ default: Page })));
 const EvidencePage = lazy(() => import('../features/evidence/EvidencePage').then(({ EvidencePage: Page }) => ({ default: Page })));
 const AnalysesPage = lazy(() => import('../features/analyses/AnalysesPage').then(({ AnalysesPage: Page }) => ({ default: Page })));
+const NetworkPage = lazy(() => import('../features/network/NetworkPage').then(({ NetworkPage: Page }) => ({ default: Page })));
 
 export function App() {
   return (
@@ -29,7 +30,8 @@ export function App() {
               <Route path="scenarios" element={<ScenariosPage />} />
               <Route path="evidence" element={<EvidencePage />} />
               <Route path="analyses" element={<AnalysesPage />} />
-              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios', 'evidence', 'analyses'].includes(id)).map((module) => (
+              <Route path="network" element={<NetworkPage />} />
+              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios', 'evidence', 'analyses', 'network'].includes(id)).map((module) => (
                 <Route
                   key={module.id}
                   path={module.href.replace('/app/', '')}
