@@ -1,7 +1,7 @@
-import { ArrowRight, BookOpenCheck, Clock3, Newspaper } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, Clock3, ExternalLink, Newspaper } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { SimulationNewsArticle } from '../../../shared/api';
+import { loadPortfolioNewsCases, updatePortfolioNewsCase, type PortfolioNewsCase, type SimulationNewsArticle } from '../../../shared/api';
 import type { DemoApiConnection } from '../../../shared/api';
 
 type ActivityRecord = Record<string, unknown>;
@@ -45,13 +45,24 @@ export function DashboardActivityFeed({
   const [cleared, setCleared] = useState(false);
   const [readAll, setReadAll] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const [cases, setCases] = useState<PortfolioNewsCase[]>([]);
+  const [openCase, setOpenCase] = useState<string | null>(null);
   const connected = api.status === 'connected';
   const accountKey = connected ? api.overview.persona : api.status;
   useEffect(() => {
     setCleared(false);
     setReadAll(false);
     setDismissed(new Set());
+    setOpenCase(null);
   }, [accountKey]);
+  useEffect(() => {
+    if (!connected) { setCases([]); return; }
+    const controller = new AbortController();
+    loadPortfolioNewsCases(api.overview.persona, controller.signal).then(({ cases: records }) => {
+      if (!controller.signal.aborted) setCases(records);
+    }).catch(() => { if (!controller.signal.aborted) setCases([]); });
+    return () => controller.abort();
+  }, [connected, accountKey]);
   const analyses = connected ? api.overview.analyses.slice(0, 4) : [];
   const rows = useMemo(() => [
     ...analyses.map((record, index) => {
@@ -66,6 +77,7 @@ export function DashboardActivityFeed({
         detail: summary ?? `${status} · compte de démonstration`,
         meta: date ? `${status} · ${date}` : status,
         href: '/app/analyses',
+        caseRecord: undefined as PortfolioNewsCase | undefined,
       };
     }),
     ...news.slice(0, 4).map((article) => ({
@@ -75,8 +87,23 @@ export function DashboardActivityFeed({
       detail: `${article.domain} · ${article.ticker}`,
       meta: `Indexée ${formatDate(article.indexedAt) ?? 'récemment'}`,
       href: article.url,
+      caseRecord: undefined as PortfolioNewsCase | undefined,
     })),
-  ], [analyses, news]);
+    ...cases.filter((record) => record.status !== 'resolved').map((record) => ({
+      id: `case-${record.id}`, kind: 'case' as const, title: record.title,
+      detail: `${record.company} (${record.ticker}) · ${record.summary}`,
+      meta: `Dossier de veille · ${formatDate(record.createdAt) ?? 'récent'}`,
+      href: record.source.url, caseRecord: record,
+    })),
+  ], [analyses, news, cases]);
+
+  async function updateCase(record: PortfolioNewsCase, status: 'read' | 'resolved') {
+    if (!connected) return;
+    try {
+      const updated = await updatePortfolioNewsCase(api.overview.persona, record.id, status);
+      setCases((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch { /* Keep the case visible; the user can retry. */ }
+  }
 
   return (
     <section className="dashboard-panel activity-panel" aria-labelledby="dashboard-activity-title">
@@ -128,6 +155,19 @@ export function DashboardActivityFeed({
                 {external
                   ? <a className="activity-row" href={row.href} target="_blank" rel="noreferrer">{content}</a>
                   : <Link className="activity-row" to={row.href}>{content}</Link>}
+                {row.caseRecord && <>
+                  <button className="activity-case-toggle" type="button" onClick={() => { const record = row.caseRecord!; setOpenCase(openCase === record.id ? null : record.id); if (record.status === 'new') void updateCase(record, 'read'); }}>
+                    {openCase === row.caseRecord.id ? 'Masquer les détails' : 'Voir les détails'}
+                  </button>
+                  {openCase === row.caseRecord.id && <div className="activity-case-details">
+                    <p><strong>Événement :</strong> {row.caseRecord.eventType}</p>
+                    <blockquote>« {row.caseRecord.evidenceQuote} »</blockquote>
+                    <p><strong>Action suggérée :</strong> {row.caseRecord.nextAction}</p>
+                    <p className="activity-case-limit">Source secondaire · {row.caseRecord.source.domain}. À vérifier avant toute décision. Aucune action sur le portefeuille n’est exécutée.</p>
+                    <a href={row.caseRecord.source.url} target="_blank" rel="noreferrer">Ouvrir la source <ExternalLink size={12} /></a>
+                    <button type="button" onClick={() => void updateCase(row.caseRecord!, 'resolved')}>Fermer le dossier</button>
+                  </div>}
+                </>}
                 <button className="activity-dismiss" type="button" aria-label={`Masquer ${row.title}`} onClick={() => setDismissed((current) => new Set(current).add(row.id))}>×</button>
               </div>
             );

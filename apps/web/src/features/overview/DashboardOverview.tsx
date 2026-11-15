@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, BookOpenCheck, BriefcaseBusiness, ChartNoAxesCombined, Layers3, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { loadSimulationNews, type DemoApiConnection, type SimulationNewsArticle } from '../../shared/api';
+import { loadPortfolioWatchlist, loadSimulationNews, type DemoApiConnection, type SimulationNewsArticle } from '../../shared/api';
 import { DashboardActivityFeed } from './components/DashboardActivityFeed';
 import { PortfolioDiversificationMap } from './components/PortfolioDiversificationMap';
 
@@ -14,7 +14,17 @@ function linkedTickers(api: DemoApiConnection): string[] {
 
 export function DashboardOverview({ api, onStartChat, children }: { api: DemoApiConnection; onStartChat: (question: string) => void; children: ReactNode }) {
   const connected = api.status === 'connected';
-  const tickers = useMemo(() => linkedTickers(api), [api]);
+  const activePersona = connected ? api.overview.persona : null;
+  const [watchedTickers, setWatchedTickers] = useState<string[]>([]);
+  useEffect(() => {
+    if (!activePersona) { setWatchedTickers([]); return; }
+    const controller = new AbortController();
+    loadPortfolioWatchlist(activePersona, controller.signal).then(({ items }) => {
+      if (!controller.signal.aborted) setWatchedTickers(items.map((item) => item.ticker));
+    }).catch(() => { if (!controller.signal.aborted) setWatchedTickers([]); });
+    return () => controller.abort();
+  }, [activePersona]);
+  const tickers = useMemo(() => [...new Set([...linkedTickers(api), ...watchedTickers])].slice(0, 5), [api, watchedTickers]);
   const tickerKey = tickers.join(',');
   const [marketNews, setMarketNews] = useState<Array<SimulationNewsArticle & { ticker: string }>>([]);
   const [newsStatus, setNewsStatus] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');

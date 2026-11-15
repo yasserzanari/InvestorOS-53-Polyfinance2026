@@ -12,13 +12,13 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def read_public(url: str, host: str) -> str:
+def read_public(url: str, host: str, timeout: int = 18) -> str:
     parts = urlsplit(url)
     if parts.scheme != 'https' or parts.hostname != host or parts.port not in {None, 443} or parts.username or parts.password:
         raise ValueError('Destination hors du contrat de source.')
     request = Request(url, headers={'User-Agent': 'InvestorOS/1.0 financial research (public primary documents)',
                                    'Accept': 'text/html,application/xml,application/json,text/plain'})
-    with build_opener(NoRedirect()).open(request, timeout=18) as response:
+    with build_opener(NoRedirect()).open(request, timeout=timeout) as response:
         raw = response.read(3_000_001)
         if len(raw) > 3_000_000:
             raise ValueError('Document trop volumineux pour cette collecte.')

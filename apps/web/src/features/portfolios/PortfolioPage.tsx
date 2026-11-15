@@ -6,6 +6,7 @@ import { AllocationPanel } from './components/AllocationPanel';
 import { DemoPortfolioSource } from './components/DemoPortfolioSource';
 import { PositionsPanel } from './components/PositionsPanel';
 import { RiskMetricsPanel } from './components/RiskMetricsPanel';
+import { PortfolioMonitoringPanel } from './components/PortfolioMonitoringPanel';
 import './styles/portfolio.css';
 
 export function PortfolioPage() {
@@ -41,6 +42,7 @@ export function PortfolioPage() {
           {api.status === 'loading' ? <><span className="portfolio-risk-spinner"/><div><strong>Lecture du portefeuille</strong><p>Chargement des positions du compte fictif…</p></div></> : <><CircleHelp size={20}/><div><strong>Positions indisponibles</strong><p>Le portefeuille AWS n’a pas pu être lu. Les données simulées ne sont pas utilisées comme remplacement.</p></div></>}
         </section>}
       </div>
+      {portfolio && <PortfolioMonitoringPanel portfolio={portfolio} />}
     </section>
   );
 }

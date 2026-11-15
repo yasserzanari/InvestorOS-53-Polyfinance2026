@@ -41,6 +41,11 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | --- | --- | --- |
 | GET | `/health` | Liveness sans dépendance aux services AWS |
 | GET | `/v1/demo/overview` | Lecture du contexte fictif DynamoDB |
+| GET | `/v1/portfolio-monitor/watchlist?persona=mateo` | Tickers explicitement associés à une position du persona fictif |
+| POST | `/v1/portfolio-monitor/watchlist` | Associer un ticker de l’univers Simulation à une ligne explicite |
+| DELETE | `/v1/portfolio-monitor/watchlist/{ticker}?persona=mateo` | Retirer un ticker de la veille |
+| GET | `/v1/portfolio-monitor/cases?persona=mateo` | Dossiers de veille récents du compte fictif |
+| PATCH | `/v1/portfolio-monitor/cases/{id}?persona=mateo&status=read|resolved` | Marquer la notification lue ou fermer le dossier |
 | GET | `/v1/simulation/assets` | Univers historique configuré et ses limites |
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
 | GET | `/v1/simulation/event-study/{ticker}?event_date=YYYY-MM-DD` | Rendements descriptifs du titre et d’un indice proxy de même devise après une date; sans attribution causale |

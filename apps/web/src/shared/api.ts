@@ -23,6 +23,18 @@ export type DemoOverview = {
   analyses: Array<Record<string, unknown>>;
 };
 
+export type PortfolioWatchItem = {
+  persona: DemoOverview['persona']; positionId: string; positionLabel: string;
+  ticker: string; company: string; addedAt: string;
+};
+export type PortfolioNewsCase = {
+  id: string; persona: DemoOverview['persona']; status: 'new' | 'read' | 'resolved';
+  ticker: string; company: string; positionId: string; positionLabel: string;
+  title: string; summary: string; eventType: string; nextAction: string;
+  evidenceQuote: string; source: { domain: string; url: string; indexedAt: string; classification: string };
+  createdAt: string; limitations: string[];
+};
+
 export type DemoApiConnection =
   | { status: 'not_configured' }
   | { status: 'connected'; overview: DemoOverview }
@@ -294,6 +306,31 @@ const getApiBase = (): string | null => {
   const base = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, '');
   return base || null;
 };
+
+async function monitorRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
+  if (!base) throw new Error('La connexion à l’API de veille n’est pas configurée.');
+  const response = await authenticatedFetch(`${base}/v1/portfolio-monitor/${path}`, {
+    ...init, headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
+  });
+  if (!response.ok) {
+    let message = 'La veille du portefeuille est indisponible.';
+    try { const body = await response.json() as { detail?: string }; if (typeof body.detail === 'string') message = body.detail; } catch { /* Keep stable local error. */ }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
+}
+
+export const loadPortfolioWatchlist = (persona: DemoOverview['persona'], signal?: AbortSignal) =>
+  monitorRequest<{ persona: DemoOverview['persona']; items: PortfolioWatchItem[] }>(`watchlist?persona=${encodeURIComponent(persona)}`, { signal });
+export const addPortfolioWatch = (input: Pick<PortfolioWatchItem, 'persona' | 'positionId' | 'ticker'>) =>
+  monitorRequest<PortfolioWatchItem>('watchlist', { method: 'POST', body: JSON.stringify(input) });
+export const removePortfolioWatch = (persona: DemoOverview['persona'], ticker: string) =>
+  monitorRequest<{ deleted: boolean }>(`watchlist/${encodeURIComponent(ticker)}?persona=${encodeURIComponent(persona)}`, { method: 'DELETE' });
+export const loadPortfolioNewsCases = (persona: DemoOverview['persona'], signal?: AbortSignal) =>
+  monitorRequest<{ persona: DemoOverview['persona']; cases: PortfolioNewsCase[] }>(`cases?persona=${encodeURIComponent(persona)}`, { signal });
+export const updatePortfolioNewsCase = (persona: DemoOverview['persona'], id: string, status: 'read' | 'resolved') =>
+  monitorRequest<PortfolioNewsCase>(`cases/${encodeURIComponent(id)}?persona=${encodeURIComponent(persona)}&status=${status}`, { method: 'PATCH' });
 
 export async function loadDemoOverview(persona: DemoOverview['persona'] = 'mateo', signal?: AbortSignal): Promise<DemoApiConnection> {
   const base = getApiBase();

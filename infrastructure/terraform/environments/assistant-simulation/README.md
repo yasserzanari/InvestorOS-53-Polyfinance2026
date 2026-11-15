@@ -93,3 +93,11 @@ Ces commandes utilisent exclusivement le compte Cognito de test et le fichier ig
 - Le modèle par défaut est `us.anthropic.claude-sonnet-4-6`; quotas, concurrence disponible et coûts dépendent du compte AWS.
 - X Recent Search reste désactivé; aucun secret X n’est lu.
 - Inscriptions Cognito et récupération autonome du mot de passe restent désactivées. Ne pas modifier le pool ou les comptes pour un smoke test.
+
+## Veille des titres et dossiers
+
+`portfolio-monitor.tf` configure une fonction déclenchée toutes les six heures par EventBridge Scheduler. Elle examine les tickers explicitement présents sur les positions ou ajoutés depuis la page Portefeuille; les catégories fictives ne sont jamais converties en symboles par inférence. Les titres ajoutés sont limités à l’univers Simulation.
+
+La fonction utilise GDELT pour découvrir des articles, relit la page HTTPS sans suivre les redirections et demande à Bedrock de filtrer les événements matériels récents avec un extrait littéral. Les dossiers persistés dans DynamoDB apparaissent dans les notifications du Dashboard avec résumé, source, extrait et prochaine action de vérification humaine. Les entrées sont idempotentes. Les sources restent secondaires et doivent être vérifiées; aucune action sur le portefeuille n’est exécutée.
+
+Les notifications sont affichées dans l’application uniquement. Cette configuration Terraform est présente dans le dépôt; le calendrier ne devient actif dans AWS qu’après examen puis application du plan de cette stack. Un merge ne déploie pas la fonction ni l’API.
