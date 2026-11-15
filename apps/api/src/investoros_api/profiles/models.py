@@ -27,6 +27,26 @@ class WorkspaceTab(BaseModel):
             raise ValueError('Le contenu de ce document dépasse 16 000 caractères.')
         return self
 
+
+class AssistantPlanStep(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    id: str = Field(min_length=1, max_length=80, pattern=r'^[a-zA-Z0-9_-]+$')
+    title: str = Field(min_length=1, max_length=240)
+    detail: str | None = Field(default=None, max_length=500)
+
+
+class AssistantPlanInput(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    title: str = Field(min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=800)
+    steps: list[AssistantPlanStep] = Field(min_length=3, max_length=6)
+
+    @model_validator(mode='after')
+    def validate_step_ids(self):
+        if len({step.id for step in self.steps}) != len(self.steps):
+            raise ValueError('Les identifiants des étapes doivent être uniques.')
+        return self
+
 class HistoryMessage(BaseModel):
     role: Literal['user', 'assistant']
     content: str = Field(min_length=1, max_length=12000)

@@ -4,8 +4,8 @@ import { researchTabs, terminalResearch, type ResearchRun } from './research-wor
 import { type AskUserRequest, type AskUserAnswer, formatQuestionAnswer } from './question-model';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fieldOrder, initialProfiles, type Profile } from './profile-model';
-import { createLocalId, sourceUrl, streamProfile, profileApiBase, type AgentEvent, type Citation, type FollowUp, type ToolEvent, type WorkspaceTab } from './profile-api';
-export type ChatMessage={id:string;role:'user'|'assistant';text:string;citations:Citation[];followUps:FollowUp[];tools:ToolEvent[];agents:AgentEvent[];versions:string[];version:number;feedback?:string|null;error?:string;questionRequest?:AskUserRequest;questionAnswer?:AskUserAnswer;questionDismissed?:boolean};
+import { createLocalId, sourceUrl, streamProfile, profileApiBase, type AgentEvent, type AssistantPlan, type Citation, type FollowUp, type ToolEvent, type WorkspaceTab } from './profile-api';
+export type ChatMessage={id:string;role:'user'|'assistant';text:string;plan?:AssistantPlan;citations:Citation[];followUps:FollowUp[];tools:ToolEvent[];agents:AgentEvent[];versions:string[];version:number;feedback?:string|null;error?:string;questionRequest?:AskUserRequest;questionAnswer?:AskUserAnswer;questionDismissed?:boolean};
 type Workspace={profile:Profile;tabs:WorkspaceTab[];messages:ChatMessage[];researchRuns?:ResearchRun[];activeTab?:string;conversationScoped?:boolean;profileView?:string;sources?:Citation[]};
 export type ConversationHistoryItem={id:string;title:string;lastUsedAt:number;messages:ChatMessage[];tabs?:WorkspaceTab[];researchRuns?:ResearchRun[];activeTab?:string};
 const conversationsKey=(id:string)=>`investoros.conversations.v1.${id}`;
@@ -111,12 +111,13 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     const source=regenerateId?workspace.messages.slice(0,workspace.messages.findIndex(m=>m.id===regenerateId)):workspace.messages;
     const history=source.filter(m=>m.text&&!m.error).slice(-28).map(m=>({role:m.role,content:m.text}));
     if(regenerateId&&history.at(-1)?.role==='user')history.pop();
-    update(w=>({...w,messages:regenerateId?w.messages.map(m=>m.id===id?{...m,text:'',tools:[],agents:[],citations:[],followUps:[],error:undefined,questionRequest:undefined,questionAnswer:undefined,questionDismissed:false}:m):[...w.messages.map(m=>!questionReply&&m.questionRequest&&!m.questionAnswer?{...m,questionDismissed:true}:m),{id:createLocalId(),role:'user',text,citations:[],followUps:[],tools:[],agents:[],versions:[],version:0},{id,role:'assistant',text:'',citations:[],followUps:[],tools:[],agents:[],versions:[],version:0}]}));
+    update(w=>({...w,messages:regenerateId?w.messages.map(m=>m.id===id?{...m,text:'',plan:undefined,tools:[],agents:[],citations:[],followUps:[],error:undefined,questionRequest:undefined,questionAnswer:undefined,questionDismissed:false}:m):[...w.messages.map(m=>!questionReply&&m.questionRequest&&!m.questionAnswer?{...m,questionDismissed:true}:m),{id:createLocalId(),role:'user',text,citations:[],followUps:[],tools:[],agents:[],versions:[],version:0},{id,role:'assistant',text:'',citations:[],followUps:[],tools:[],agents:[],versions:[],version:0}]}));
     const patch=(fn:(m:ChatMessage)=>ChatMessage)=>{if(currentAccount.current===owner)update(w=>({...w,messages:w.messages.map(m=>m.id===id?fn(m):m)}));};
     try {await streamProfile({message:text,workspaceMode:view,history,profile:Object.fromEntries(fieldOrder.map(key=>[key,workspace.profile[key]])),tabs:workspace.tabs,accountId,...(questionReply?{questionRequest:questionReply.request,questionAnswer:questionReply.answer}:{})},controller.signal,event=>{
       if(currentAccount.current!==owner)return;
       if(event.type==='status')setActivity(String(event.label));
       if(event.type==='text')patch(m=>({...m,text:m.text+String(event.delta||'')}));
+      if(event.type==='plan')patch(m=>({...m,plan:event.plan as AssistantPlan}));
       if(event.type==='tool') {
         const tool=event as unknown as ToolEvent;
         patch(m=>{const previous=m.tools.find(item=>item.id===tool.id);return {...m,tools:[...m.tools.filter(t=>t.id!==tool.id),{...previous,...tool,startedAt:previous?.startedAt??Date.now(),...(tool.status!=='running'?{finishedAt:Date.now()}:{} )}]};});

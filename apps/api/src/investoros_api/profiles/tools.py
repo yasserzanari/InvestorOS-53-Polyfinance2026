@@ -1,6 +1,6 @@
 """Allowlisted model tools; schemas are sent directly to Bedrock Converse."""
 from ..simulation import ScenarioProjectionRequest
-from .models import AskUserInput, PROFILE_FIELDS, ScenarioAnalysisInput, SimulationHistoryInput, WorkspaceTab
+from .models import AssistantPlanInput, AskUserInput, PROFILE_FIELDS, ScenarioAnalysisInput, SimulationHistoryInput, WorkspaceTab
 
 def spec(name: str, description: str, properties: dict, required: list[str]) -> dict:
     return {'toolSpec': {'name': name, 'description': description, 'inputSchema': {'json': {
@@ -32,6 +32,11 @@ branch_schema['required']=[field for field in branch_schema['required'] if field
 # Pydantic's nested $refs need their definitions included in the JSON root.
 TOOLS[3]['toolSpec']['inputSchema']['json']['$defs'] = ScenarioAnalysisInput.model_json_schema().get('$defs', {})
 TOOLS[5]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_schema().get('$defs', {})
+
+TOOLS.append(spec('publish_plan',
+    'Afficher un plan structuré dans la conversation. Utiliser quand la personne demande un plan ou avant de faire approuver une recherche importante. Le plan doit être concret, adapté aux données réellement disponibles et comporter trois à six étapes; chaque étape a un identifiant unique et un titre clair, avec un détail facultatif. Cet outil affiche le plan; il n’exécute aucune étape et ne remplace pas upsert_tab pour une liste de tâches persistante.',
+    AssistantPlanInput.model_json_schema()['properties'], ['title', 'steps']))
+TOOLS[-1]['toolSpec']['inputSchema']['json']['$defs'] = AssistantPlanInput.model_json_schema().get('$defs', {})
 
 ASK_USER_SCHEMA = AskUserInput.model_json_schema()
 TOOLS.append(spec('ask_user',
