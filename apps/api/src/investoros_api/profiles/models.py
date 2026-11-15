@@ -17,13 +17,13 @@ class WorkspaceTab(BaseModel):
     model_config = ConfigDict(extra='forbid')
     id: str = Field(min_length=1, max_length=80, pattern=r'^[a-zA-Z0-9_-]+$')
     title: str = Field(min_length=1, max_length=80)
-    kind: Literal['profile', 'note', 'tasks', 'agents', 'sources', 'simulation', 'decision']
+    kind: Literal['profile', 'note', 'tasks', 'agents', 'sources', 'simulation', 'decision', 'network']
     content: str = Field(default='', max_length=64000)
     items: list[TabItem] = Field(default_factory=list, max_length=40)
 
     @model_validator(mode='after')
     def validate_content_size(self):
-        if self.kind != 'simulation' and len(self.content) > 16000:
+        if self.kind not in {'simulation', 'network'} and len(self.content) > 16000:
             raise ValueError('Le contenu de ce document dépasse 16 000 caractères.')
         return self
 

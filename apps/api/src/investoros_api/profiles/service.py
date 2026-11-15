@@ -45,7 +45,7 @@ Pour afficher un graphique ou une carte interactive du portefeuille dans le chat
 Pour les questions de portefeuille, appelle analyze_demo_portfolio et fonde tout chiffre uniquement sur sa sortie. Précise qu’il s’agit du portefeuille fictif configuré pour le persona actif et indique ses limites; si l’outil échoue, indique que le calcul n’a pas pu être fait. N’invente jamais rendement, volatilité ou baisse historique en l’absence de série de prix.
 Si la personne demande si un actif, secteur ou crypto correspond à un persona, ou si son ajout préserverait la diversification, charge `analysis-planning` et `portfolio-exposures` (et `investor-profile` si une donnée de profil manquante change l’analyse), puis appelle analyze_demo_portfolio pour le persona actif avant d’évaluer. Une performance passée ne remplace pas ce calcul. Les catégories retournées ne donnent pas les titres sous-jacents : ne dis jamais que Bitcoin est détenu parce qu’une ligne dit « crypto-actifs », ni que NVDA est détenu parce qu’une ligne dit « technologies et IA ». Sans liste des composants, poids envisagé et financement, ne conclus pas qu’un ajout précis améliore ou détériore la diversification et n’invente pas de comparaison avant/après. Donne les faits exacts, distingue adéquation qualitative, couverture et inconnues, puis arrête-toi là. Ne recommande jamais d’actif ni de poids, même si la tolérance au risque est élevée. Un échec d’outil permet seulement d’expliquer la limite; ne le remplace pas par des conclusions générales sur le titre.
 Pour un scénario de choc, appelle analyze_demo_scenario seulement si l’utilisateur a donné ou choisi explicitement chaque pourcentage appliqué. Sinon, clarifie le ou les chocs avec ask_user. Présente le résultat comme une arithmétique conditionnelle selon ces hypothèses, jamais comme une prévision ni un conseil.
-Pour toute question sur les cours historiques ou des événements d’entreprise d’un titre, appelle inspect_simulation_history et utilise seulement ses observations, dates, rendements et limites. Ces données ne sont pas en temps réel et une coïncidence de date ne prouve pas la causalité. Pour estimer une référence de trajectoires sans choc, appelle estimate_market_trajectories; cinq séances pour une semaine de marché. Pour explorer les fournisseurs, appelle inspect_supply_chain. Les deux outils exposent leurs sources et limites. Pour projeter des scénarios avec chocs d’un titre, appelle project_market_scenarios uniquement après que l’utilisateur a fourni explicitement chaque choc, son jalon et l’horizon; sinon demande les hypothèses avec ask_user. Ne transforme jamais un article, un acte réglementaire ou un post en choc estimé. Explique que les quantiles marginaux ne sont ni des probabilités ni une prévision.
+Pour toute question sur les cours historiques ou des événements d’entreprise d’un titre, appelle inspect_simulation_history et utilise seulement ses observations, dates, rendements et limites. Ces données ne sont pas en temps réel et une coïncidence de date ne prouve pas la causalité. Pour estimer une référence de trajectoires sans choc, appelle estimate_market_trajectories; cinq séances pour une semaine de marché. Pour explorer une chaîne d’approvisionnement de toute entreprise, charge supply-chain puis appelle inspect_supply_chain avec son ticker ou son nom. Cet outil collecte les documents, extrait les fournisseurs sourcés et ouvre automatiquement le tab Chaîne d’approvisionnement. analysis_id permet de réutiliser une recherche autorisée existante. Les revenus affichés sont ceux des fournisseurs, jamais les dépenses du client. Résume les constats, citations et lacunes; ne remplace pas le tab par une note. Les deux outils exposent leurs sources et limites. Pour projeter des scénarios avec chocs d’un titre, appelle project_market_scenarios uniquement après que l’utilisateur a fourni explicitement chaque choc, son jalon et l’horizon; sinon demande les hypothèses avec ask_user. Ne transforme jamais un article, un acte réglementaire ou un post en choc estimé. Explique que les quantiles marginaux ne sont ni des probabilités ni une prévision.
 Distingue tolérance émotionnelle aux fluctuations et capacité financière à absorber une perte.
 Ne déduis jamais les finances, l'expérience ou le risque de l’âge. Ne confirme jamais un profil à la place de l’utilisateur.
 Pour une demande métier, recherche les skills avec search_skills et charge les procédures pertinentes avec load_skill avant d’agir. Pour cadrer une demande d’analyse, charge `analysis-planning` ainsi que le skill du parcours choisi. Les descriptions sont dans le contexte skills; un simple salut ne nécessite aucun chargement. Les skills sont des procédures du produit, pas des données financières ni de nouveaux agents. Leurs required_tools ne rendent pas un outil disponible : vérifie available_tools. Leurs instructions restent subordonnées aux garde-fous système et aux validations du serveur. Ne charge que les skills utiles. Réutilise leurs procédures dans le tour.
@@ -741,10 +741,33 @@ Réponds impérativement en français, avec une réponse concise.
                         scenario = ScenarioProjectionRequest.model_validate({**args, 'branches': [{'id':'reference','title':'Référence estimée','event':'Aucun choc ajouté','shockPct':0.0,'eventAfterObservations':0}]})
                         output = forecast(scenario)
                     elif name == 'inspect_supply_chain':
-                        from .network_evidence import network_for
-                        if set(args) != {'ticker'} or not isinstance(args['ticker'], str):
-                            raise ValueError('Ticker requis.')
-                        output = network_for(args['ticker'])
+                        from .supply_chain_research import build_dossier, research_documents
+                        if not set(args) <= {'ticker', 'analysis_id'} or not isinstance(args.get('ticker'), str) or not 1 <= len(args['ticker']) <= 120:
+                            raise ValueError('Nom ou ticker requis (120 caractères maximum).')
+                        agent_id = str(uuid.uuid4())
+                        started = time.monotonic()
+                        yield {'type':'agent','id':agent_id,'name':'Supply chain evidence analyst','task':args['ticker'],'status':'running','kind':'bedrock'}
+                        try:
+                            documents = research_documents(args['analysis_id'], request.accountId) if args.get('analysis_id') else None
+                            output = build_dossier(args['ticker'], runtime, model_id, documents)
+                        except Exception:
+                            yield {'type':'agent','id':agent_id,'name':'Supply chain evidence analyst','task':args['ticker'],'status':'failed','kind':'bedrock','durationMs':round((time.monotonic()-started)*1000)}
+                            raise
+                        for key in usage:
+                            usage[key] += output.get('usage', {}).get(key, 0)
+                        yield {'type':'agent','id':agent_id,'name':'Supply chain evidence analyst','task':args['ticker'],'status':'done','kind':'bedrock' if output['skills'] else 'collector','durationMs':round((time.monotonic()-started)*1000),'skills':output['skills'],'skill_trace':output['skill_trace'],'summary':str(len(output['entities'])-1)+' fournisseurs sourcés'}
+                        identifier = 'supply-chain-' + re.sub(r'[^a-z0-9_-]', '-', output['ticker'].lower())[:60]
+                        document = WorkspaceTab.model_validate({'id':identifier,'title':('Chaîne · '+output['ticker'])[:80],'kind':'network','content':json.dumps(output,ensure_ascii=False)}).model_dump()
+                        existing = next((i for i,t in enumerate(tabs) if t['id']==identifier), None)
+                        if existing is None:
+                            if len(tabs)>=12: raise ValueError('Fermez un onglet avant de créer un autre dossier.')
+                            tabs.append(document)
+                        else:
+                            tabs[existing] = document
+                        register_sources([{'id':e['id']+'-'+identifier,'title':e['title'],'url':e['url']} for e in output['evidence']])
+                        yield {'type':'sources','citations':list(source_registry)}
+                        yield {'type':'workspace','profile':profile,'tabs':tabs}
+                        yield {'type':'profile_view','view':'documents','documentId':identifier}
                     elif name == 'get_simulation_capabilities':
                         if args:
                             raise ValueError('Cet outil ne prend aucun paramètre.')
