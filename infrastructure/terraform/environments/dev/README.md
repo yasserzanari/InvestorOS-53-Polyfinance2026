@@ -10,6 +10,8 @@ Le state canonique est `s3://investoros-tfstate-010928221556-us-east-1/dev/terra
 
 **Avant toute mutation AWS**, vérifier l’identité et le state, puis lire intégralement le plan. N’appliquer que si le plan ne remplace ni ne détruit une ressource du site actif. Ne jamais supprimer les buckets préfixés simplement parce qu’ils ne sont plus ciblés par ce code.
 
+L’état AWS actuel contient aussi les ressources de recherche et de Knowledge Base gérées depuis une autre tranche; ce root `dev` ne les décrit pas toutes. Le plan complet courant propose leur suppression ainsi que le remplacement des routes de l’API. Ne pas l’appliquer avant réconciliation de cette configuration. La stack [`assistant-simulation`](../assistant-simulation/README.md) utilise un état séparé et ajoute uniquement des routes spécifiques pour ces deux espaces.
+
 ## Préparer et examiner le plan
 
 Depuis la racine du dépôt :

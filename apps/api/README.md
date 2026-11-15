@@ -31,6 +31,8 @@ uv python install 3.12
 ./scripts/build-api.sh
 ```
 
+Pour connecter Assistant/Profils et Simulation à l’API AWS sans remplacer la Lambda actuellement utilisée par les routes de recherche et de connaissances, utiliser la stack à state séparé [`assistant-simulation`](../../infrastructure/terraform/environments/assistant-simulation/README.md). Le paquet contient les CSV locaux ignorés; ils ne sont jamais ajoutés à Git.
+
 Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terraform attend exactement ce chemin. Le répertoire `apps/api/build/` est ignoré par Git. Le zip doit être construit avant `terraform plan` ou `terraform apply`; Terraform échoue volontairement si le paquet manque.
 
 ## Routes et erreurs
