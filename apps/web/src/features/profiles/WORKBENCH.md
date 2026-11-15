@@ -21,7 +21,7 @@ Scénarios réutilise les outils de simulation. `ProfileScenario.tsx` propose Sy
 - `update_profile`, `ask_user`, les outils historiques/scénarios et `upsert_tab` restent partagés. Les IDs réservés aux comparaisons et cartes ne peuvent pas être remplacés par une note arbitraire.
 - `workspaceMode: profiles` charge les procédures investor-profile et profile-investment-alignment dans le vrai contexte modèle; la trace indique runtime-bootstrap. Le modèle peut découvrir d’autres skills selon la demande. Le skill profile-workspace décrit les commandes et les vues.
 
-Les sources versionnées dans `agent-skills/` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Au 15 novembre 2026, la version est 1.8.11 avec 19 skills; lire la version courante dans `/v1/profiles/status` et le SHA-256 de chaque chargement.
+Les sources versionnées dans `agent-skills/` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Au 15 novembre 2026, la version est 1.8.13 avec 19 skills; lire la version courante dans `/v1/profiles/status` et le SHA-256 de chaque chargement. Une demande explicite de calcul de scénarios lit d’abord les capacités réellement disponibles; elle ne peut aboutir sans résultat calculé.
 
 ## Mémoire
 
@@ -67,4 +67,4 @@ Les 19 maquettes ImageGen et les captures de référence restent dans `docs/prep
 
 ## Dernier état de session AWS
 
-Les essais Bedrock et DynamoDB ci-dessus ont réussi avant expiration des identifiants locaux. Une vérification ultérieure a confirmé ExpiredTokenException sur DynamoDB et une session expirée côté MCP. Le code traite maintenant cette situation explicitement (503 mémoire / événement aws_session_expired pour le chat), conserve les données locales et ne prétend pas sauvegarder sur AWS. La reconnexion est en attente de l’autorisation de lancer aws login ou du renouvellement de la session du hackathon par l’utilisateur. Un nouvel essai non intercepté depuis le chat Chrome a confirmé la même expiration après les deux chargements de skills du runtime (`current-live-browser.json/png`). Aucun outil de comparaison n’a été exécuté dans cet essai. La vérification AWS courante et une éventuelle publication de la nouvelle UI restent à faire après reconnexion; ne pas présenter les anciennes traces réussies comme preuve d’une session encore valide.
+Les identifiants AWS ont été renouvelés. Une lecture réelle d’une analyse de recherche existante a renvoyé 200 avec l’état complet, 6 preuves et 22 événements. Un appel Bedrock réel pour une demande d’analyse NVDA a toutefois échoué à afficher une question de clarification et a atteint la limite d’opérations; aucun lancement d’analyse (`start_analysis`) n’a eu lieu. Une session AWS valide et une lecture réussie ne prouvent pas que le parcours Bedrock complet fonctionne. Aucun déploiement de cette version n’a été effectué ou confirmé.

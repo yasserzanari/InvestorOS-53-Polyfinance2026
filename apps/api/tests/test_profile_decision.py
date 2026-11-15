@@ -86,6 +86,58 @@ class DecisionTests(unittest.TestCase):
         args.evidenceIds=[]
         self.assertEqual(json.loads(insight_tab(args,{},set())['content'])['classification'],'interpretation')
 
+    @patch.dict(os.environ,{'BEDROCK_MODEL_ID':'test-model'})
+    def test_missing_financial_input_identifies_the_field_without_changing_assumptions(self):
+        args={'ticker':'AAPL','horizonObservations':20,'branches':[{'id':'down','title':'Baisse','event':'Hypothèse de baisse','shockPct':-10}]}
+        runtime=RuntimeStub(stream_tool('project_market_scenarios',args))
+        events=list(run_chat(ChatRequest(message='Baisse hypothétique de 10 % après dix séances'),runtime))
+        failure=next(e for e in events if e.get('name')=='project_market_scenarios' and e.get('status')=='failed')
+        self.assertIn('branches.0: Indiquez exactement un décalage',failure['error'])
+        feedback=runtime.calls[1]['messages'][-1]['content'][0]['toolResult']['content'][0]['text']
+        self.assertIn('branches.0',feedback)
+        self.assertNotIn('https://errors.pydantic',feedback)
+        self.assertEqual(failure['input']['branches'][0]['shockPct'],-10)
+
+    @patch.dict(os.environ,{'BEDROCK_MODEL_ID':'test-model'})
+    def test_silent_model_after_failed_tool_does_not_report_empty_success(self):
+        class Silent(RuntimeStub):
+            def converse_stream(self,**kwargs):
+                result=super().converse_stream(**kwargs)
+                return result if len(self.calls)==1 else {'stream':[{'messageStop':{'stopReason':'end_turn'}}]}
+        events=list(run_chat(ChatRequest(message='Ouvre une vue'),Silent(stream_tool('open_profile_view',{'view':'invalid'}))))
+        self.assertTrue(any(e.get('code')=='tool_failed' for e in events))
+        self.assertFalse(any(e['type']=='done' for e in events))
+
+    @patch.dict(os.environ,{'BEDROCK_MODEL_ID':'test-model'})
+    @patch('investoros_api.profiles.service.simulation_capabilities',return_value={'ready':True,'supportedTickers':['AAPL']})
+    def test_scenario_request_cannot_stream_a_success_claim_without_calculating(self,capabilities):
+        runtime=RuntimeStub({'stream':[{'contentBlockDelta':{'contentBlockIndex':0,'delta':{'text':'Les scénarios sont ouverts.'}}},{'messageStop':{'stopReason':'end_turn'}}]})
+        events=list(run_chat(ChatRequest(message='Calcule deux scénarios conditionnels AAPL avec un choc de 10 %',workspaceMode='profiles'),runtime))
+        self.assertEqual(runtime.calls[0]['toolConfig']['toolChoice'],{'any':{}})
+        self.assertEqual({t['toolSpec']['name'] for t in runtime.calls[0]['toolConfig']['tools']},{'project_market_scenarios','ask_user'})
+        self.assertFalse(any(e['type']=='text' for e in events))
+        self.assertTrue(any(e.get('code')=='missing_calculation' for e in events))
+        self.assertTrue(any(e.get('actor')=='runtime-bootstrap' and e.get('output',{}).get('id')=='conditional-scenarios' for e in events))
+
+    def test_explanations_and_portfolio_scenarios_keep_their_own_workflow(self):
+        from investoros_api.profiles.service import _scenario_calculation_requested
+        for prompt in ['Comment calculer une simulation ?','Explique les trajectoires déjà affichées','Calcule un scénario sur les positions de mon portefeuille']:
+            self.assertFalse(_scenario_calculation_requested(ChatRequest(message=prompt)))
+        self.assertTrue(_scenario_calculation_requested(ChatRequest(message='Pour AAPL, calcule deux scénarios sur vingt séances.')))
+
+    def test_tool_derives_only_display_label_and_keeps_the_financial_contract(self):
+        from investoros_api.profiles.service import _scenario_tool_input
+        from pydantic import ValidationError
+        args={'ticker':'AAPL','horizonDays':30,'branches':[{'id':'down','title':'Baisse hypothétique','shockPct':-10,'eventAfterDays':10}]}
+        request=_scenario_tool_input(args)
+        self.assertEqual(request.branches[0].event,'Hypothèse de simulation : Baisse hypothétique')
+        self.assertEqual(request.branches[0].shockPct,-10)
+        self.assertEqual(request.branches[0].eventAfterDays,10)
+        self.assertEqual(request.horizonDays,30)
+        self.assertIsNone(request.horizonObservations)
+        self.assertNotIn('event',args['branches'][0])
+        with self.assertRaises(ValidationError):_scenario_tool_input({**args,'branches':[{'id':'down','title':'Baisse','eventAfterDays':10}]})
+
     def test_persistence_isolated_and_optimistic(self):
         with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'PROFILE_MEMORY_DB':tmp+'/memory.db','PROFILE_WORKSPACE_TABLE':'','SOURCE_WORKSPACE_TABLE':''}):
             initial=read_memory('amira');self.assertEqual(initial['revision'],0)

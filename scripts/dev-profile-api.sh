@@ -8,7 +8,7 @@ PROFILE_API_PYTHON="${PROFILE_API_PYTHON:-$PROFILE_API_VENV/bin/python}"
 if [[ ! -x "$PROFILE_API_PYTHON" ]]; then
   python3 -m venv "$PROFILE_API_VENV"
 fi
-if ! "$PROFILE_API_PYTHON" -c 'import fastapi, uvicorn, boto3, mangum' >/dev/null 2>&1; then
+if ! "$PROFILE_API_PYTHON" -c 'import fastapi, uvicorn, boto3, mangum, awscrt' >/dev/null 2>&1; then
   "$PROFILE_API_PYTHON" -m pip install -r "$PROJECT_ROOT/apps/api/requirements.txt" 'uvicorn>=0.30,<1'
 fi
 

@@ -10,8 +10,8 @@ def spec(name: str, description: str, properties: dict, required: list[str]) -> 
 TOOLS = [
     spec('inspect_simulation_history', 'Lire les prix ajustés et événements d’entreprise réellement présents dans Simulation pour un ticker configuré. Appeler pour toute question sur l’historique ou les rendements observés après événement. La coïncidence temporelle ne prouve pas une causalité; les données sont historiques, pas en temps réel.',
          SimulationHistoryInput.model_json_schema()['properties'], ['ticker']),
-    spec('project_market_scenarios', 'Calculer des trajectoires Simulation sur un ticker configuré. Appeler uniquement lorsque la personne a explicitement fourni chaque choc en pourcentage et son jalon; sinon utiliser ask_user. Les quantiles historiques sont marginaux, sans probabilité ni valeur prédictive.',
-         ScenarioProjectionRequest.model_json_schema()['properties'], ['ticker', 'horizonObservations', 'branches']),
+    spec('project_market_scenarios', 'Calculer des trajectoires Simulation sur un ticker configuré. Appeler uniquement lorsque la personne a explicitement fourni chaque choc en pourcentage et son jalon; sinon utiliser ask_user. Chaque branche exige id, title, shockPct et exactement un jalon. event est un libellé français facultatif; s’il manque, le serveur reprend title en le qualifiant d’hypothèse. Fournir exactement un horizon : horizonObservations pour des séances ou horizonDays pour des jours calendaires. Les quantiles historiques sont marginaux, sans probabilité ni valeur prédictive.',
+         ScenarioProjectionRequest.model_json_schema()['properties'], ['ticker', 'branches']),
     spec('analyze_demo_portfolio', 'Lire le portefeuille fictif fixe de ce déploiement et calculer ses pondérations et sa concentration. Obligatoire avant de répondre à une question sur l’adéquation d’un actif, une préférence, une diversification, les positions ou la répartition du persona. Les rendements et risques historiques sont indisponibles sans série de prix; ne pas déduire les titres sous-jacents des catégories.', {}, []),
     spec('analyze_demo_scenario', 'Calculer un scénario conditionnel sur les positions du persona actif. N’appeler cet outil que si l’utilisateur a fourni les variations en pourcentage ou les a choisies explicitement après ask_user; ne jamais inventer les chocs. Résultat arithmétique seulement, jamais une prévision ni une recommandation.', ScenarioAnalysisInput.model_json_schema()['properties'], ['name', 'shocks']),
     spec('update_profile', 'Mettre à jour seulement les faits explicitement fournis par l’utilisateur. Ne pas inventer ni confirmer le profil.',
@@ -26,6 +26,9 @@ TOOLS = [
 ]
 # Pydantic's nested $refs need their definitions included in the JSON root.
 TOOLS[1]['toolSpec']['inputSchema']['json']['$defs'] = ScenarioProjectionRequest.model_json_schema().get('$defs', {})
+# Display metadata is derived by the tool adapter; financial inputs remain required.
+branch_schema=TOOLS[1]['toolSpec']['inputSchema']['json']['$defs']['ScenarioBranch']
+branch_schema['required']=[field for field in branch_schema['required'] if field!='event']
 # Pydantic's nested $refs need their definitions included in the JSON root.
 TOOLS[3]['toolSpec']['inputSchema']['json']['$defs'] = ScenarioAnalysisInput.model_json_schema().get('$defs', {})
 TOOLS[5]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_schema().get('$defs', {})
@@ -33,7 +36,7 @@ TOOLS[5]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_s
 ASK_USER_SCHEMA = AskUserInput.model_json_schema()
 TOOLS.append(spec('ask_user',
     'Obligatoire dès qu’une réponse utilisateur est nécessaire, même pour une seule question ou une question de suivi après update_profile. Ne pas poser la question uniquement en prose. Poser une à trois questions interactives adaptées aux informations manquantes. Choisir single_choice pour une réponse exclusive, multiple_choice pour plusieurs besoins/préférences, text pour une explication personnelle. Fournir des choix neutres, sans réponse présélectionnée, et permettre la réponse libre si utile. Pour confirmer une recherche importante, seulement après avoir montré le plan visible en trois à six étapes, utiliser purpose="plan_approval" avec une unique question single_choice et les options exactes « Oui, lancer ce plan » et « Modifier le plan ». Cet outil suspend le tour en attendant les réponses réelles de l’utilisateur.',
-    ASK_USER_SCHEMA['properties'], ['title', 'questions']))
+    ASK_USER_SCHEMA['properties'], ['questions']))
 TOOLS[-1]['toolSpec']['inputSchema']['json']['$defs'] = ASK_USER_SCHEMA.get('$defs', {})
 
 # Reviewed procedural knowledge is discovered and loaded on demand, never executed.
@@ -82,3 +85,5 @@ TOOLS.extend([
 ])
 
 TOOLS.append(spec('close_profile_document', 'Fermer un document de travail seulement si la personne le demande explicitement. Le profil personnel reste intact. Ne pas fermer automatiquement un document pour libérer une place.', {'id':{'type':'string','minLength':1,'maxLength':80,'pattern':'^[a-zA-Z0-9_-]+$'}}, ['id']))
+
+TOOLS.append(spec('get_simulation_capabilities', 'Vérifier la disponibilité réelle des historiques et les limites des horizons, unités et titres avant une simulation. Ne calcule aucun scénario.', {}, []))
