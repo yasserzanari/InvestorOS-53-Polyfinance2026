@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import csv
 import hmac
+import io
 import json
 import os
 import re
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Any
@@ -608,6 +613,43 @@ def _vocabulary_payload(response: dict[str, Any], phrases: list[str] | None = No
     }
 
 
+def _download_vocabulary_phrases(download_uri: str) -> list[str]:
+    parsed = urllib.parse.urlparse(download_uri)
+    if parsed.scheme != "https" or not parsed.hostname or not (
+        parsed.hostname == "amazonaws.com" or parsed.hostname.endswith(".amazonaws.com")
+    ):
+        raise HTTPException(status_code=502, detail="Amazon Transcribe a retourné un lien de vocabulaire inattendu.")
+    try:
+        request = urllib.request.Request(download_uri, headers={"Accept": "text/plain"})
+        with urllib.request.urlopen(request, timeout=8) as response:
+            content = response.read(256_001)
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise HTTPException(status_code=502, detail="Impossible de récupérer les termes stockés dans Amazon Transcribe.") from error
+    if len(content) > 256_000:
+        raise HTTPException(status_code=502, detail="Le fichier de vocabulaire AWS dépasse la taille attendue.")
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        raise HTTPException(status_code=502, detail="Le fichier de vocabulaire AWS n’est pas encodé en UTF-8.") from error
+    rows = list(csv.reader(io.StringIO(text), delimiter="\t"))
+    if rows and rows[0] and rows[0][0].strip().casefold() == "phrase":
+        rows = rows[1:]
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not row:
+            continue
+        phrase = row[0].strip()
+        if phrase and phrase.casefold() not in seen:
+            seen.add(phrase.casefold())
+            phrases.append(phrase)
+    if not phrases:
+        raise HTTPException(status_code=502, detail="Amazon Transcribe n’a pas retourné de termes dans son fichier de vocabulaire.")
+    if len(phrases) > 256:
+        raise HTTPException(status_code=502, detail="Le fichier de vocabulaire AWS contient plus de 256 termes.")
+    return phrases
+
+
 @router.get("/voice-vocabulary")
 def admin_voice_vocabulary(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
     try:
@@ -618,7 +660,8 @@ def admin_voice_vocabulary(_: None = __import__("fastapi").Depends(require_admin
         raise HTTPException(status_code=status, detail=f"Lecture du vocabulaire AWS impossible ({code}).") from error
     except BotoCoreError as error:
         raise HTTPException(status_code=502, detail="Connexion à Amazon Transcribe impossible.") from error
-    return _vocabulary_payload(response)
+    phrases = response.get("Phrases") or _download_vocabulary_phrases(response.get("DownloadUri", ""))
+    return _vocabulary_payload(response, phrases)
 
 
 @router.put("/voice-vocabulary")
