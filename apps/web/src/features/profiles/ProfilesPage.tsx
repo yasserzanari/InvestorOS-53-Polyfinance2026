@@ -1,3 +1,4 @@
+import { FinancialWidget, WidgetActivity, parseFinancialWidget, type FinancialWidgetData } from './components/financial-widgets';
 import { researchAgents, usedSkills, terminalResearch } from './research-workspace';
 import { ResearchResultsTab, SkillsUsedTab } from './components/ResearchWorkspaceTabs';
 import { NoteDocument } from './components/NoteDocument';
@@ -100,17 +101,24 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const runs=workspace.researchRuns??[];const combinedAgents=[...allAgents,...researchAgents(runs)];const skills=usedSkills(allTools,allAgents,runs);
   const pendingQuestion=workspace.messages.slice().reverse().find(m=>m.questionRequest&&!m.questionAnswer&&!m.questionDismissed);
   useEffect(()=>{if(pendingQuestion)setMobilePane('chat');else if(workspace.profileView)setMobilePane('profile');},[workspace.profileView,pendingQuestion?.id]);
+  const changeWidgetPeriod=(message:ChatMessage,widget:FinancialWidgetData,period:FinancialWidgetData['period'])=>{
+    const change=(items:FinancialWidgetData[])=>items.map(item=>item.id===widget.id?{...item,period}:item);
+    update(w=>({...w,widgetSelection:{view:widget.view,period},messages:w.messages.map(item=>item.id===message.id?{...item,widgets:change(item.widgets??[]),widgetVersions:item.widgetVersions?.map((items,index)=>index===message.version?change(items):items)}:item)}));
+  };
   const renderMessage=(item:{id:string})=>{
     const m=workspace.messages.find(x=>x.id===item.id)!;
     if(m.role==='user')return <div className="pw-user-message">{m.text}</div>;
     const text=m.versions[m.version]??m.text;
     const plan=m.plan??parsePlan(text);
     return <article className="pw-answer" data-ui-message="">
-      <ToolActivityFeed tools={m.tools} runs={runs} active={busy&&m===workspace.messages.at(-1)} onOpenResearch={()=>{setActiveTab('research-results');setTabsOpen(true);}}/>
+      {!m.widgets?.length&&<ToolActivityFeed tools={m.tools} runs={runs} active={busy&&m===workspace.messages.at(-1)} onOpenResearch={()=>{setActiveTab('research-results');setTabsOpen(true);}}/>}
       {m.agents.map(a=><Subagent key={a.id} name={a.name} status={a.status} task={a.task} summary={a.summary} activity={a.status==='running'?'Consultation du spécialiste Bedrock':undefined} startedAt={a.startedAt} durationMs={a.durationMs}/>)}
       {m.tools.some(tool=>['start_analysis','inspect_market_movements'].includes(tool.name)&&tool.status==='done')&&<button type="button" className="pw-view-research" onClick={()=>{setActiveTab('research-results');setTabsOpen(true);}}>Voir les résultats et le suivi<ExternalLink size={14}/></button>}
-      {plan ? <PlanCard plan={plan} waiting={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer} responded={m.questionRequest?.purpose==='plan_approval'&&Boolean(m.questionAnswer)} onApprove={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer?()=>answerPlan(m.id,m.questionRequest!,'Oui, lancer ce plan'):undefined} onRevise={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer?()=>answerPlan(m.id,m.questionRequest!,'Modifier le plan'):undefined} approveDisabled={busy||!memory.ready}/> : <StreamingAnswer text={text} streaming={busy&&m===workspace.messages.at(-1)} citations={m.citations} followUps={m.questionRequest?[]:m.followUps} onFollowUp={p=>submit(p.label)}/>}
+      {(m.widgetVersions?.[m.version]??m.widgets??[]).map((value,index)=>{const widget=parseFinancialWidget(value);return !widget?<p key={index} className="pw-error" role="alert">Cette carte ne peut pas être restaurée. Relancez la demande pour la recalculer.</p>:widget.persona===activeAccount.id?<FinancialWidget key={widget.id??index} widget={widget} onPeriodChange={period=>changeWidgetPeriod(m,widget,period)}/>:null;})}
+      {plan ? <PlanCard plan={plan} waiting={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer} responded={m.questionRequest?.purpose==='plan_approval'&&Boolean(m.questionAnswer)} onApprove={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer?()=>answerPlan(m.id,m.questionRequest!,'Oui, lancer ce plan'):undefined} onRevise={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer?()=>answerPlan(m.id,m.questionRequest!,'Modifier le plan'):undefined} approveDisabled={busy||!memory.ready}/> : <StreamingAnswer text={text} streaming={busy&&m===workspace.messages.at(-1)} citations={m.citations} followUps={m.questionRequest||m.widgets?.length?[]:m.followUps} onFollowUp={p=>submit(p.label)}/>}
       {m.questionRequest&&m.questionRequest.purpose!=='plan_approval'&&m.questionAnswer&&<AskUserCard key={m.questionRequest.id} request={m.questionRequest} answer={m.questionAnswer} disabled={busy||!memory.ready||(!m.questionAnswer&&pendingQuestion?.id!==m.id)} onSubmit={answer=>{void answerQuestions(m.id,m.questionRequest!,answer);}}/>}
+      {!!m.widgets?.length&&!m.questionRequest&&m.followUps.length>0&&<details className="pw-widget-followups"><summary>Questions suggérées</summary><StreamingAnswer text="" followUps={m.followUps} onFollowUp={p=>submit(p.label)}/></details>}
+      {!!m.widgets?.length&&<WidgetActivity tools={m.tools}/>}
       {m.error&&<p className="pw-error" role="alert">{m.error}</p>}
       {text&&<MessageActions text={text} actions={['copy','regenerate','feedback']} onCopy={value=>{if(!navigator.clipboard&&value){const el=document.createElement("textarea");el.value=value;document.body.appendChild(el);el.select();document.execCommand("copy");el.remove();}}} versions={m.versions.length||1} version={m.version} onVersionChange={version=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,version}:x)}))} onRegenerate={()=>regenerate(m)} regenerating={busy&&m===workspace.messages.at(-1)} onFeedback={(kind,reason)=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,feedback:reason||kind}:x)}))}/>}
     </article>;

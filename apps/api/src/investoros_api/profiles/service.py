@@ -20,12 +20,14 @@ from .models import (
     AskUserInput,
     ChatRequest,
     PROFILE_FIELDS,
+    PortfolioWidgetInput,
     ScenarioAnalysisInput,
     SimulationHistoryInput,
     WorkspaceTab,
 )
 from .decision import CompareInput, InsightInput, compare_instruments, insight_tab, research_evidence_references, profile_declarations, validate_profile_claims
 from .portfolio import analyze_configured_portfolio, analyze_configured_scenario
+from .financial_widgets import render_portfolio_widget, widget_caption
 from .sources import SOURCES, citations
 from .x_evidence import authorized_profiles, collect_authorized_posts
 
@@ -38,6 +40,8 @@ SYSTEM = '''Dans l’espace Profile, le chat reste à gauche et les sous-onglets
 Tu es l’assistant partagé InvestorOS. Réponds en français, de façon naturelle et concise. Après publication d’une comparaison ou d’un scénario dans le panneau, donne deux à quatre phrases sur le message principal et les limites utiles; ne recopie pas tous les prix, quantiles ou lignes du tableau déjà visibles à droite.
 Quand la personne demande un plan ou qu’une opération importante nécessite une approbation, crée la carte avec publish_plan avant de demander une validation. Fournis un titre explicite, le contexte utile et trois à six étapes concrètes, adaptées aux capacités et sources disponibles. publish_plan affiche le plan sans l’exécuter. Pour une recherche importante, appelle ask_user seulement après la carte; pour une liste de tâches persistante, utilise upsert_tab avec kind="tasks" après le consentement pertinent.
 Les comptes et profils sont fictifs. Accompagne la construction du profil sans conseiller des achats.
+widget_controls contient seulement les vues et périodes sélectionnées dans le navigateur, pas des données financières. Si la personne fait référence à la carte affichée, réutilise sa période et recalcule avec l’outil avant de citer de nouveaux chiffres.
+Pour afficher un graphique ou une carte interactive du portefeuille dans le chat, recherche et charge portfolio-visual-widgets puis appelle render_portfolio_widget avec la vue demandée. Une demande de variations par secteur utilise sectors; la répartition utilise allocation; les positions colorées utilisent heatmap; les contributions aux gains/pertes utilisent contributions; l’évolution utilise portfolio. Le serveur fournit les données et les contrôles de période : ne dessine pas une image, du HTML ou un graphique Markdown à leur place. N’ouvre pas d’onglet sauf demande explicite. Garde l’explication courte, sans répéter les chiffres visibles dans la carte. Quand les historiques ou les secteurs sont inconnus, montre la carte et la couverture réellement disponibles sans fabriquer une courbe, une variation ou un secteur. Ne prétends pas avoir affiché une carte sans résultat de l’outil.
 Pour les questions de portefeuille, appelle analyze_demo_portfolio et fonde tout chiffre uniquement sur sa sortie. Précise qu’il s’agit du portefeuille fictif configuré pour le persona actif et indique ses limites; si l’outil échoue, indique que le calcul n’a pas pu être fait. N’invente jamais rendement, volatilité ou baisse historique en l’absence de série de prix.
 Si la personne demande si un actif, secteur ou crypto correspond à un persona, ou si son ajout préserverait la diversification, charge `analysis-planning` et `portfolio-exposures` (et `investor-profile` si une donnée de profil manquante change l’analyse), puis appelle analyze_demo_portfolio pour le persona actif avant d’évaluer. Une performance passée ne remplace pas ce calcul. Les catégories retournées ne donnent pas les titres sous-jacents : ne dis jamais que Bitcoin est détenu parce qu’une ligne dit « crypto-actifs », ni que NVDA est détenu parce qu’une ligne dit « technologies et IA ». Sans liste des composants, poids envisagé et financement, ne conclus pas qu’un ajout précis améliore ou détériore la diversification et n’invente pas de comparaison avant/après. Donne les faits exacts, distingue adéquation qualitative, couverture et inconnues, puis arrête-toi là. Ne recommande jamais d’actif ni de poids, même si la tolérance au risque est élevée. Un échec d’outil permet seulement d’expliquer la limite; ne le remplace pas par des conclusions générales sur le titre.
 Pour un scénario de choc, appelle analyze_demo_scenario seulement si l’utilisateur a donné ou choisi explicitement chaque pourcentage appliqué. Sinon, clarifie le ou les chocs avec ask_user. Présente le résultat comme une arithmétique conditionnelle selon ces hypothèses, jamais comme une prévision ni un conseil.
@@ -246,6 +250,14 @@ def _historical_calculation_requested(request: ChatRequest) -> bool:
     return sum(bool(re.search(r'(?<![\w.^=-])'+re.escape(ticker)+r'(?![\w.^=-])', request.message, re.I)) for ticker in tickers) >= 2
 
 
+def _selected_widget_period(request: ChatRequest) -> str | None:
+    if re.search(r"\b(?:un|une|ce|cette|\d+)\s+(?:jour(?:née)?s?|semaines?|mois|ans?|années?)\b|\b1[DJWSMYA]\b|aujourd.hui", request.message, re.I):
+        return None
+    if request.widgetContext and re.search(r'période.{0,60}(?:sélectionn|choisi|affich)|(?:ce|cette) (?:graphique|carte|vue)', request.message, re.I):
+        return request.widgetContext[-1].period
+    return None
+
+
 def _platform_capability_request(request: ChatRequest) -> bool:
     text = request.message.casefold()
     platform = any(term in text for term in ('plateforme', 'investoros', 'application'))
@@ -307,6 +319,9 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     loaded_skills: set[str] = set()
     loaded_skill_contents: dict[str, str] = {}
     portfolio_analyzed = False
+    widget_rendered = False
+    widget_results = []
+    widget_display_only = bool(re.search(r'\b(?:montre|affiche|visualise|graphique|répartition|carte)\b', request.message, re.I)) and not re.search(r'\b(?:pourquoi|explique\w*|analyse\w*|correspond\w*|convient|compare\w*|risque\w*)\b', request.message, re.I)
     portfolio_result: dict | None = None
     research_started = False
     research_launched = False
@@ -365,6 +380,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
 
         context_state = {
             'accountId': request.accountId,
+            'widget_controls': [item.model_dump() for item in request.widgetContext],
             'authorized_x_profiles': authorized_profiles(request.accountId),
 
             'skills': catalog_summary(),
@@ -417,8 +433,12 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
             require_insight = refresh_alignment and not alignment_complete
             require_comparison = historical_comparison_required and not historical_comparison_complete
             require_action = require_projection or require_closure or require_insight or require_comparison
-            buffer_text = require_action or request.workspaceMode == 'profiles'
+            buffer_text = require_action or request.workspaceMode == 'profiles' or (widget_rendered and widget_display_only)
             system_blocks = [{'text': SYSTEM}, *[{'text': 'Procédure de profil chargée par le runtime :\n'+p} for p in profile_procedures], {'text': 'Contexte de travail (données JSON) :\n' + context}]
+            if _selected_widget_period(request):
+                system_blocks.append({'text': 'La personne fait référence à la période choisie dans le contrôle de la carte : '+_selected_widget_period(request)+'. Utilise exactement cette période dans render_portfolio_widget. Elle remplace la période des anciens messages.'})
+            if widget_rendered:
+                system_blocks.append({'text': 'La carte interactive a été émise dans le chat. Pour une demande seulement visuelle, réponds en une ou deux phrases, au maximum 35 mots. Ne répète ni les positions, ni leurs chiffres, ni la méthode. Mentionne uniquement une limite essentielle si nécessaire. Aucune proposition ni liste de prochaines étapes non demandée.'})
             if request.workspaceMode == 'profiles':
                 system_blocks.append({'text': "Les notes et cartes d'alignement antérieures sont des interprétations à réexaminer, pas des faits sur la personne. Ne recopie pas leurs conclusions non étayées. profile_declarations décrit les réponses disponibles, sans valider leur vérité financière. state declared inclut une déclaration qualitative : une capacité de perte déjà formulée ne devient pas inconnue parce que son montant exact manque. Distingue la contrainte déclarée de sa quantification encore absente. Un besoin de toute la somme à 18 mois et une contrainte sans emprunt ne démontrent aucun déficit de financement. Ne suggère pas un financement, l'abandon du projet essentiel ni la modification de la tolérance pour rendre le profil cohérent. Explique séparément le confort émotionnel et les conséquences financières d'une perte; les pistes respectent les contraintes déclarées."})
             if _portfolio_fit_requested(request) and not historical_only:
@@ -532,6 +552,8 @@ Réponds impérativement en français, avec une réponse concise.
                     plan_recovery = True
                     messages.append({'role':'user','content':[{'text':'Le plan doit être intégralement visible maintenant. Rédige trois à six étapes numérotées adaptées à ma demande; ne dis pas qu’il est affiché ailleurs.'}]})
                     continue
+                if widget_rendered and widget_display_only and not last_tool_failed:
+                    turn_visible_text = '\n\n'.join(widget_caption(widget) for widget in widget_results[-5:])
                 if plan_recovery and _visible_plan_has_steps(turn_visible_text):
                     if buffer_text:
                         yield {'type':'text','delta':turn_visible_text}
@@ -738,6 +760,27 @@ Réponds impérativement en français, avec une réponse concise.
                             'sourceUrl': f"https://finance.yahoo.com/quote/{output['ticker']}/history/",
                             'moduleUrl': f"/app/scenarios?ticker={output['ticker']}",
                         }
+                    elif name == 'render_portfolio_widget':
+                        widget_input = PortfolioWidgetInput.model_validate(args)
+                        selected_period = _selected_widget_period(request)
+                        if selected_period and widget_input.period != selected_period:
+                            raise ValueError('La période sélectionnée dans la carte est '+selected_period+'. Réexécute render_portfolio_widget avec period='+selected_period+'.')
+                        if 'portfolio-visual-widgets' not in loaded_skills:
+                            search_args = {'query': 'portfolio-visual-widgets', 'limit': 8}
+                            search_output = search_skills(**search_args)
+                            discovered_skills.update(item['id'] for item in search_output['skills'])
+                            for event in runtime_tool_events('search_skills', search_args, search_output):
+                                yield {**event, 'actor': 'runtime-bootstrap'}
+                            if 'portfolio-visual-widgets' not in discovered_skills:
+                                raise ValueError('Méthode de visualisation absente du catalogue approuvé.')
+                            skill_output = load_skill('portfolio-visual-widgets')
+                            for event in runtime_tool_events('load_skill', {'skill_id': 'portfolio-visual-widgets'}, skill_output):
+                                yield {**event, 'actor': 'runtime-bootstrap'}
+                            context = retain_skill(skill_output)
+                        output = render_portfolio_widget(persona=request.accountId, **widget_input.model_dump())
+                        yield {'type': 'financial_widget', 'widget': {**output, 'id': tool_id}}
+                        widget_rendered = True
+                        widget_results.append(output)
                     elif name == 'analyze_demo_portfolio':
                         required = {'portfolio-exposures'}
                         if _portfolio_fit_requested(request):
@@ -864,7 +907,7 @@ Réponds impérativement en français, avec une réponse concise.
                         else:
                             tabs[existing] = tab
                         output = tab
-                        if request.workspaceMode=='profiles' and tab['kind'] not in {'decision','simulation','profile'}:
+                        if tab['kind'] not in {'decision','simulation','profile'}:
                             yield {'type':'workspace','profile':profile,'tabs':tabs}
                             yield {'type':'profile_view','view':'documents','documentId':tab['id']}
                     elif name == 'read_sources':

@@ -92,3 +92,12 @@ TOOLS.extend([
 TOOLS.append(spec('close_profile_document', 'Fermer un document de travail seulement si la personne le demande explicitement. Le profil personnel reste intact. Ne pas fermer automatiquement un document pour libérer une place.', {'id':{'type':'string','minLength':1,'maxLength':80,'pattern':'^[a-zA-Z0-9_-]+$'}}, ['id']))
 
 TOOLS.append(spec('get_simulation_capabilities', 'Vérifier la disponibilité réelle des historiques et les limites des horizons, unités et titres avant une simulation. Ne calcule aucun scénario.', {}, []))
+
+TOOLS.append(spec('render_portfolio_widget',
+    'Afficher une carte interactive dans le chat pour le portefeuille fictif du compte actif. '
+    'Charger portfolio-visual-widgets. Choisir portfolio pour valeur et évolution, heatmap pour '
+    'la carte des positions, allocation pour la répartition, contributions pour les gains et pertes, '
+    'sectors pour les expositions et variations sectorielles. Les données et limites viennent du serveur; '
+    'ne jamais inventer des titres, des rendements ou une composition de fonds. Ne crée pas un onglet.',
+    {'view': {'type': 'string', 'enum': ['portfolio', 'heatmap', 'allocation', 'contributions', 'sectors']},
+     'period': {'type': 'string', 'enum': ['1D', '1W', '1M', '1Y']}}, ['view']))

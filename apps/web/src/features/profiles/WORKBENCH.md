@@ -112,3 +112,10 @@ PROFILE_DEPLOYED_MODE=1 PROFILE_LIVE_PORTFOLIO=1 node scripts/test-profile-aws-l
 Les deux dernières commandes utilisent le compte Cognito de test décrit dans `AGENTS.md`; elles lisent le fichier local ignoré sans afficher ses identifiants et modifient la mémoire fictive Robert. Ne pas lancer simultanément plusieurs essais qui écrivent ce même persona.
 
 Les historiques du starter sont un univers fini, pas des cours en direct. Les comparaisons sont descriptives; les scénarios sont des hypothèses; les cartes sont des interprétations et clarifications, sans conseil d’achat, de vente ou d’allocation personnalisée.
+
+
+## Widgets financiers inline
+
+Le chat Assistant peut recevoir `financial_widget` depuis `render_portfolio_widget` et afficher cinq vues : valeur/historique, positions, répartition, contributions et secteurs. Le module dédié `components/financial-widgets/README.md` décrit ses contrats et sources visuelles. Les périodes, versions de messages et comptes sont conservés; seul le couple vue/période revient au modèle. Les phrases des demandes uniquement visuelles utilisent les résultats déterministes.
+
+La publication exige le frontend et les deux fonctions Assistant/worker avec le même snapshot de skills. Les catégories des portefeuilles AWS ne donnent pas automatiquement un historique ni leurs titres sous-jacents. Le script local `scripts/preview-financial-widgets.py` sert un exemple illustratif séparé, calculé à partir du paquet AlphaForge, avec Bedrock réel. Les essais et captures sont dans le dossier local ignoré `docs/agentic/chat-financial-widgets/`.
