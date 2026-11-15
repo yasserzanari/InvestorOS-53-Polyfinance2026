@@ -18,7 +18,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["accept", "content-type"],
+    allow_headers=["accept", "authorization", "content-type"],
 )
 app.include_router(profiles_router)
 app.include_router(simulation_router)
@@ -134,4 +134,29 @@ def demo_scenario_impact(
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
-handler = Mangum(app)
+_mangum_handler = Mangum(app)
+
+
+def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Require a Cognito administrators-group JWT for deployed app routes.
+
+    API Gateway verifies signature, issuer, and audience. This second check
+    narrows access to app administrators. Local FastAPI development bypasses
+    the wrapper because REQUIRE_ADMIN_AUTH is unset.
+    """
+    if os.getenv("REQUIRE_ADMIN_AUTH", "false").lower() == "true":
+        request_context = event.get("requestContext", {})
+        route_key = request_context.get("routeKey", "")
+        if route_key != "GET /health" and not route_key.startswith("OPTIONS "):
+            authorizer = request_context.get("authorizer", {}).get("jwt", {})
+            claims = authorizer.get("claims", {})
+            groups = claims.get("cognito:groups", [])
+            if isinstance(groups, str):
+                groups = [groups]
+            if "administrators" not in groups:
+                return {
+                    "statusCode": 403,
+                    "headers": {"content-type": "application/json"},
+                    "body": json.dumps({"detail": "Administrator access required"}),
+                }
+    return _mangum_handler(event, context)

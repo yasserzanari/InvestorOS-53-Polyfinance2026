@@ -5,6 +5,7 @@ import { DemoAccountProvider } from '../shared/DemoAccountContext';
 import { DashboardPage, ModuleLanding } from '../features/overview/DashboardPage';
 import { AssistantPage, ProfilesPage } from '../features/profiles/ProfilesPage';
 import { productModules } from './modules';
+import { AuthCallback, AuthProvider, RequireAdmin } from '../shared/auth';
 
 const LandingPage = lazy(() => import('../features/landing/LandingPage').then(({ LandingPage: Page }) => ({ default: Page })));
 const LoginPage = lazy(() => import('../features/auth/LoginPage').then(({ LoginPage: Page }) => ({ default: Page })));
@@ -18,30 +19,35 @@ export function App() {
   return (
     <DemoAccountProvider>
       <BrowserRouter>
-        <Suspense fallback={<div className="app-loading" role="status">InvestorOS</div>}>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/app" element={<AppShell />}>
-              <Route index element={<DashboardPage />} />
-              <Route path="assistant" element={<AssistantPage />} />
-              <Route path="profiles" element={<ProfilesPage />} />
-              <Route path="portfolios" element={<PortfolioPage />} />
-              <Route path="scenarios" element={<ScenariosPage />} />
-              <Route path="evidence" element={<EvidencePage />} />
-              <Route path="analyses" element={<AnalysesPage />} />
-              <Route path="network" element={<NetworkPage />} />
-              {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios', 'evidence', 'analyses', 'network'].includes(id)).map((module) => (
-                <Route
-                  key={module.id}
-                  path={module.href.replace('/app/', '')}
-                  element={<ModuleLanding moduleId={module.id} />}
-                />
-              ))}
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
+        <AuthProvider>
+          <Suspense fallback={<div className="app-loading" role="status">InvestorOS</div>}>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route element={<RequireAdmin />}>
+                <Route path="/app" element={<AppShell />}>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="assistant" element={<AssistantPage />} />
+                  <Route path="profiles" element={<ProfilesPage />} />
+                  <Route path="portfolios" element={<PortfolioPage />} />
+                  <Route path="scenarios" element={<ScenariosPage />} />
+                  <Route path="evidence" element={<EvidencePage />} />
+                  <Route path="analyses" element={<AnalysesPage />} />
+                  <Route path="network" element={<NetworkPage />} />
+                  {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios', 'evidence', 'analyses', 'network'].includes(id)).map((module) => (
+                    <Route
+                      key={module.id}
+                      path={module.href.replace('/app/', '')}
+                      element={<ModuleLanding moduleId={module.id} />}
+                    />
+                  ))}
+                </Route>
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </AuthProvider>
       </BrowserRouter>
     </DemoAccountProvider>
   );

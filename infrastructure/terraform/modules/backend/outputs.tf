@@ -15,3 +15,23 @@ output "lambda_function_name" {
 output "lambda_execution_role_arn" {
   value = aws_iam_role.lambda_execution.arn
 }
+
+output "cognito_user_pool_id" {
+  value = aws_cognito_user_pool.application.id
+}
+
+output "cognito_client_id" {
+  value = aws_cognito_user_pool_client.web.id
+}
+
+output "cognito_issuer" {
+  value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.application.id}"
+}
+
+output "cognito_domain" {
+  value = "${aws_cognito_user_pool_domain.application.domain}.auth.${var.aws_region}.amazoncognito.com"
+}
+
+output "cognito_hosted_ui_url" {
+  value = "https://${aws_cognito_user_pool_domain.application.domain}.auth.${var.aws_region}.amazoncognito.com"
+}

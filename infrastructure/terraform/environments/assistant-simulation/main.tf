@@ -12,6 +12,8 @@ locals {
   }
   model_arn            = "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/${trimprefix(var.bedrock_model_id, "us.")}"
   profile_arn          = "arn:${data.aws_partition.current.partition}:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}"
+  cognito_issuer       = data.terraform_remote_state.foundation.outputs.cognito_issuer
+  cognito_client_id    = data.terraform_remote_state.foundation.outputs.cognito_client_id
   portfolio_table_name = data.terraform_remote_state.foundation.outputs.demo_table_names.portfolios
   portfolio_table_arn  = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.portfolio_table_name}"
   common_tags = {
@@ -109,6 +111,7 @@ resource "aws_lambda_function" "api" {
       POWERTOOLS_SERVICE_NAME       = "investoros-assistant-simulation"
       SIMULATION_X_SEARCH_ENABLED   = "false"
       X_API_BEARER_TOKEN_SECRET_ARN = ""
+      REQUIRE_ADMIN_AUTH            = "true"
     }
   }
 
@@ -125,16 +128,45 @@ resource "aws_apigatewayv2_integration" "api" {
   timeout_milliseconds   = 29000
 }
 
+resource "aws_apigatewayv2_authorizer" "cognito" {
+  api_id           = data.aws_apigatewayv2_api.application.id
+  name             = "${local.name_prefix}-cognito-jwt"
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  jwt_configuration {
+    audience = [local.cognito_client_id]
+    issuer   = local.cognito_issuer
+  }
+}
+
 resource "aws_apigatewayv2_route" "profiles" {
-  api_id    = data.aws_apigatewayv2_api.application.id
-  route_key = "ANY /v1/profiles/{proxy+}"
-  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "ANY /v1/profiles/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_apigatewayv2_route" "simulation" {
-  api_id    = data.aws_apigatewayv2_api.application.id
-  route_key = "ANY /v1/simulation/{proxy+}"
-  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "ANY /v1/simulation/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+resource "aws_apigatewayv2_route" "profiles_preflight" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "OPTIONS /v1/profiles/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "simulation_preflight" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "OPTIONS /v1/simulation/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "NONE"
 }
 
 resource "aws_lambda_permission" "profiles" {
@@ -151,4 +183,12 @@ resource "aws_lambda_permission" "simulation" {
   function_name = aws_lambda_function.api.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${data.aws_apigatewayv2_api.application.execution_arn}/*/*/v1/simulation/*"
+}
+
+resource "aws_lambda_permission" "preflight" {
+  statement_id  = "AllowAssistantPreflightRoutes"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${data.aws_apigatewayv2_api.application.execution_arn}/*/OPTIONS/*"
 }

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Bot, FileText, GitBranch, ListChecks, Plus, X, PanelRight, ExternalLink, Sparkles } from 'lucide-react';
 import { useDemoAccount } from '../../shared/DemoAccountContext';
+import { authenticatedFetch } from '../../shared/auth';
 import { fieldLabels, fieldOrder } from './profile-model';
 import { createLocalId, safeSourceUrl, profileApiBase, type WorkspaceTab } from './profile-api';
 import { useProfileWorkspace, type ChatMessage } from './useProfileWorkspace';
@@ -50,7 +51,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const {workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions,stop,update,reset,conversations,conversationId,startNewConversation,openConversation}=useProfileWorkspace(activeAccount.id,assistantMode?'assistant':'profiles');
   const [input,setInput]=useState(''); const [connected,setConnected]=useState(false); const [model,setModel]=useState('');
   useEffect(()=>{if(!initialPrompt||workspace.messages.length||busy)return;setInput('');void send(initialPrompt);navigate(location.pathname,{replace:true,state:null});},[initialPrompt,workspace.messages.length,busy]);
-  useEffect(()=>{const controller=new AbortController();fetch(`${profileApiBase}/v1/profiles/status`,{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(data=>{setConnected(data.configured);setModel(data.modelId||'');}).catch(()=>setConnected(false));return()=>controller.abort();},[]);
+  useEffect(()=>{const controller=new AbortController();authenticatedFetch(`${profileApiBase}/v1/profiles/status`,{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(data=>{setConnected(data.configured);setModel(data.modelId||'');}).catch(()=>setConnected(false));return()=>controller.abort();},[]);
   const submit=(text=input)=>{if(!text.trim()||busy)return;void send(text);setInput('');};
   const tab=workspace.tabs.find(t=>t.id===activeTab)||workspace.tabs[0];
   const addTab=()=>{const id=createLocalId();update(w=>({...w,tabs:[...w.tabs,{id,title:'Notes',kind:'note',content:''}]}));setActiveTab(id);};
