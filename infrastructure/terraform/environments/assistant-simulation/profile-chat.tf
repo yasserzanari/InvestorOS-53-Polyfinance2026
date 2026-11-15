@@ -57,7 +57,8 @@ resource "aws_lambda_function" "profile_chat_worker" {
   role             = aws_iam_role.profile_chat_worker.arn
   runtime          = "python3.12"
   handler          = "investoros_api.main.handler"
-  filename         = local.package_path
+  s3_bucket        = aws_s3_object.api_package.bucket
+  s3_key           = aws_s3_object.api_package.key
   source_code_hash = filebase64sha256(local.package_path)
   timeout          = 120
   memory_size      = 512
