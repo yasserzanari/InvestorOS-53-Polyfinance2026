@@ -173,6 +173,8 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
         landing={landing}
         showStatus
         workspaceOverview={assistantMode?<ConversationOverview tabs={workspace.tabs} activeTab={tab?.id??activeTab} sources={allSources} agents={combinedAgents} tabsOpen={tabsOpen} onToggleTabs={()=>setTabsOpen(false)} onOpenWorkspace={()=>setTabsOpen(true)} onSelectTab={id=>{setActiveTab(id);setTabsOpen(true);}}/>:undefined}
+        workspaceOpen={tabsOpen}
+        onToggleWorkspace={()=>setTabsOpen(open=>!open)}
         composerClassName={pendingQuestion?'is-awaiting-answer':''}
         composer={promptComposer}
         error={error}
