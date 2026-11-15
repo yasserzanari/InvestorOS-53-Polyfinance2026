@@ -35,7 +35,11 @@ def validate(plan):
             paths = change.get('replace_paths', [])
             detail = ', '.join('.'.join(str(part) for part in path) for path in paths) or 'suppression'
             declaration = 'présente dans la configuration' if item['address'] in configured else 'absente de la configuration'
-            descriptions.append(f"{item['address']} ({change.get('actions', [])}; {declaration}; champs déclencheurs: {detail})")
+            before = change.get('before') or {}
+            after = change.get('after') or {}
+            changed_fields = sorted(key for key in set(before) | set(after) if before.get(key) != after.get(key))
+            fields = ', '.join(changed_fields) or 'indisponibles'
+            descriptions.append(f"{item['address']} ({change.get('actions', [])}; {declaration}; champs déclencheurs: {detail}; champs modifiés: {fields})")
         raise ValueError('Suppression ou remplacement de ressource interdit : ' + '; '.join(descriptions))
     return [(item['address'], item['change']['actions']) for item in plan.get('resource_changes', [])
             if item.get('change', {}).get('actions') != ['no-op']]
