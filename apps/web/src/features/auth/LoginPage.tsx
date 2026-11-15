@@ -1,6 +1,5 @@
 import { ArrowLeft, ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import QRCode from 'qrcode';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MeshDriftBackground } from './MeshDriftBackground';
 import { useAuth } from '../../shared/auth';
@@ -16,26 +15,11 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [totpSetupUri, setTotpSetupUri] = useState('');
-  const [totpSecret, setTotpSecret] = useState('');
-  const [totpQr, setTotpQr] = useState('');
-  const [step, setStep] = useState<'credentials' | 'new-password' | 'totp-setup' | 'totp'>('credentials');
+  const [step, setStep] = useState<'credentials' | 'new-password' | 'totp'>('credentials');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const auth = useAuth();
   const returnTo = (location.state as { from?: string } | null)?.from ?? '/app';
-
-  useEffect(() => {
-    let active = true;
-    if (!totpSetupUri) {
-      setTotpQr('');
-      return;
-    }
-    void QRCode.toDataURL(totpSetupUri, { width: 176, margin: 1, color: { dark: '#172941', light: '#ffffff' } })
-      .then((dataUrl) => { if (active) setTotpQr(dataUrl); })
-      .catch(() => { if (active) setTotpQr(''); });
-    return () => { active = false; };
-  }, [totpSetupUri]);
 
   const handleAuthError = (error: unknown) => {
     const name = error instanceof Error ? error.name : '';
@@ -51,14 +35,6 @@ export function LoginPage() {
       case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
         setStep('new-password');
         return;
-      case 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP': {
-        const details = result.nextStep.totpSetupDetails;
-        setTotpSecret(details.sharedSecret);
-        setTotpSetupUri(details.getSetupUri('InvestorOS', username || 'admin').toString());
-        setVerificationCode('');
-        setStep('totp-setup');
-        return;
-      }
       case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
         setVerificationCode('');
         setStep('totp');
@@ -122,8 +98,6 @@ export function LoginPage() {
     setPassword('');
     setNewPassword('');
     setVerificationCode('');
-    setTotpSetupUri('');
-    setTotpSecret('');
     setMessage('');
     setBusy(false);
   };
@@ -135,9 +109,7 @@ export function LoginPage() {
   if (auth.enabled) {
     const challengeTitle = step === 'new-password'
       ? 'Choisissez votre mot de passe'
-      : step === 'totp-setup'
-        ? 'Configurez votre authentificateur'
-        : step === 'totp'
+      : step === 'totp'
           ? 'Vérifiez votre identité'
           : 'Connexion sécurisée';
     return (
@@ -162,9 +134,7 @@ export function LoginPage() {
             <p className="login-intro">
               {step === 'new-password'
                 ? 'Pour protéger votre compte, remplacez le mot de passe temporaire par un mot de passe personnel.'
-                : step === 'totp-setup'
-                  ? 'Scannez le code avec votre application d’authentification, puis saisissez le code à six chiffres.'
-                  : step === 'totp'
+                : step === 'totp'
                     ? 'Saisissez le code à six chiffres affiché dans votre application d’authentification.'
                     : 'Connectez-vous à votre espace avec les identifiants de votre compte administrateur.'}
             </p>
@@ -196,20 +166,13 @@ export function LoginPage() {
               </form>
             ) : (
               <form className="personal-login-form aws-login-form" onSubmit={(event) => void submitAwsChallenge(event)}>
-                {step === 'totp-setup' && (
-                  <div className="totp-setup-card">
-                    {totpQr && <img className="totp-setup-qr" src={totpQr} alt="Code QR pour ajouter InvestorOS à votre application d’authentification" />}
-                    <p>Scannez ce code avec Google Authenticator, Microsoft Authenticator ou une application compatible.</p>
-                    <details><summary>Entrer la clé manuellement</summary><code>{totpSecret}</code></details>
-                  </div>
-                )}
                 <div className="login-field"><label htmlFor="aws-totp">Code de vérification</label><input id="aws-totp" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" maxLength={8} required value={verificationCode} onChange={(event) => setVerificationCode(event.target.value)} placeholder="000 000" /></div>
-                <button className="login-submit" type="submit" disabled={busy}>{busy ? 'Vérification…' : step === 'totp-setup' ? 'Activer la vérification' : 'Vérifier et continuer'} <ArrowRight size={16} aria-hidden="true" /></button>
+                <button className="login-submit" type="submit" disabled={busy}>{busy ? 'Vérification…' : 'Vérifier et continuer'} <ArrowRight size={16} aria-hidden="true" /></button>
               </form>
             )}
             {message && <p className="login-status" role="alert">{message}</p>}
             {step !== 'credentials' && <button type="button" className="login-challenge-back" onClick={() => void cancelAwsChallenge()} disabled={busy}><ArrowLeft size={14} aria-hidden="true" /> Revenir à la connexion</button>}
-            <p className="login-terms">Connexion chiffrée par Amazon Cognito · MFA obligatoire</p>
+            <p className="login-terms">Connexion chiffrée par Amazon Cognito · MFA activable dans les paramètres</p>
           </div>
         </section>
       </main>
