@@ -68,6 +68,40 @@ class SupplyChainResearchTests(unittest.TestCase):
             self.assertEqual(extraction_json(text),payload)
         with self.assertRaises(ValueError):extraction_json('Pas de JSON valide {suppliers: nope}')
 
+    def test_encoded_arrays_are_decoded_but_malformed_containers_fail(self):
+        passage='Contoso supplies assembly services to Acme under a signed manufacturing agreement.'
+        supplier={'name':'Contoso','role':'Assemblage','sourceId':'s1','quote':passage}
+        raw=extraction_json(json.dumps({'suppliers':json.dumps([supplier]),'events':'[]'}))
+        suppliers,_=validate_extraction(raw,[{'id':'s1','text':passage}])
+        self.assertEqual(suppliers[0]['label'],'Contoso')
+        for malformed in ['not JSON', '{}', None]:
+            with self.subTest(malformed=malformed),self.assertRaises(ValueError):
+                extraction_json(json.dumps({'suppliers':malformed,'events':[]}))
+
+    @patch('investoros_api.profiles.supply_chain_research.logo_for',return_value=None)
+    @patch('investoros_api.profiles.supply_chain_research.resolve',return_value=None)
+    @patch('investoros_api.profiles.supply_chain_research.run_skill_agent')
+    def test_rejected_candidates_are_corrected_once_with_same_sources(self,agent,*_):
+        passage='Contoso supplies assembly services to Acme under a signed manufacturing agreement.'
+        def response(name):
+            return {'text':json.dumps({'suppliers':[{'name':name,'role':'Assemblage','sourceId':'s1','quote':passage}],'events':[]}), 'skills':[],'skill_trace':[],'usage':{'inputTokens':10}}
+        agent.side_effect=[response('Contoso (Invented Alias)'),response('Contoso')]
+        result=build_dossier('Acme',None,'model',[{'id':'s1','title':'Filing','url':'https://example.org/filing','text':passage}])
+        self.assertEqual(agent.call_count,2)
+        self.assertEqual(result['entities'][1]['label'],'Contoso')
+        self.assertEqual(result['usage']['inputTokens'],20)
+        self.assertEqual(json.loads(agent.call_args.kwargs['prompt'])['documents'][0]['text'],passage)
+
+    @patch('investoros_api.profiles.supply_chain_research.logo_for',return_value=None)
+    @patch('investoros_api.profiles.supply_chain_research.resolve',return_value=None)
+    @patch('investoros_api.profiles.supply_chain_research.run_skill_agent')
+    def test_failed_correction_remains_empty_and_explains_validation_failure(self,agent,*_):
+        agent.return_value={'text':'{"suppliers":"broken","events":[]}','skills':[],'skill_trace':[],'usage':{}}
+        result=build_dossier('Acme',None,'model',[{'id':'s1','title':'Filing','url':'https://example.org/filing','text':'A source with no validated relationship.'}])
+        self.assertEqual(agent.call_count,2)
+        self.assertEqual(result['relations'],[])
+        self.assertTrue(any('Extraction non validée' in limit for limit in result['limitations']))
+
     def test_specialist_forces_structured_result_after_skill_bootstrap(self):
         from investoros_api.profiles.skill_agent import run_skill_agent
         from investoros_api.profiles.supply_chain_research import EXTRACTION_SCHEMA
