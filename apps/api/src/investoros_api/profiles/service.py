@@ -16,6 +16,7 @@ from ..simulation import ScenarioProjectionRequest, project_scenarios, simulatio
 from ..simulation import history as simulation_history
 from ..simulation import assets as simulation_assets
 from .models import (
+    AssistantPlanInput,
     AskUserInput,
     ChatRequest,
     PROFILE_FIELDS,
@@ -35,6 +36,7 @@ from .research_bridge import research_configured, research_tool
 
 SYSTEM = '''Dans l’espace Profile, le chat reste à gauche et les sous-onglets sont pilotables à droite. `compare_profile_instruments` sert uniquement à une comparaison explicitement historique de rendements ou de prix. Ne l’utilise pas pour décider si un titre convient au persona, correspond à ses objectifs ou préserverait la diversification; pour ces demandes, charge `portfolio-exposures` puis appelle `analyze_demo_portfolio`. Si la personne demande à la fois adéquation et historique, traite l’adéquation d’abord et ne lance la comparaison historique que si elle est aussi explicitement demandée. Un échec de comparaison n’autorise aucune recommandation ni substitution par des rendements mémorisés. Pour expliciter une tension ou une inconnue liée au profil, utilise publish_profile_insight et cite uniquement des evidenceIds réellement reçus; tu peux laisser cette liste vide si tu relies seulement les déclarations du profil. Une simple curiosité sur un actif ne prouve pas une intention d’achat. Ouvre la vue utile avec open_profile_view. Lorsqu’une échéance explicite est donnée pour le même projet, mets aussi à jour horizon; ne laisse pas l’ancien horizon contredire l’objectif nouveau. Pour une demande d’incohérence, examine d’abord la tension entre la tolérance élevée et la faible capacité de perte, au lieu de demander d’autres objectifs sans nécessité. Après toute nouvelle précision utile, enregistre-la avec update_profile avant de poser la question suivante. Réutilise le profil mémorisé et l’historique; ne redemande pas ce qui y figure. Les champs du profil et leurs inconnues ne doivent jamais bloquer une comparaison historique indépendante.
 Tu es l’assistant partagé InvestorOS. Réponds en français, de façon naturelle et concise. Après publication d’une comparaison ou d’un scénario dans le panneau, donne deux à quatre phrases sur le message principal et les limites utiles; ne recopie pas tous les prix, quantiles ou lignes du tableau déjà visibles à droite.
+Quand la personne demande un plan ou qu’une opération importante nécessite une approbation, crée la carte avec publish_plan avant de demander une validation. Fournis un titre explicite, le contexte utile et trois à six étapes concrètes, adaptées aux capacités et sources disponibles. publish_plan affiche le plan sans l’exécuter. Pour une recherche importante, appelle ask_user seulement après la carte; pour une liste de tâches persistante, utilise upsert_tab avec kind="tasks" après le consentement pertinent.
 Les comptes et profils sont fictifs. Accompagne la construction du profil sans conseiller des achats.
 Pour les questions de portefeuille, appelle analyze_demo_portfolio et fonde tout chiffre uniquement sur sa sortie. Précise qu’il s’agit du portefeuille fictif configuré pour le persona actif et indique ses limites; si l’outil échoue, indique que le calcul n’a pas pu être fait. N’invente jamais rendement, volatilité ou baisse historique en l’absence de série de prix.
 Si la personne demande si un actif, secteur ou crypto correspond à un persona, ou si son ajout préserverait la diversification, charge `analysis-planning` et `portfolio-exposures` (et `investor-profile` si une donnée de profil manquante change l’analyse), puis appelle analyze_demo_portfolio pour le persona actif avant d’évaluer. Une performance passée ne remplace pas ce calcul. Les catégories retournées ne donnent pas les titres sous-jacents : ne dis jamais que Bitcoin est détenu parce qu’une ligne dit « crypto-actifs », ni que NVDA est détenu parce qu’une ligne dit « technologies et IA ». Sans liste des composants, poids envisagé et financement, ne conclus pas qu’un ajout précis améliore ou détériore la diversification et n’invente pas de comparaison avant/après. Donne les faits exacts, distingue adéquation qualitative, couverture et inconnues, puis arrête-toi là. Ne recommande jamais d’actif ni de poids, même si la tolérance au risque est élevée. Un échec d’outil permet seulement d’expliquer la limite; ne le remplace pas par des conclusions générales sur le titre.
@@ -108,6 +110,16 @@ def configuration() -> dict:
 def _visible_plan_has_steps(text: str) -> bool:
     steps = re.findall(r'(?m)^\s*(?:\d{1,2}[.)]|[-*•])\s+\S', text)
     return 3 <= len(steps) <= 6
+
+
+def _plan_transcript(plan: dict) -> str:
+    lines = [f"Plan en {len(plan['steps'])} étapes :"]
+    if plan.get('description'):
+        lines.append(plan['description'])
+    for index, step in enumerate(plan['steps'], start=1):
+        detail = f" — {step['detail']}" if step.get('detail') else ''
+        lines.append(f"{index}. {step['title']}{detail}")
+    return '\n'.join(lines)
 
 
 def _analysis_plan_approved(request: ChatRequest) -> bool:
@@ -298,6 +310,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     portfolio_result: dict | None = None
     research_started = False
     research_launched = False
+    published_plan = False
     note_requested = bool(re.search(r'\b(?:crée|créer|rédige|rédiger)\b.*\bnote\b', request.message, re.I))
     note_created = False
     note_only = request.workspaceMode == 'profiles' and note_requested and not re.search(r'\b(?:compare|comparez|calcule|calculer|simule|simuler|projette|projeter|recherche|lance)\b', request.message, re.I)
@@ -437,13 +450,13 @@ Réponds impérativement en français, avec une réponse concise.
                 system_blocks.append({'text':'Une note est demandée. Crée réellement cette note avec upsert_tab, kind note, avant de dire qu’elle existe. Utilise uniquement les faits et sources reçus; indique les informations non vérifiées.'})
                 tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name'] in {'upsert_tab','open_profile_view'}], 'toolChoice':{'any':{}}}
             elif research_requested and not research_started:
-                system_blocks.append({'text':'Une analyse documentaire est demandée. Ne donne aucun événement ni source comme vérifié avant lecture. Charge analysis-planning et company-analysis, affiche le plan puis appelle ask_user pour son approbation. La simple demande n’autorise pas encore start_analysis.'})
-                tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name'] in {'search_skills','load_skill','ask_user','start_analysis'}], 'toolChoice':{'any':{}}}
+                system_blocks.append({'text':'Une analyse documentaire est demandée. Ne donne aucun événement ni source comme vérifié avant lecture. Charge analysis-planning et company-analysis, publie la carte structurée avec publish_plan, puis appelle ask_user pour son approbation. La simple demande n’autorise pas encore start_analysis.'})
+                tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name'] in {'search_skills','load_skill','publish_plan','ask_user','start_analysis'}], 'toolChoice':{'any':{}}}
             if _analysis_plan_approved(request) and not research_started and 'start_analysis' in available_names:
                 system_blocks.append({'text':'La personne a déjà validé le plan dans le formulaire. Reprends la question et le périmètre dans son historique et lance start_analysis maintenant. Ne demande pas une seconde validation du même plan.'})
                 tool_config={'tools':tools,'toolChoice':{'tool':{'name':'start_analysis'}}}
             if plan_recovery:
-                system_blocks.append({'text':'La demande de validation précédente a été refusée car aucun plan visible ne la précédait. Écris maintenant un plan concret numéroté de trois à six étapes, adapté à la demande et aux sources disponibles. Ne lance aucune recherche. Termine ce message sans outil; la validation sera demandée ensuite.'})
+                system_blocks.append({'text':'Aucun plan visible ne précédait la demande de validation. Appelle publish_plan avec un plan concret de trois à six étapes adapté à la demande et aux sources disponibles. Ne lance aucune recherche et ne demande pas encore de validation; publish_plan affichera le plan.'})
                 # Bedrock requires tool definitions while historical messages contain toolUse.
                 tool_config = {'tools': tools}
             if require_projection:
@@ -814,6 +827,22 @@ Réponds impérativement en français, avec une réponse concise.
                             raise ValueError('Valeur de profil invalide.')
                         profile.update(fields)
                         output = {'updated': fields}
+                    elif name == 'publish_plan':
+                        plan_input = AssistantPlanInput.model_validate(args)
+                        output = plan_input.model_dump()
+                        if research_requested and not research_started:
+                            if 'analysis-planning' not in loaded_skills or not loaded_skills & {'company-analysis', 'supply-chain'}:
+                                raise ValueError('Charge les méthodes de recherche nécessaires avant de présenter un plan de recherche.')
+                        published_plan = True
+                        plan_shown = True
+                        plan_recovery = False
+                        plan_text = _plan_transcript(output)
+                        visible_plan_text += '\n' + plan_text
+                        yield {'type': 'plan', 'plan': output}
+                        # The text copy keeps approval checks and later chat history intact;
+                        # the browser renders the structured plan event as the card.
+                        yield {'type': 'text', 'delta': ('\n\n' if buffer_text else '') + plan_text + '\n\n'}
+                        output = {'published': True, 'title': plan_input.title, 'stepCount': len(plan_input.steps)}
                     elif name == 'close_profile_document':
                         identifier=args.get('id')
                         if set(args)!={'id'} or not isinstance(identifier,str) or not any(t['id']==identifier for t in tabs):
@@ -849,7 +878,7 @@ Réponds impérativement en français, avec une réponse concise.
                         yield {'type': 'sources', 'citations': list(source_registry)}
                     elif name == 'ask_user':
                         question_input = AskUserInput.model_validate({'title':'Précisons le scénario' if projection_requested else 'Précisons votre demande',**args})
-                        if question_input.purpose == 'plan_approval' and not _visible_plan_has_steps(visible_plan_text + '\n' + turn_visible_text):
+                        if question_input.purpose == 'plan_approval' and not published_plan and not _visible_plan_has_steps(visible_plan_text + '\n' + turn_visible_text):
                             if _visible_plan_has_steps(question_input.description or ''):
                                 yield {'type':'text','delta': '\n\n' + question_input.description + '\n\n'}
                                 plan_shown = True

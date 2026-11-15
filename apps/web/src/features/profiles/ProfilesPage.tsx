@@ -97,7 +97,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
     const m=workspace.messages.find(x=>x.id===item.id)!;
     if(m.role==='user')return <div className="pw-user-message">{m.text}</div>;
     const text=m.versions[m.version]??m.text;
-    const plan=parsePlan(text);
+    const plan=m.plan??parsePlan(text);
     return <article className="pw-answer" data-ui-message="">
       <ToolActivityFeed tools={m.tools} runs={runs} active={busy&&m===workspace.messages.at(-1)} onOpenResearch={()=>{setActiveTab('research-results');setTabsOpen(true);}}/>
       {m.agents.map(a=><Subagent key={a.id} name={a.name} status={a.status} task={a.task} summary={a.summary} activity={a.status==='running'?'Consultation du spécialiste Bedrock':undefined} startedAt={a.startedAt} durationMs={a.durationMs}/>)}
