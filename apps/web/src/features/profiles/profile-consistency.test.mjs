@@ -1,25 +1,42 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assessProfile } from './profile-consistency.ts';
+import { assessProfile, isProfileFieldMissing } from './profile-consistency.ts';
 const base = { objective: 'Préparer une retraite', horizon: '15 ans', riskTolerance: 'Élevée', lossCapacity: 'Faibles conséquences', liquidity: 'Aucun retrait important prévu à court terme', constraints: 'Aucune connue', preferences: 'Aucune préférence', knowledge: 'Quelques notions' };
-test('negative withdrawal plan does not conflict with a long horizon',()=> assert.equal(assessProfile(base).issues.length,0));
-test('partially unknown answers are incomplete',()=> {const result=assessProfile({...base,liquidity:'Besoins de liquidité à préciser.',knowledge:'À préciser'});assert.equal(result.completed,6);assert.deepEqual(result.issues.map(i=>i.severity),['missing','missing']);});
-test('short horizon and explicitly high tolerance produce a review prompt',()=>assert.ok(assessProfile({...base,horizon:'1 à 3 ans'}).issues.some(i=>i.id==='short-horizon-high-risk')));
-test('negative high-risk wording is not treated as high tolerance',()=>assert.equal(assessProfile({...base,horizon:'2 ans',riskTolerance:'Je ne tolère pas de fortes variations'}).issues.length,0));
-test('near-term withdrawal requires clarification when horizon is long',()=>assert.ok(assessProfile({...base,liquidity:'Je dois retirer ce capital dans deux ans'}).issues.some(i=>i.id==='long-horizon-short-liquidity')));
-test('inability to absorb a loss is not read as high capacity',()=>assert.ok(assessProfile({...base,lossCapacity:'Je ne peux pas supporter une perte importante'}).issues.some(i=>i.id==='tolerance-loss-capacity')));
-test('moderate tolerance and unknown loss capacity do not fabricate conflict',()=>{const r=assessProfile({...base,riskTolerance:'Modérée',lossCapacity:'À préciser'});assert.equal(r.issues.filter(i=>i.severity==='warning').length,0);});
 
-test('more than three years is not parsed as a short horizon',()=>assert.equal(assessProfile({...base,horizon:'Plus de 3 ans'}).issues.length,0));
-
-test('reported high fluctuations and inability to absorb a loss stay a tension',()=>{const result=assessProfile({...base,riskTolerance:'Fluctuations élevées',lossCapacity:'Ne peut pas absorber une perte qui compromettrait le projet'});assert.ok(result.issues.some(i=>i.id==='tolerance-loss-capacity'));});
-test('reported low consequences are not interpreted as inability',()=>{const result=assessProfile({...base,riskTolerance:'Fluctuations élevées',lossCapacity:'Aucune conséquence sur le projet'});assert.equal(result.issues.filter(i=>i.severity==='warning').length,0);});
-
-test('an eighteen-month project is a short horizon, including a month range',()=>{
-  for(const horizon of ['18 mois','12 à 24 mois'])assert.ok(assessProfile({...base,horizon}).issues.some(i=>i.id==='short-horizon-high-risk'));
-  for(const horizon of ['Plus de 36 mois','48 mois'])assert.equal(assessProfile({...base,horizon}).issues.filter(i=>i.severity==='warning').length,0);
+test('known declarations stay known even when an amount remains unspecified', () => {
+  assert.equal(isProfileFieldMissing('Je ne peux pas absorber une perte compromettant le projet ; montant à préciser.'), false);
+  assert.equal(isProfileFieldMissing('À préciser.'), true);
+  const result = assessProfile({ ...base, knowledge: 'À préciser' });
+  assert.equal(result.completed, 7);
+  assert.deepEqual(result.issues.map(issue => issue.kind), ['missing']);
 });
-test('withdrawals in eighteen months conflict with a long horizon only when declared positively',()=>{
-  assert.ok(assessProfile({...base,liquidity:'Je dois retirer ce capital dans 18 mois'}).issues.some(i=>i.id==='long-horizon-short-liquidity'));
-  for(const liquidity of ['Je ne dois pas retirer ce capital dans 18 mois','Besoin de liquidités dans 48 mois'])assert.equal(assessProfile({...base,liquidity}).issues.filter(i=>i.severity==='warning').length,0);
+
+test('a high tolerance and limited loss capacity request clarification, without invalidating either declaration', () => {
+  const result = assessProfile({ ...base, lossCapacity: 'Je ne peux pas absorber une perte qui compromettrait le projet' });
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0].kind, 'clarification');
+  assert.equal(result.issues[0].severity, 'warning');
+  assert.equal(result.completed, 8);
+});
+
+test('short/long labels and arbitrary three/eight-year cutoffs do not infer a contradiction', () => {
+  for (const horizon of ['18 mois', '1 à 3 ans', '8 ans', 'Long terme', '18 mois pour le projet et 3–5 ans pour une autre épargne']) {
+    assert.equal(assessProfile({ ...base, horizon }).issues.filter(issue => issue.kind === 'conflict').length, 0);
+  }
+  assert.equal(assessProfile({ ...base, liquidity: 'Besoin de liquidités dans 18 mois' }).issues.filter(issue => issue.kind === 'conflict').length, 0);
+});
+
+test('an explicit same-capital timing conflict is preserved by the shared adapter', () => {
+  const result = assessProfile({ ...base, horizon: 'Aucun retrait avant 5 ans', liquidity: 'J’ai besoin de tout ce même capital dans 18 mois' });
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0].kind, 'conflict');
+  assert.deepEqual(result.issues[0].fields, ['horizon', 'liquidity']);
+  assert.equal(result.completed, 8);
+});
+
+test('a separate reserve or negated withdrawal cannot produce a same-capital conflict', () => {
+  for (const liquidity of ['Tout ce capital vient d’une réserve séparée dans 18 mois', 'Je ne dois pas retirer tout ce capital dans 18 mois']) {
+    assert.equal(assessProfile({ ...base, horizon: 'Aucun retrait avant 5 ans', liquidity }).issues.filter(issue => issue.kind === 'conflict').length, 0);
+  }
+  assert.equal(assessProfile(base).issues.length, 0);
 });

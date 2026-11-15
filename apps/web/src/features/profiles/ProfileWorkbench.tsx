@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, CircleHelp, Database, GitCompareArrows, History, Layers, Maximize2, Minimize2, Pencil, RefreshCw, Scale, ShieldCheck, Sparkles, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, Database, GitCompareArrows, History, Layers, Maximize2, Minimize2, Pencil, RefreshCw, Scale, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { authenticatedFetch } from '../../shared/auth';
 import { fieldLabels, fieldOrder, type FieldKey, type Profile } from './profile-model';
@@ -7,11 +7,14 @@ import { assessProfile, isProfileFieldMissing } from './profile-consistency';
 import { profileApiBase, safeSourceUrl, type Citation, type WorkspaceTab } from './profile-api';
 import { ProfileScenario } from './ProfileScenario';
 import { NoteDocument } from './components/NoteDocument';
+import { InsightPanel } from './components/decision-panels/InsightPanel';
+import { AlignmentProfile } from './components/decision-panels/AlignmentProfile';
+import { assessAlignment } from './components/decision-panels/alignment-review';
+import { parseDecisionContent } from './components/decision-panels/decision-data';
 import './profile-workbench.css';
 import './comparison-ui.css';
 type Metric={ticker:string;name:string;returnPct:number;periodVolatilityPct:number;drawdownPct:number;source:string;sourceUrl:string;sourceAsOf?:string;sourceDescription?:string;classification:string;excludedObservations:number};
 type Comparison={type:'comparison';title:string;currency:string;period:{from:string;to:string};observations:number;metrics:Metric[];series:Record<string,string|number>[];dataSha256:string;methodDetails:string;limits:string[];createdAt:string};
-type Insight={portfolioBasis?:{portfolioName:string;currency:string;positions:{label:string;weightPct:number}[]};type:'insight';title:string;question:string;summary:string;status:string;fields:FieldKey[];evidenceIds:string[];alternatives:string[];nextQuestion:string;limits:string[];profileSnapshot:Record<FieldKey,string>;createdAt:string};
 const views=[{id:'profile',label:'Profil',icon:Pencil},{id:'alignment',label:'Alignement',icon:Scale},{id:'comparison',label:'Comparer',icon:GitCompareArrows},{id:'scenarios',label:'Scénarios',icon:Layers},{id:'evidence',label:'Preuves',icon:BookOpen},{id:'memory',label:'Mémoire',icon:History}];
 const groups=[{label:'Vos projets',keys:['objective','horizon']},{label:'Votre risque',keys:['riskTolerance','lossCapacity']},{label:'Vos besoins',keys:['liquidity','constraints']},{label:'Vos préférences',keys:['preferences','knowledge']}] as {label:string;keys:FieldKey[]}[];
 function parse(tab:WorkspaceTab|undefined){try{return tab?JSON.parse(tab.content):null;}catch{return null;}}
@@ -19,20 +22,15 @@ const pct=(n:number)=>`${n.toLocaleString('fr-CA',{maximumFractionDigits:2})} %`
 export function ProfileWorkbench({accountId,profile,onChange,onConfirm,onDiscuss,tabs,onTab,sources,busy,requestedView,memory,expanded,onExpand,renderDocument,onRemove}:{accountId:string;profile:Profile;onChange:(key:FieldKey,value:string)=>void;onConfirm:()=>void;onDiscuss:(s:string)=>void;tabs:WorkspaceTab[];onTab:(t:WorkspaceTab)=>void;sources:Citation[];busy:boolean;requestedView?:string;memory:{status:string;ready:boolean;reload:()=>void};expanded:boolean;onExpand:()=>void;renderDocument?:(tab:WorkspaceTab)=>ReactNode;onRemove:(id:string)=>void}){
  const [evidenceFocus,setEvidenceFocus]=useState(false);
  const currentAccount=useRef(accountId);currentAccount.current=accountId;
- const [view,setView]=useState('profile'),[group,setGroup]=useState(0),[selectedIssue,setSelectedIssue]=useState(-1),[tickers,setTickers]=useState('AAPL, MSFT'),[from,setFrom]=useState('2025-01-01'),[to,setTo]=useState(''),[working,setWorking]=useState(false),[error,setError]=useState(''),[details,setDetails]=useState(false),[scenarioId,setScenarioId]=useState('');
- useEffect(()=>{setView('profile');setError('');setSelectedIssue(-1);setWorking(false);setScenarioId('');},[accountId]);
+ const [view,setView]=useState('profile'),[group,setGroup]=useState(0),[tickers,setTickers]=useState('AAPL, MSFT'),[from,setFrom]=useState('2025-01-01'),[to,setTo]=useState(''),[working,setWorking]=useState(false),[error,setError]=useState(''),[details,setDetails]=useState(false),[scenarioId,setScenarioId]=useState('');
+ useEffect(()=>{setView('profile');setError('');setWorking(false);setScenarioId('');},[accountId]);
  const assessment=assessProfile(profile),warnings=assessment.issues.filter(i=>i.severity==='warning'),missing=assessment.issues.filter(i=>i.severity==='missing');
  const comparisonTab=tabs.find(t=>t.id==='profile-comparison');
  const comparison=parse(comparisonTab) as Comparison|null;
  useEffect(()=>{setTickers(comparison?.metrics?.map(metric=>metric.ticker).join(', ')||'AAPL, MSFT');setFrom(comparison?.period?.from||'2025-01-01');setTo(comparison?.period?.to||'');},[accountId,comparisonTab?.content]);
- const insight=parse(tabs.find(t=>t.id==='profile-alignment')) as Insight|null;
+ const insightData=parseDecisionContent(tabs.find(t=>t.id==='profile-alignment')?.content??'', 'profile-alignment');
+ const insight=insightData?.type==='insight'?insightData:null;
  const visibleSources=evidenceFocus&&insight?sources.filter(s=>insight.evidenceIds.includes(s.id)):sources;
- const stale=insight&&fieldOrder.some(key=>insight.profileSnapshot?.[key]!==profile[key]);
- const orderedIssues=[...warnings,...missing];
- const selected=orderedIssues[Math.max(0,Math.min(selectedIssue,orderedIssues.length-1))];
- const showInsight=Boolean(insight&&selectedIssue===-1);
- useEffect(()=>{if(requestedView?.split(':')[0]==='alignment')setSelectedIssue(-1);},[requestedView,insight?.createdAt]);
- function openField(key:FieldKey){setGroup(groups.findIndex(g=>g.keys.includes(key)));setView('profile');}
  const scenarios=tabs.filter(t=>t.kind==='simulation');
  const matchedScenario=scenarios.findIndex(t=>t.id===scenarioId);
  const scenarioIndex=matchedScenario<0?scenarios.length-1:matchedScenario;
@@ -66,25 +64,8 @@ export function ProfileWorkbench({accountId,profile,onChange,onConfirm,onDiscuss
     <div className="pb-actions"><button className="pb-primary" disabled={busy||!memory.ready} onClick={()=>onDiscuss(`Aide-moi à compléter mon profil, en commençant par ${groups[group].keys.map(k=>fieldLabels[k]).join(' et ')}. Réutilise mes réponses connues, enregistre les nouvelles informations et pose seulement les précisions utiles.`)}><Sparkles size={15}/>Préciser avec l’IA</button><button disabled={!memory.ready||profile.confirmed} onClick={onConfirm}><Check size={15}/>{profile.confirmed?'Profil confirmé':'Confirmer mes réponses'}</button></div>
    </>}
    {view==='alignment'&&<>
-    <div className={`pb-callout ${warnings.length||insight?.status==='tension'?'is-amber':''}`}><Scale size={23}/><div><h3>{insight?.title??warnings[0]?.title??'Comprendre les points à préciser'}</h3><p>{insight?.summary??(missing.length?'Une information manquante appelle une question, pas un verdict.':'Aucun signal des règles actuelles. Cette revue reste partielle.')}</p></div></div>
-    {stale&&<div className="pb-stale"><RefreshCw size={15}/>Le profil a changé depuis cette analyse.<button disabled={busy} onClick={()=>onDiscuss('Actualise l’alignement avec mon profil actuel et les preuves disponibles.')}>Actualiser avec l’IA</button></div>}
-    {insight&&<div className="pb-context-chips">{insight.fields.map(key=><button key={key} onClick={()=>{setGroup(groups.findIndex(g=>g.keys.includes(key)));setView('profile');}}>{fieldLabels[key]}<ArrowRight size={12}/></button>)}<span>Interprétation · {insight.evidenceIds.length} preuve(s) liée(s)</span></div>}
-    <div className="pb-findings"><div className="pb-findings-list">
-     {insight?.portfolioBasis&&Array.isArray(insight.portfolioBasis.positions)&&<section className="pb-portfolio-basis" aria-label="Expositions du portefeuille fictif"><h4>Poids du portefeuille fictif</h4><dl>{insight.portfolioBasis.positions.map((position,i)=><div key={i}><dt>{position.label.replace(/\s*\(fixture\)\s*/gi,'')}</dt><dd>{pct(position.weightPct)}</dd></div>)}</dl><p>Catégories déclarées, sans composition sous-jacente.</p></section>}
-     {insight&&<button className={showInsight?'is-selected':''} aria-pressed={showInsight} onClick={()=>setSelectedIssue(-1)}><Sparkles size={16}/><span>{insight.title}<small>Constat de l’IA</small></span><ChevronRight size={14}/></button>}
-     {orderedIssues.map((issue,i)=><button key={issue.id} className={!showInsight&&selected===issue?'is-selected':''} aria-pressed={!showInsight&&selected===issue} onClick={()=>setSelectedIssue(i)}>{issue.severity==='warning'?<TriangleAlert size={16}/>:<CircleHelp size={16}/>}<span>{issue.title}</span><ChevronRight size={14}/></button>)}
-     {!assessment.issues.length&&<p className="pb-muted">Aucune règle ne signale de point sur ces champs.</p>}
-    </div><div className="pb-finding-detail">
-     {showInsight&&insight?<>
-      <span className="pb-eyebrow">{{tension:'TENSION À DISCUTER',clarification:'QUESTION À PRÉCISER',information:'INTERPRÉTATION',partial:'ANALYSE PARTIELLE'}[insight.status]??'INTERPRÉTATION'}</span>
-      <h3>{insight.question}</h3>
-      {insight.alternatives?.length>0&&<div className="pb-insight-options"><h4>Pistes à discuter</h4>{insight.alternatives.map((option,i)=><button key={i} disabled={busy||Boolean(stale)} onClick={()=>onDiscuss(`Examinons cette piste : ${option}. Contexte : ${insight.question}. Explique les compromis, les preuves et les inconnues, puis actualise la carte Alignement.`)}><span>{option}</span><ArrowRight size={14}/></button>)}</div>}
-      <div className="pb-insight-fields">{insight.fields.map(key=><button key={key} onClick={()=>openField(key)}><span><small>{fieldLabels[key]}</small>{profile[key]||'À préciser'}</span><Pencil size={13}/></button>)}</div>
-      {insight.limits?.length>0&&<details className="pb-insight-limits"><summary>Limites de ce constat ({insight.limits.length})</summary><ul>{insight.limits.map((limit,i)=><li key={i}>{limit}</li>)}</ul></details>}
-     </>:<><span className="pb-eyebrow">{selected?.severity==='warning'?'TENSION À CLARIFIER':selected?'INFORMATION MANQUANTE':'REVUE PARTIELLE'}</span><h3>{selected?.title??'Aller plus loin avec les données'}</h3><p>{selected?.description??'Comparez les actifs discutés pour relier des observations au contexte du profil.'}</p>{selected?.fields.map(key=><blockquote key={key}><small>{fieldLabels[key]}</small>{profile[key]||'Non renseigné'}<button className="pb-text-button" onClick={()=>openField(key)}>Modifier ce champ<Pencil size={12}/></button></blockquote>)}<button disabled={busy} className="pb-text-button" onClick={()=>onDiscuss(`Aide-moi à clarifier ${selected?.title??'l’alignement avec ma demande'}. Explique le lien avec mon objectif, mes inconnues et les données disponibles. Publie le constat dans Alignement.`)}>Discuter de ce point<ArrowRight size={14}/></button></>}
-    </div></div>
-    {insight?.nextQuestion&&<div className="pb-help"><CircleHelp size={18}/><span>{insight.nextQuestion}</span></div>}
-    <div className="pb-actions"><button disabled={busy} className="pb-primary" onClick={()=>onDiscuss('Examine la cohérence de mon profil et ma demande actuelle. Publie une carte dans Alignement en conservant les inconnues. Ne traite pas une simple demande d’information comme une intention d’achat.')}>Analyser avec l’IA<ArrowRight size={15}/></button><button onClick={()=>{setEvidenceFocus(true);setView('evidence');}}><BookOpen size={15}/>Voir les preuves</button></div>
+    {insight ? <InsightPanel key={accountId} data={insight} profile={profile} sources={sources} onChange={onChange} onDiscuss={onDiscuss} disabled={busy||!memory.ready} saveStatus={memory.status}/> : <div className="decision-insight"><header className="di-heading"><span className="di-symbol"><Scale size={20}/></span><h2>Votre profil face au projet</h2></header><p className="pw-muted">Précisez vos réponses ou demandez une synthèse à l’assistant. Les alertes portent sur vos déclarations, sans mesurer le risque d’un placement.</p><AlignmentProfile key={accountId} profile={profile} fields={fieldOrder} issues={assessAlignment(profile)} onChange={onChange} onDiscuss={onDiscuss} disabled={busy||!memory.ready} saveStatus={memory.status}/></div>}
+    <div className="pb-actions"><button disabled={busy||!memory.ready} className="pb-primary" onClick={()=>onDiscuss('Examine la cohérence de mon profil et ma demande actuelle. Publie une carte dans Alignement en conservant les inconnues. Distingue une contradiction explicite, une différence entre tolérance et capacité, et une information manquante. Ne traite pas une simple demande d’information comme une intention d’achat.')}><Scale size={15}/>{insight?'Actualiser la synthèse':'Analyser avec l’assistant'}</button><button onClick={()=>{setEvidenceFocus(true);setView('evidence');}}><BookOpen size={15}/>Voir les preuves</button></div>
    </>}
    {view==='comparison'&&<>
     <div className="pb-section-title"><div><h3>Comparer avec les mêmes repères</h3><p>Dates communes · même devise · historique ajusté</p></div><GitCompareArrows size={24}/></div>
