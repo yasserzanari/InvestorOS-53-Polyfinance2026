@@ -88,7 +88,7 @@
 .pw-empty>.pw-landing-heading{width:100%;display:flex;flex-direction:column;align-items:center}
 .pw-landing-mark{width:38px;height:38px;display:grid;place-items:center;margin-bottom:17px;border:1px solid #dce6f5;border-radius:12px;background:#fff;color:#4d6fae;box-shadow:0 3px 12px #263e6410}
 .pw-chat.is-landing .pw-empty.pw-assistant-landing{position:relative}
-.pw-empty>.pw-voice-orb.pw-landing-orb{position:absolute;top:clamp(28px,8vh,68px);left:calc(50% - 42px);width:84px;height:84px;display:block;isolation:isolate;margin:0;box-shadow:0 0 30px #78bdf266,0 0 68px #9b96f633,inset 0 0 18px #fff}
+.pw-empty>.pw-voice-orb.pw-landing-orb{position:relative;top:auto;left:auto;flex:none;width:clamp(56px,8vw,84px);height:clamp(56px,8vw,84px);display:block;isolation:isolate;margin:0 0 clamp(18px,4vh,34px);box-shadow:0 0 30px #78bdf266,0 0 68px #9b96f633,inset 0 0 18px #fff}
 .pw-landing-orb:before{position:absolute;z-index:-1;inset:-20px;border-radius:50%;background:radial-gradient(circle,#9bdcf255 0%,#c9baff32 46%,transparent 74%);content:"";filter:blur(10px);animation:pw-landing-orb-aura 3.6s ease-in-out infinite alternate}
 @keyframes pw-landing-orb-aura{from{opacity:.45;transform:scale(.88)}to{opacity:1;transform:scale(1.08)}}
 .pw-landing-orb{transition:opacity .2s ease,visibility .2s ease}
@@ -106,7 +106,7 @@
 .pw-chat.is-landing .pw-landing-ideas button svg{flex:none;color:#7890b5}
 @media(max-width:700px){.pw-chat.is-landing .pw-empty.pw-assistant-landing{padding:28px 20px}.pw-chat.is-landing .pw-landing-heading h2{font-size:27px}.pw-chat.is-landing .pw-landing-heading p{margin-bottom:20px}.pw-landing-ideas{margin-top:18px}.pw-chat.is-landing .pw-landing-ideas button{min-height:46px;font-size:11px}}
 @media(prefers-reduced-motion:reduce){.pw-landing-composer .pw-prompt-root>div,.pw-chat.is-landing .pw-landing-ideas button{transition:none}}
-.pw-chat.is-landing .pw-empty.pw-assistant-landing{width:min(100%,1280px);padding:clamp(32px,5vh,72px) clamp(24px,5vw,88px)}
+.pw-chat.is-landing .pw-empty.pw-assistant-landing{width:min(100%,1280px);padding:clamp(16px,3.5vh,44px) clamp(18px,5vw,88px)}
 .pw-chat.is-landing .pw-landing-heading h2{font-size:clamp(30px,3.4vw,44px)}
 .pw-chat.is-landing .pw-landing-heading p{margin-top:12px;margin-bottom:28px;font-size:14px}
 .pw-landing-composer .pw-prompt-root{max-width:1000px}
