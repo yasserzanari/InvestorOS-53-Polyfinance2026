@@ -46,21 +46,6 @@ resource "aws_iam_role_policy" "runtime" {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${var.lambda_log_group_arn}:*"
-        }, {
-        Sid    = "ReadPlatformInventoryAndMetrics"
-        Effect = "Allow"
-        Action = [
-          "apigateway:GET", "cloudfront:ListDistributions", "cloudwatch:GetMetricData",
-          "dynamodb:DescribeTable", "dynamodb:ListTables", "lambda:ListFunctions",
-          "s3:ListAllMyBuckets", "states:DescribeStateMachine", "states:ListExecutions",
-          "states:ListStateMachines", "servicequotas:ListServiceQuotas", "ce:GetCostAndUsage"
-        ]
-        Resource = "*"
-        }, {
-        Sid      = "DescribeInvestorOSFunctions"
-        Effect   = "Allow"
-        Action   = ["lambda:GetFunctionConfiguration"]
-        Resource = "arn:aws:lambda:*:*:function:${var.name_prefix}-*"
       },
       {
         Sid      = "StartFrenchLiveTranscription"
@@ -109,6 +94,50 @@ resource "aws_iam_role_policy" "voice_vocabulary" {
   })
 }
 
+resource "aws_iam_role_policy" "admin_observability" {
+  name = "${var.name_prefix}-api-admin-observability"
+  role = aws_iam_role.lambda_execution.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DiscoverPlatformInventoryAndReadMetrics"
+        Effect = "Allow"
+        Action = [
+          "apigateway:GET",
+          "ce:GetCostAndUsage",
+          "cloudfront:ListDistributions",
+          "cloudwatch:GetMetricData",
+          "dynamodb:ListTables",
+          "lambda:ListFunctions",
+          "s3:ListAllMyBuckets",
+          "servicequotas:ListServiceQuotas",
+          "states:ListStateMachines"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "ReadInvestorOSResourceDetails"
+        Effect   = "Allow"
+        Action   = ["dynamodb:DescribeTable"]
+        Resource = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.name_prefix}-*"
+      },
+      {
+        Sid      = "ReadInvestorOSFunctionDetails"
+        Effect   = "Allow"
+        Action   = ["lambda:GetFunctionConfiguration"]
+        Resource = "arn:${data.aws_partition.current.partition}:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.name_prefix}-*"
+      },
+      {
+        Sid      = "ReadInvestorOSWorkflowDetails"
+        Effect   = "Allow"
+        Action   = ["states:DescribeStateMachine", "states:ListExecutions"]
+        Resource = "arn:${data.aws_partition.current.partition}:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${var.name_prefix}-*"
+      }
+    ]
+  })
+}
+
 resource "aws_lambda_function" "api" {
   function_name                  = local.function_name
   description                    = "InvestorOS demo data, Simulation, and Amazon Bedrock chat API."
@@ -146,7 +175,7 @@ resource "aws_lambda_function" "api" {
     }
   }
 
-  depends_on = [aws_iam_role_policy.runtime, aws_iam_role_policy.voice_vocabulary]
+  depends_on = [aws_iam_role_policy.runtime, aws_iam_role_policy.voice_vocabulary, aws_iam_role_policy.admin_observability]
 
   # The live API Lambda also serves the separately maintained research stack.
   # Keep its research-owned environment values while Terraform manages this
