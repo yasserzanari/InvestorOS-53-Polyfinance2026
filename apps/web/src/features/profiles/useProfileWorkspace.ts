@@ -44,7 +44,7 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
         const activeStored=localStorage.getItem(legacyActiveKey(accountId))||'';
         const listResponse=await authenticatedFetch(endpoint,{signal:controller.signal});if(!listResponse.ok)throw new Error(`Historique indisponible (${listResponse.status}).`);
         const listData=await listResponse.json() as {conversations?:ConversationHistoryItem[]};const remoteItems=Array.isArray(listData.conversations)?listData.conversations:[];const items=[...remoteItems,...legacy.filter(item=>!remoteItems.some(saved=>saved.id===item.id)).map(({id,title,lastUsedAt})=>({id,title,lastUsedAt}))].sort((a,b)=>b.lastUsedAt-a.lastUsedAt).slice(0,30);
-        const active=items.find(item=>item.id===activeStored)?.id??items[0]?.id??createLocalId();let loaded=initial(accountId);
+        const active=view==='profiles'?createLocalId():items.find(item=>item.id===activeStored)?.id??items[0]?.id??createLocalId();let loaded=initial(accountId);
         if(items.some(item=>item.id===active)){const detail=await authenticatedFetch(`${endpoint}/${encodeURIComponent(active)}`,{signal:controller.signal});if(!detail.ok)throw new Error(`La conversation sélectionnée est introuvable (${detail.status}).`);const stored=await detail.json() as StoredConversation;loaded={...loaded,messages:stored.messages??[],tabs:stored.tabs??[],researchRuns:stored.researchRuns??[],activeTab:stored.activeTab??'',conversationScoped:true};}
         if(!alive)return;
         localStorage.removeItem(legacyConversationsKey(accountId));localStorage.removeItem(legacyActiveKey(accountId));
@@ -93,25 +93,25 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     void poll();return()=>{controller.abort();clearTimeout(timer);};
   },[accountId,conversationId,researchKey,researchRefresh]);
   useEffect(()=>{
-    if(!historyReady||(!workspace.messages.length&&!workspace.tabs.length)||!conversationId)return;
+    if(!historyReady||!conversationId||(!workspace.messages.length&&(view==='profiles'||!workspace.tabs.length)))return;
     const timer=window.setTimeout(()=>{
       const first=workspace.messages.find(message=>message.role==='user')?.text||'Nouvelle conversation';
-      const item:StoredConversation={id:conversationId,title:first.replace(/\s+/g,' ').slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab};
+      const item:StoredConversation={id:conversationId,title:first.replace(/\s+/g,' ').slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:view==='profiles'?[]:workspace.tabs,researchRuns:workspace.researchRuns,activeTab:view==='profiles'?'':activeTab};
       void authenticatedFetch(`${profileApiBase}/v1/profiles/conversations/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(conversationPayload(item))}).then(response=>{if(!response.ok)throw new Error(`Sauvegarde de l’historique impossible (${response.status}).`);if(currentAccount.current!==accountId)return;setHistoryError('');setConversations(previous=>[item,...previous.filter(entry=>entry.id!==conversationId)].slice(0,30));}).catch(e=>{if(currentAccount.current===accountId){setHistoryError(e instanceof Error?e.message:'Sauvegarde du compte impossible.');setHistoryReady(false);}});
     },700);return()=>window.clearTimeout(timer);
-  },[accountId,historyReady,workspace.messages,workspace.tabs,workspace.researchRuns,activeTab,conversationId]);
+  },[accountId,historyReady,workspace.messages,workspace.tabs,workspace.researchRuns,activeTab,conversationId,view]);
   const saveCurrentConversation=async()=>{
-    if(!conversationId||(!workspace.messages.length&&!workspace.tabs.length))return;
+    if(!conversationId||(!workspace.messages.length&&(view==='profiles'||!workspace.tabs.length)))return;
     const title=workspace.messages.find(message=>message.role==='user')?.text||'Nouvelle conversation';
-    const item:StoredConversation={id:conversationId,title:title.replace(/\s+/g,' ').slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab};
+    const item:StoredConversation={id:conversationId,title:title.replace(/\s+/g,' ').slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:view==='profiles'?[]:workspace.tabs,researchRuns:workspace.researchRuns,activeTab:view==='profiles'?'':activeTab};
     const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/conversations/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(conversationPayload(item))});
     if(!response.ok)throw new Error(`Sauvegarde de l’historique impossible (${response.status}).`);
     setConversations(previous=>[item,...previous.filter(entry=>entry.id!==conversationId)].slice(0,30));
   };
   const startNewConversation=useCallback(()=>{
     if(requestBusy.current||!historyReady)return;
-    void (async()=>{try{await saveCurrentConversation();const nextId=createLocalId();setConversationId(nextId);currentConversation.current=nextId;forcedResearch.current.clear();update(w=>({...w,messages:[],tabs:[],researchRuns:[],activeTab:'',widgetSelection:undefined}));setActiveTabState('');setError('');setHistoryError('');}catch(e){setHistoryError(e instanceof Error?e.message:'Sauvegarde du compte impossible.');setHistoryReady(false);}})();
-  },[conversationId,workspace,activeTab,accountId,historyReady]);
+    void (async()=>{try{await saveCurrentConversation();const nextId=createLocalId();setConversationId(nextId);currentConversation.current=nextId;forcedResearch.current.clear();update(w=>({...w,messages:[],tabs:view==='profiles'?w.tabs:[],sources:view==='profiles'?w.sources:[],researchRuns:[],activeTab:view==='profiles'?w.activeTab:'',widgetSelection:undefined}));setActiveTabState(view==='profiles'?activeTab:'');setError('');setHistoryError('');}catch(e){setHistoryError(e instanceof Error?e.message:'Sauvegarde du compte impossible.');setHistoryReady(false);}})();
+  },[conversationId,workspace,activeTab,accountId,historyReady,view]);
   const openConversation=useCallback((id:string)=>{
     if(requestBusy.current||id===conversationId||!historyReady)return;
     const owner=accountId;const priorId=conversationId;
@@ -121,13 +121,13 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
         const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/conversations/${encodeURIComponent(owner)}/${encodeURIComponent(id)}`);
         if(!response.ok)throw new Error(`La conversation n’a pas pu être chargée (${response.status}).`);
         const target=await response.json() as StoredConversation;if(currentAccount.current!==owner)return;
-        const tabs=target.tabs??[];const selected=tabs.some(tab=>tab.id===target.activeTab)?target.activeTab!:tabs[0]?.id??'';
+        const conversationTabs=target.tabs??[];const tabs=view==='profiles'?workspace.tabs:conversationTabs;const selected=view==='profiles'?activeTab:(tabs.some(tab=>tab.id===target.activeTab)?target.activeTab!:tabs[0]?.id??'');
         currentConversation.current=id;setConversationId(id);forcedResearch.current.clear();
         update(w=>({...w,messages:target.messages??[],widgetSelection:undefined,tabs,researchRuns:target.researchRuns??[],activeTab:selected}));setActiveTabState(selected);setError('');setHistoryError('');
         const metadata={id,title:target.title,lastUsedAt:Date.now()};setConversations(previous=>[metadata,...previous.filter(item=>item.id!==id&&item.id!==priorId)].slice(0,30));
       }catch(e){if(currentAccount.current===owner){setHistoryError(e instanceof Error?e.message:'Chargement du compte impossible.');setHistoryReady(false);}}
     })();
-  },[conversations,workspace,activeTab,conversationId,accountId,historyReady]);
+  },[conversations,workspace,activeTab,conversationId,accountId,historyReady,view]);
   const send=async(text:string,regenerateId?:string,questionReply?:{messageId:string;request:AskUserRequest;answer:AskUserAnswer})=>{
     if(requestBusy.current||!text.trim()||!historyReady)return; requestBusy.current=true; setBusy(true);setError('');setActivity('Connexion à Bedrock');
     let completed=false;
