@@ -189,3 +189,6 @@
 .pw-proof details{margin:8px 0;padding-left:12px;border-left:2px solid var(--line)}
 .pw-proof-references{display:block;margin:4px 0 16px}
 .pw-view-research{display:inline-flex;align-items:center;gap:8px;margin:12px 0;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--brand);font:inherit;font-size:12px}
+.pw-add-tab{display:flex;align-items:center;gap:5px;border:0;background:transparent;padding:0 12px;color:#526b91;font-size:11px;font-weight:550}
+.pw-add-tab:hover{color:#315fba;background:#eef4ff}
+.pw-add-tab span{white-space:nowrap}

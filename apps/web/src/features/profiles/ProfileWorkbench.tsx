@@ -6,6 +6,7 @@ import { fieldLabels, fieldOrder, type FieldKey, type Profile } from './profile-
 import { assessProfile, isProfileFieldMissing } from './profile-consistency';
 import { profileApiBase, safeSourceUrl, type Citation, type WorkspaceTab } from './profile-api';
 import { ProfileScenario } from './ProfileScenario';
+import { NoteDocument } from './components/NoteDocument';
 import './profile-workbench.css';
 import './comparison-ui.css';
 type Metric={ticker:string;name:string;returnPct:number;periodVolatilityPct:number;drawdownPct:number;source:string;sourceUrl:string;sourceAsOf?:string;sourceDescription?:string;classification:string;excludedObservations:number};
@@ -111,7 +112,7 @@ export function ProfileWorkbench({accountId,profile,onChange,onConfirm,onDiscuss
    {view==='documents'&&<>
     <div className="pb-section-title"><div><h3>Votre espace de travail</h3><p>Notes, tâches et résultats préparés dans la conversation.</p></div>{document&&<button onClick={()=>onRemove(document.id)}>Fermer ce document</button>}</div>
     <div className="pb-context-chips">{documents.map(t=><button key={t.id} aria-pressed={document?.id===t.id} onClick={()=>setDocumentId(t.id)}>{t.title}</button>)}</div>
-    {document&&<div className="pb-document-content">{renderDocument?.(document)??<><h3>{document.title}</h3><textarea aria-label="Contenu du document" value={document.content} onChange={e=>onTab({...document,content:e.target.value})}/>{document.items?.map(item=><label className="pb-document-task" key={item.id}><input type="checkbox" checked={item.status==='done'} onChange={e=>onTab({...document,items:document.items?.map(i=>i.id===item.id?{...i,status:e.target.checked?'done':'pending'}:i)})}/><span>{item.title}</span>{item.url&&<a href={safeSourceUrl(item.url)} target="_blank" rel="noreferrer">Ouvrir</a>}</label>)}</>}</div>}
+    {document&&<div className="pb-document-content">{renderDocument?.(document)??(document.kind==='note'?<NoteDocument title={document.title} content={document.content} onTitleChange={title=>onTab({...document,title})} onContentChange={content=>onTab({...document,content})} persistenceLabel={memory.status}/>:<><h3>{document.title}</h3><textarea aria-label="Contenu du document" value={document.content} onChange={e=>onTab({...document,content:e.target.value})}/>{document.items?.map(item=><label className="pb-document-task" key={item.id}><input type="checkbox" checked={item.status==='done'} onChange={e=>onTab({...document,items:document.items?.map(i=>i.id===item.id?{...i,status:e.target.checked?'done':'pending'}:i)})}/><span>{item.title}</span>{item.url&&<a href={safeSourceUrl(item.url)} target="_blank" rel="noreferrer">Ouvrir</a>}</label>)}</>)}</div>}
    </>}
    {view==='memory'&&<>
     <div className="pb-callout"><Database size={25}/><div><h3>Un contexte qui vous suit</h3><p>{memory.status}</p></div><button aria-label="Recharger la mémoire serveur" onClick={memory.reload}><RefreshCw size={16}/></button></div>
