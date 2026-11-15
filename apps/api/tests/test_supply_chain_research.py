@@ -64,6 +64,19 @@ class SupplyChainResearchTests(unittest.TestCase):
             self.assertEqual(extraction_json(text),payload)
         with self.assertRaises(ValueError):extraction_json('Pas de JSON valide {suppliers: nope}')
 
+    def test_specialist_forces_structured_result_after_skill_bootstrap(self):
+        from investoros_api.profiles.skill_agent import run_skill_agent
+        from investoros_api.profiles.supply_chain_research import EXTRACTION_SCHEMA
+        class Client:
+            def converse(self,**kwargs):
+                self.config=kwargs['toolConfig']
+                return {'output':{'message':{'role':'assistant','content':[{'toolUse':{'toolUseId':'result','name':'publish_result','input':{'suppliers':[],'events':[]}}}]}},'stopReason':'tool_use','usage':{}}
+        client=Client()
+        result=run_skill_agent(client,model_id='stub',system='Extract',prompt='Documents',required_skills=('supply-chain',),result_schema=EXTRACTION_SCHEMA)
+        self.assertEqual(json.loads(result['text']),{'suppliers':[],'events':[]})
+        self.assertEqual(client.config['toolChoice']['tool']['name'],'publish_result')
+        self.assertEqual(result['skills'][0]['id'],'supply-chain')
+
     def test_fixed_origins_block_ssrf(self):
         for url in ['http://data.sec.gov/','https://localhost/','https://data.sec.gov@127.0.0.1/','https://data.sec.gov:444/']:
             with self.subTest(url=url),self.assertRaises(ValueError): read(url)
