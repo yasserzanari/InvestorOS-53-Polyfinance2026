@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, BookOpenCheck, BriefcaseBusiness, ChartNoAxesCombined, Layers3, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { productModules } from '../../app/modules';
-import { demoAccounts } from '../../shared/DemoAccountContext';
 import { loadSimulationNews, type DemoApiConnection, type SimulationNewsArticle } from '../../shared/api';
 import { DashboardActivityFeed } from './components/DashboardActivityFeed';
 import { PortfolioDiversificationMap } from './components/PortfolioDiversificationMap';
@@ -15,7 +13,6 @@ function linkedTickers(api: DemoApiConnection): string[] {
 }
 
 export function DashboardOverview({ api, onStartChat, children }: { api: DemoApiConnection; onStartChat: (question: string) => void; children: ReactNode }) {
-  const modules = productModules.filter(({ id }) => id !== 'overview');
   const connected = api.status === 'connected';
   const tickers = useMemo(() => linkedTickers(api), [api]);
   const tickerKey = tickers.join(',');
@@ -66,21 +63,11 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
     { label: 'Sources et méthode', value: 'Consulter', note: 'Provenance, disponibilité et limites', Icon: BookOpenCheck, href: '/app/evidence', tone: 'amber' },
   ];
 
-  const apiMessage = api.status === 'connected'
-    ? `API AWS connectée · ${api.overview.account.display_name} · source DynamoDB fictive`
-    : api.status === 'rate_limited'
-      ? 'API temporairement limitée (429). Réessayez dans quelques instants.'
-      : api.status === 'unavailable'
-        ? 'API AWS indisponible; les modules affichés restent en mode démonstration.'
-        : 'Mode démonstration · API AWS non configurée pour cet environnement.';
-
   return (
     <section className="dashboard-overview-view" aria-label="Vue d’ensemble InvestorOS">
       <header className="dashboard-heading">
         <div>
           <h1>Votre espace de décision</h1>
-          <p>Un aperçu clair des données disponibles et des prochaines étapes.</p>
-          <p className="dashboard-api-notice" role="status" aria-live="polite">{apiMessage}</p>
         </div>
         <Link className="dashboard-primary-action" to="/app/profiles"><UsersRound size={16} /> Créer un profil <ArrowRight size={15} /></Link>
       </header>
@@ -99,18 +86,6 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
         <div className="dashboard-main-column">
           <div className="dashboard-prompt-center">{children}</div>
           <DashboardActivityFeed api={api} news={marketNews} newsStatus={newsStatus} hasLinkedTickers={tickers.length > 0} />
-          <section className="dashboard-panel platform-stats-panel" aria-labelledby="platform-stats-title">
-            <div className="dashboard-panel-heading">
-              <div><h2 id="platform-stats-title">InvestorOS en bref</h2><p>Les ressources de cet environnement de démonstration.</p></div>
-              <ChartNoAxesCombined size={18} className="platform-stats-icon" aria-hidden="true" />
-            </div>
-            <div className="platform-stats-grid">
-              <div><strong>{modules.length}</strong><span>espaces de travail</span></div>
-              <div><strong>{demoAccounts.length}</strong><span>profils démo</span></div>
-              <div><strong>{connected ? 'Connectée' : api.status === 'not_configured' ? 'À relier' : 'Indisponible'}</strong><span>API du compte</span></div>
-            </div>
-            <p className="platform-stats-note">Les profils et portefeuilles affichés sont fictifs; les nouvelles de marché ne sont associées qu’aux tickers explicitement présents dans les positions.</p>
-          </section>
         </div>
 
         <div className="dashboard-side-column">
