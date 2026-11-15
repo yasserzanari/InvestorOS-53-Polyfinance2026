@@ -22,6 +22,8 @@ Après le calcul, les courbes conditionnelles sont sélectionnables directement 
 
 Depuis une observation sélectionnée, le bouton de relais envoie à l’Assistant le ticker, la date, la source et les rendements calculés disponibles. Depuis le chat, `inspect_simulation_history` lit aussi le jeu historique configuré pour le ticker et `project_market_scenarios` appelle le même moteur de quantiles que cette page, avec deux à quatre chocs et jalons explicitement fournis par l’utilisateur. Les deux résultats donnent accès au ticker dans Simulation. L’Assistant ne lance pas de recherche GDELT, Federal Register, EDGAR ou X; ces sources restent consultables dans le module. Les prompts séparent la coïncidence temporelle de la causalité et demandent quelles preuves manquent. Une analyse d’une déclaration SEC récente doit dire explicitement quand la série de prix s’arrête avant le dépôt.
 
+Le relais d’un événement vers les hypothèses copie aussi son URL HTTPS dans chaque branche (Federal Register, EDGAR, GDELT ou page historique du ticker). Le lien reste affiché et cliquable dans le formulaire, la carte de résultat et l’onglet Simulation ouvert depuis l’Assistant. Une URL peut aussi être saisie par branche. L’API refuse les liens non HTTPS ou contenant des identifiants. Le calcul ne vérifie pas le contenu du lien : cette provenance reste déclarative et ne signifie pas que l’événement a causé le choc choisi.
+
 Les personas Amira, Mateo et Robert restent des profils de démonstration séparés de l’univers des tickers. Aucun symbole de ce jeu ne doit être présenté comme une position réelle d’un persona sans correspondance documentée.
 
 ## API
