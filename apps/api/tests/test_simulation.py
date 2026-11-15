@@ -301,13 +301,27 @@ class SimulationHistoryTests(unittest.TestCase):
         self.assertIn("$ABC", query)
 
     @patch("investoros_api.simulation.urlopen")
-    def test_x_search_rejects_invalid_or_too_many_accounts_before_request(self, open_url):
+    def test_x_search_rejects_invalid_accounts_before_request(self, open_url):
         with patch.dict(os.environ, {"SIMULATION_X_SEARCH_ENABLED": "true", "X_API_BEARER_TOKEN": "server-only-token"}):
-            for accounts in ("not a handle!", "a,b,c,d,e,f"):
+            for accounts in ("not a handle!", "handle_more_than_fifteen_characters", "a,(b)"):
                 with self.subTest(accounts=accounts), self.assertRaises(HTTPException) as raised:
                     simulation.issuer_social_posts("ABC", accounts=accounts)
                 self.assertEqual(raised.exception.status_code, 422)
         open_url.assert_not_called()
+
+    @patch("investoros_api.simulation.urlopen")
+    def test_x_search_splits_six_authors_and_deduplicates_posts(self, open_url):
+        duplicate={"id":"123", "text":"Example update", "created_at":"2026-11-14T15:30:00Z"}
+        recent={"id":"124", "text":"Recent update", "created_at":"2026-11-14T16:30:00Z"}
+        open_url.side_effect=[BytesIO(json.dumps({"data":[duplicate]}).encode()),
+                              BytesIO(json.dumps({"data":[duplicate,recent]}).encode())]
+        with patch.dict(os.environ,{"SIMULATION_X_SEARCH_ENABLED":"true","X_API_BEARER_TOKEN":"server-only-token"}):
+            result=simulation.issuer_social_posts("ABC",accounts="a,b,c,d,e,f")
+        self.assertEqual(open_url.call_count,2)
+        queries=[parse_qs(urlsplit(call.args[0].full_url).query)["query"][0] for call in open_url.call_args_list]
+        self.assertTrue(all(query.count('from:')<=5 for query in queries))
+        self.assertEqual([post['id'] for post in result['posts']],['124','123'])
+        self.assertEqual(result['accounts'],['a','b','c','d','e','f'])
 
     @patch("investoros_api.simulation.boto3.client")
     @patch("investoros_api.simulation.urlopen")

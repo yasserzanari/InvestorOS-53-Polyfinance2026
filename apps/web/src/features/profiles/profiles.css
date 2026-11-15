@@ -132,3 +132,48 @@
 .pw-workspace.is-resizing,.pw-workspace.is-resizing *{cursor:col-resize!important;user-select:none!important}
 @media(max-width:700px){.pw-split-handle{display:none}}
 @media(prefers-reduced-motion:reduce){.pw-split-handle>span{transition:none}}
+
+.pw-workspace.is-assistant-mode.is-panel-closed{grid-template-columns:minmax(0,1fr)}
+.pw-workspace.is-panel-closed>.pw-inspector{display:none}
+.pw-workspace.is-panel-closed>.pw-chat{border-right:0}
+@media(min-width:701px){.pw-workspace.is-panel-open{grid-template-columns:minmax(0,var(--profile-split,50%)) 8px minmax(0,1fr)}}
+@media(max-width:700px){.pw-workspace.is-assistant-mode{grid-template-columns:minmax(0,1fr)}}
+
+/* The question card and the free-text composer share one aligned column. */
+.pw-composer>div:first-child{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.pw-composer .pw-prompt-root,.pw-composer .pw-question-dock{width:100%;max-width:none;margin-inline:0}
+.pw-question-dock{border:1px solid #d9e4fa;border-radius:14px;background:var(--surface);overflow:hidden}
+.pw-question-dock .pw-question-waiting{border:0;border-bottom:1px solid #d9e4fa;border-radius:0}
+.pw-question-dock .ask-user-card{border:0;border-radius:0}
+.pw-question-dock .ask-user-footer{justify-content:flex-end}
+.pw-chat{position:relative}
+.pw-floating-new{position:absolute;z-index:8;right:20px;top:16px;width:36px;height:36px;box-shadow:0 3px 12px #16243b12}
+.pw-workspace.is-assistant-mode .pw-messages{padding-top:48px}
+.assistant-topbar-actions{display:flex;align-items:center;gap:8px}
+.assistant-topbar-actions:empty{display:none}
+.assistant-topbar-actions .pw-history-trigger{cursor:pointer}
+.assistant-topbar-actions .pw-history-trigger:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+@media(max-width:760px){.assistant-topbar-actions .pw-history-trigger>span{display:none}.assistant-topbar-actions .pw-history-trigger{padding:0 8px}.pw-floating-new{right:12px;top:12px}}
+.pw-research-tab{max-width:960px;margin:auto;color:var(--text);font-size:13px;line-height:1.65}
+.pw-research-tab>p{color:var(--muted)}
+.pw-skills-list{list-style:none;margin:18px 0;padding:0;display:grid;gap:10px}
+.pw-skills-list li{display:grid;gap:5px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.pw-skills-list span,.pw-skills-list small{color:var(--muted)}
+.pw-skills-list code{font-size:10px;overflow-wrap:anywhere;color:#64758e}
+.pw-research-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.pw-research-actions button{padding:7px 10px;border:1px solid var(--line);border-radius:8px;color:var(--brand);background:var(--surface);font:inherit;font-size:11px}
+.pw-research-result{border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;background:var(--surface)}
+.pw-research-result header{display:flex;justify-content:space-between;align-items:start;gap:12px}
+.pw-research-result h3{font-size:15px;margin:0 0 8px}
+.pw-research-result header>span{flex:none;color:var(--brand);font-size:11px}
+.pw-research-result small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+.pw-research-answer{white-space:pre-wrap}
+.pw-research-result a{color:var(--brand)}
+.pw-research-warning{background:#fff8ea;border-radius:8px;padding:10px;color:#88672b}
+.pw-research-coverage{margin:18px 0;padding:12px 16px;background:var(--canvas);border:1px solid var(--line);border-radius:8px}
+.pw-research-coverage h4{margin-top:0}
+.pw-proof{margin:12px 0;border-top:1px solid var(--line);padding-top:10px;overflow-wrap:anywhere}
+.pw-proof summary{cursor:pointer;color:var(--brand);font-weight:600;padding:6px 0}
+.pw-proof details{margin:8px 0;padding-left:12px;border-left:2px solid var(--line)}
+.pw-proof-references{display:block;margin:4px 0 16px}
+.pw-view-research{display:inline-flex;align-items:center;gap:8px;margin:12px 0;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--brand);font:inherit;font-size:12px}

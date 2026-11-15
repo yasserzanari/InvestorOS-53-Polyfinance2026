@@ -288,3 +288,29 @@ export async function runSimulationProjection(input: {
   }
   return response.json() as Promise<SimulationProjection>;
 }
+
+export type PublicXPost = {metrics?: {replies?:number; reposts?:number; likes?:number; views?:number; bookmarks?:number}; id: string; text: string; created_at?: string; url?: string; images?: string[]};
+export type PublicXProfile = { detailsVersion?: number; following?: number; joinedAt?: string | null; website?: string | null; location?: string; recentPosts?: PublicXPost[]; postsObservedAt?: string; postsSource?: string; id: string; username: string; name: string; image?: string; bio?: string; followers?: number; verified?: boolean; verifiedType?: string; source: string; latestPost: { id: string; text: string; created_at?: string } | null; latestPostReason?: string };
+export type AnythingSite = { name: string; description: string; operations: number };
+export const loadSourceCatalog = (signal?: AbortSignal) => getSimulation<{ sites: AnythingSite[] }>('source-catalog', signal);
+export const loadSourceOperations = (site: string, signal?: AbortSignal) => getSimulation<{ site: string; baseUrl?: string; notes?: string; operations: Array<{ name: string; description: string; params: string[]; returns?: string[]; readOnly?: boolean }> }>(`source-operations/${encodeURIComponent(site)}`, signal);
+export const loadPublicXProfile = (username: string, signal?: AbortSignal) => getSimulation<PublicXProfile>(`x-profile/${encodeURIComponent(username.replace(/^@/, ''))}`, signal);
+export type SourceWorkspace = { hidden_sources?: string[]; learning_job?: string | null; selected: string; query: string; profile: PublicXProfile | null; authorized: PublicXProfile[]; searches: Array<{ query: string; at: string; error?: string }> };
+export const loadSourceWorkspace = (account: string, signal?: AbortSignal) => getSimulation<SourceWorkspace>(`source-workspace/${encodeURIComponent(account)}`, signal);
+export async function saveSourceWorkspace(account: string, workspace: SourceWorkspace): Promise<SourceWorkspace> {
+  const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
+  if (!base) throw new Error('La connexion au serveur n’est pas configurée.');
+  const response = await fetch(`${base}/v1/simulation/source-workspace/${encodeURIComponent(account)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(workspace) });
+  if (!response.ok) throw new Error('Impossible d’enregistrer les modifications sur le serveur.');
+  return response.json();
+}
+export type SourceLearning = { status: 'running' | 'complete' | 'error'; events: Array<{message: string; at?: string}>; url?: string; frame: number; site?: string; result?: { signature?: string; error?: string }; };
+export const sourceLearningBase = () => `${getApiBase() ?? '/profile-api'}/v1/simulation/source-learning`;
+export async function startSourceLearning(account: string, url: string): Promise<{id:string}> {
+  const r = await fetch(`${sourceLearningBase()}/${account}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  if (!r.ok) { const data = await r.json(); throw new Error(data.detail || 'Apprentissage indisponible.'); }
+  return r.json();
+}
+export const loadSourceLearning = (account: string, job: string, signal?: AbortSignal) => getSimulation<SourceLearning>(`source-learning/${account}/${job}`,signal);
+
+export const loadPublicXPosts = (username: string, signal?: AbortSignal) => getSimulation<{ available: boolean; posts: PublicXPost[]; reason?: string; source?: string; observedAt?: string }>(`x-posts/${encodeURIComponent(username)}`, signal);

@@ -12,6 +12,12 @@ rm -rf "$build_dir"
 mkdir -p "$build_dir"
 uv pip install --python "$python_bin" --target "$build_dir" -r "$api_dir/requirements.txt"
 cp -R "$api_dir/src/investoros_api" "$build_dir/"
+mkdir -p "$build_dir/infrastructure/terraform"
+while IFS= read -r -d '' terraform_file; do
+  relative_path="${terraform_file#"$repo_root/infrastructure/terraform/"}"
+  mkdir -p "$build_dir/infrastructure/terraform/$(dirname "$relative_path")"
+  cp "$terraform_file" "$build_dir/infrastructure/terraform/$relative_path"
+done < <(find "$repo_root/infrastructure/terraform" -type f -name '*.tf' ! -path '*/.terraform/*' -print0)
 data_dir="$repo_root/docs/prep/sources/Datathon2026/alphaforge_starter"
 package_data="$build_dir/investoros_api/data"
 mkdir -p "$package_data"
@@ -30,6 +36,18 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 root = Path(argv[1])
 target = Path(argv[2])
+required = [
+    'investoros_api/research/runtime.py',
+    'investoros_api/research/router.py',
+    'investoros_api/research/iam_handler.py',
+    'investoros_api/research/report.py',
+    'investoros_api/research/validation.py',
+    'investoros_api/knowledge/service.py',
+    'investoros_api/profiles/skills_snapshot.json',
+]
+missing = [name for name in required if not (root / name).is_file()]
+if missing:
+    raise SystemExit('Incomplete API package: ' + ', '.join(missing))
 with ZipFile(target, "w", compression=ZIP_DEFLATED) as archive:
     for path in sorted(root.rglob("*")):
         if path.is_file():

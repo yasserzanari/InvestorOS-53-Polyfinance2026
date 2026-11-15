@@ -73,3 +73,9 @@ variable "x_api_bearer_token_secret_arn" {
   type        = string
   default     = ""
 }
+
+variable "admin_console_token_secret_arn" {
+  description = "ARN du secret contenant le jeton Admin; vide jusqu’à la configuration explicite de la console."
+  type        = string
+  default     = ""
+}

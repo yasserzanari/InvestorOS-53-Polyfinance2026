@@ -110,7 +110,6 @@ function AskUserCardView({ request, answer, disabled = false, onSubmit, onDismis
         {errors[question.id] && <p id={errorId} className="ask-user-error" role="alert">{errors[question.id]}</p>}
       </fieldset>
       <footer className="ask-user-footer">
-        {request.questions.length === 1 && <span className="ask-user-counter">Votre réponse reste modifiable avant l’envoi.</span>}
         <Pagination>
           <PaginationContent>
             {request.questions.length > 1 && <PaginationItem><button type="button" className="ask-user-previous" disabled={active === 0 || disabled} onClick={() => setActive(index => index - 1)} aria-label="Question précédente"><ChevronLeft size={14} /><span>Précédent</span></button></PaginationItem>}

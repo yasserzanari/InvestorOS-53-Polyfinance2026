@@ -5,7 +5,7 @@ import { productModules } from '../app/modules';
 import { demoAccounts, useDemoAccount } from './DemoAccountContext';
 import './app-shell.css';
 
-const groups = ['Décider', 'Explorer'] as const;
+const groups = ['Décider', 'Explorer', 'Administration'] as const;
 
 export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -72,6 +72,7 @@ export function AppShell() {
         <header className="workspace-topbar">
           <div className="topbar-context"><span>InvestorOS</span><span className="context-slash">/</span><strong>{location.pathname === '/app/profiles' ? 'Profil investisseur' : productModules.find((module) => module.href === location.pathname)?.shortLabel ?? 'Espace'}</strong></div>
           <div className="topbar-actions">
+            <div id="assistant-topbar-actions" className="assistant-topbar-actions" />
             <label className="account-switcher-label" htmlFor="active-demo-account">Compte</label>
             <select id="active-demo-account" className="account-switcher" value={activeAccount.id} onChange={(event) => setActiveAccountId(event.target.value)} aria-label="Compte de démonstration actif">
               {demoAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
@@ -79,7 +80,7 @@ export function AppShell() {
             <span className="topbar-simulation">Espace de démonstration</span><Link to="/" className="topbar-public-link">Site public</Link>
           </div>
         </header>
-        <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}${['/app/profiles','/app/assistant'].includes(location.pathname) ? ' is-profiles-content' : ''}`}><Outlet /></main>
+        <main className={`workspace-content${location.pathname === '/app' ? ' is-dashboard-content' : ''}${['/app/profiles','/app/assistant'].includes(location.pathname) ? ' is-profiles-content' : ''}${location.pathname === '/app/admin' ? ' is-admin-content' : ''}`}><Outlet /></main>
       </div>
     </div>
   );

@@ -37,12 +37,32 @@ resource "aws_iam_role_policy" "runtime" {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${var.lambda_log_group_arn}:*"
+        }, {
+        Sid    = "ReadPlatformInventoryAndMetrics"
+        Effect = "Allow"
+        Action = [
+          "apigateway:GET", "cloudfront:ListDistributions", "cloudwatch:GetMetricData",
+          "dynamodb:DescribeTable", "dynamodb:ListTables", "lambda:ListFunctions",
+          "s3:ListAllMyBuckets", "states:DescribeStateMachine", "states:ListExecutions",
+          "states:ListStateMachines", "servicequotas:ListServiceQuotas", "ce:GetCostAndUsage"
+        ]
+        Resource = "*"
+        }, {
+        Sid      = "DescribeInvestorOSFunctions"
+        Effect   = "Allow"
+        Action   = ["lambda:GetFunctionConfiguration"]
+        Resource = "arn:aws:lambda:*:*:function:${var.name_prefix}-*"
       }
       ], !var.simulation_x_search_enabled || var.x_api_bearer_token_secret_arn == "" ? [] : [{
         Sid      = "ReadXSearchToken"
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = var.x_api_bearer_token_secret_arn
+        }], var.admin_console_token_secret_arn == "" ? [] : [{
+        Sid      = "ReadAdminConsoleToken"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.admin_console_token_secret_arn
     }])
   })
 }
@@ -62,19 +82,20 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      ACCOUNTS_TABLE_NAME           = var.table_names.accounts
-      PROFILES_TABLE_NAME           = var.table_names.profiles
-      PORTFOLIOS_TABLE_NAME         = var.table_names.portfolios
-      ANALYSES_TABLE_NAME           = var.table_names.analyses
-      DEMO_ACCOUNT_ID               = var.demo_account_id
-      DEMO_PROFILE_ID               = var.demo_profile_id
-      DEMO_PORTFOLIO_ID             = var.demo_portfolio_id
-      DEMO_CONTEXTS                 = jsonencode(var.demo_contexts)
-      DEMO_PORTFOLIO_MODE           = "dynamodb"
-      POWERTOOLS_SERVICE_NAME       = "investoros-api"
-      ENVIRONMENT                   = var.environment
-      SIMULATION_X_SEARCH_ENABLED   = tostring(var.simulation_x_search_enabled)
-      X_API_BEARER_TOKEN_SECRET_ARN = var.simulation_x_search_enabled ? var.x_api_bearer_token_secret_arn : ""
+      ACCOUNTS_TABLE_NAME            = var.table_names.accounts
+      PROFILES_TABLE_NAME            = var.table_names.profiles
+      PORTFOLIOS_TABLE_NAME          = var.table_names.portfolios
+      ANALYSES_TABLE_NAME            = var.table_names.analyses
+      DEMO_ACCOUNT_ID                = var.demo_account_id
+      DEMO_PROFILE_ID                = var.demo_profile_id
+      DEMO_PORTFOLIO_ID              = var.demo_portfolio_id
+      DEMO_CONTEXTS                  = jsonencode(var.demo_contexts)
+      DEMO_PORTFOLIO_MODE            = "dynamodb"
+      POWERTOOLS_SERVICE_NAME        = "investoros-api"
+      ENVIRONMENT                    = var.environment
+      SIMULATION_X_SEARCH_ENABLED    = tostring(var.simulation_x_search_enabled)
+      X_API_BEARER_TOKEN_SECRET_ARN  = var.simulation_x_search_enabled ? var.x_api_bearer_token_secret_arn : ""
+      ADMIN_CONSOLE_TOKEN_SECRET_ARN = var.admin_console_token_secret_arn
     }
   }
 
@@ -90,7 +111,7 @@ resource "aws_apigatewayv2_api" "http" {
   cors_configuration {
     allow_origins = local.allowed_origins
     allow_methods = ["GET", "POST", "OPTIONS"]
-    allow_headers = ["content-type"]
+    allow_headers = ["content-type", "x-admin-token"]
     max_age       = 300
   }
 

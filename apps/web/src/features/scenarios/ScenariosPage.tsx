@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Database, ExternalLink, GitBranch, LoaderCircle, MessageCircle, Newspaper, Plus, ShieldCheck, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { loadSimulationAssets, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ScenarioBranchInput, type SimulationAssetList, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
+import { loadSourceWorkspace, loadSimulationAssets, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ScenarioBranchInput, type SimulationAssetList, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
 import './scenarios.css';
+import { useDemoAccount } from '../../shared/DemoAccountContext';
 
 type Range = 1 | 3 | 5;
 const RANGE_OPTIONS: Range[] = [1, 3, 5];
@@ -54,8 +55,8 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
   const submitAccounts = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const accounts = accountsInput.split(/[\s,]+/).filter(Boolean).map((account) => account.replace(/^@/, ''));
-    if (accounts.length > 5 || accounts.some((account) => !/^[A-Za-z0-9_]{1,15}$/.test(account))) {
-      setAccountsError('Entrez au plus cinq identifiants X valides, séparés par des virgules ou des espaces.');
+    if (accounts.some((account) => !/^[A-Za-z0-9_]{1,15}$/.test(account))) {
+      setAccountsError('Entrez des identifiants X valides, séparés par des virgules ou des espaces.');
       return;
     }
     setAccountsError('');
@@ -277,7 +278,7 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
           <div className="simulation-regulation-heading"><strong><MessageCircle size={12} /> Publications récentes sur X</strong><span>{socialPosts?.posts.length ?? '…'}</span></div>
           <form className="simulation-x-filter" noValidate onSubmit={submitAccounts}>
             <label htmlFor="simulation-x-accounts">Comptes publics à inclure</label>
-            <div><input id="simulation-x-accounts" value={accountsInput} maxLength={100} placeholder="@dirigeant, @responsable" aria-invalid={Boolean(accountsError)} aria-describedby={accountsError ? 'simulation-x-account-error' : 'simulation-x-account-help'} onChange={(event) => setAccountsInput(event.target.value)} /><button type="submit">Rechercher</button></div>
+            <div><input id="simulation-x-accounts" value={accountsInput} placeholder="@dirigeant, @responsable" aria-invalid={Boolean(accountsError)} aria-describedby={accountsError ? 'simulation-x-account-error' : 'simulation-x-account-help'} onChange={(event) => setAccountsInput(event.target.value)} /><button type="submit">Rechercher</button></div>
             <small id={accountsError ? 'simulation-x-account-error' : 'simulation-x-account-help'} role={accountsError ? 'alert' : undefined}>{accountsError || 'Filtre facultatif. Les comptes doivent aussi mentionner le nom ou le symbole du titre.'}</small>
           </form>
           {socialPosts?.posts.map((post) => (
@@ -306,6 +307,12 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
 }
 
 export function ScenariosPage() {
+  const { activeAccount } = useDemoAccount();
+  useEffect(() => {
+    const controller = new AbortController();
+    loadSourceWorkspace(activeAccount.id, controller.signal).then(state => setSocialAccounts(state.authorized.map(p => p.username))).catch(() => { if (!controller.signal.aborted) setSocialAccounts([]); });
+    return () => controller.abort();
+  }, [activeAccount.id]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [assetList, setAssetList] = useState<SimulationAssetList>();
   const [ticker, setTicker] = useState('');

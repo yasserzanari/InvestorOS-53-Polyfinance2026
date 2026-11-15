@@ -50,18 +50,19 @@ module "observability" {
 module "backend" {
   source = "../../modules/backend"
 
-  name_prefix                   = local.name_prefix
-  environment                   = var.environment
-  package_path                  = "${path.root}/../../../../apps/api/build/investoros-api.zip"
-  frontend_origin               = "https://${module.frontend.cloudfront_domain_name}"
-  table_names                   = module.data.table_names
-  table_arns                    = module.data.table_arns
-  lambda_log_group_arn          = module.observability.lambda_log_group_arn
-  demo_account_id               = module.data.demo_account_id
-  demo_profile_id               = module.data.demo_profile_id
-  demo_portfolio_id             = module.data.demo_portfolio_id
-  demo_contexts                 = module.data.demo_contexts
-  common_tags                   = local.common_tags
-  simulation_x_search_enabled   = var.simulation_x_search_enabled
-  x_api_bearer_token_secret_arn = var.x_api_bearer_token_secret_arn
+  name_prefix                    = local.name_prefix
+  environment                    = var.environment
+  package_path                   = "${path.root}/../../../../apps/api/build/investoros-api.zip"
+  frontend_origin                = "https://${module.frontend.cloudfront_domain_name}"
+  table_names                    = module.data.table_names
+  table_arns                     = module.data.table_arns
+  lambda_log_group_arn           = module.observability.lambda_log_group_arn
+  demo_account_id                = module.data.demo_account_id
+  demo_profile_id                = module.data.demo_profile_id
+  demo_portfolio_id              = module.data.demo_portfolio_id
+  demo_contexts                  = module.data.demo_contexts
+  common_tags                    = local.common_tags
+  simulation_x_search_enabled    = var.simulation_x_search_enabled
+  x_api_bearer_token_secret_arn  = var.x_api_bearer_token_secret_arn
+  admin_console_token_secret_arn = var.admin_console_token_secret_arn
 }

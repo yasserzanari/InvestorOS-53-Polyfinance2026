@@ -6,6 +6,7 @@ import {
   FileSearch,
   GitBranch,
   Layers3,
+  Settings,
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
@@ -18,7 +19,7 @@ export type ProductModule = {
   href: string;
   description: string;
   icon: ModuleIcon;
-  group: 'Décider' | 'Explorer';
+  group: 'Décider' | 'Explorer' | 'Administration';
 };
 
 // Add a product module here and register its route in App.tsx. The shared
@@ -37,12 +38,12 @@ export const productModules: ProductModule[] = [
     description: 'Construire un profil avec ses objectifs, horizons et contraintes.', icon: UsersRound, group: 'Décider',
   },
   {
-    id: 'portfolios', label: 'Portefeuilles', shortLabel: 'Portefeuilles', href: '/app/portfolios',
-    description: 'Explorer les positions, répartitions et expositions.', icon: Layers3, group: 'Décider',
-  },
-  {
     id: 'analyses', label: 'Analyses', shortLabel: 'Analyses', href: '/app/analyses',
     description: 'Examiner une décision avec des preuves et des limites visibles.', icon: FileSearch, group: 'Décider',
+  },
+  {
+    id: 'portfolios', label: 'Portefeuilles', shortLabel: 'Portefeuilles', href: '/app/portfolios',
+    description: 'Explorer les positions, répartitions et expositions.', icon: Layers3, group: 'Décider',
   },
   {
     id: 'network', label: 'Réseaux d’entreprises', shortLabel: 'Réseaux', href: '/app/network',
@@ -55,5 +56,9 @@ export const productModules: ProductModule[] = [
   {
     id: 'evidence', label: 'Sources et méthode', shortLabel: 'Sources', href: '/app/evidence',
     description: 'Vérifier les données, hypothèses et méthodes utilisées.', icon: ShieldCheck, group: 'Explorer',
+  },
+  {
+    id: 'admin', label: 'Administration', shortLabel: 'Admin', href: '/app/admin',
+    description: 'Supervision, architecture et santé de la plateforme.', icon: Settings, group: 'Administration',
   },
 ];

@@ -1,0 +1,3 @@
+AWS Architecture Icons, official AWS icon package released July 31, 2026.
+Source: https://aws.amazon.com/architecture/icons/
+Used for the InvestorOS Admin architecture diagram.

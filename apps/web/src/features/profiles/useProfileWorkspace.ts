@@ -1,9 +1,11 @@
+import { toolActivityLabel } from './components/ToolActivityFeed';
+import { researchTabs, terminalResearch, type ResearchRun } from './research-workspace';
 import { type AskUserRequest, type AskUserAnswer, formatQuestionAnswer } from './question-model';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fieldOrder, initialProfiles, type Profile } from './profile-model';
-import { createLocalId, sourceUrl, streamProfile, type AgentEvent, type Citation, type FollowUp, type ToolEvent, type WorkspaceTab } from './profile-api';
+import { createLocalId, sourceUrl, streamProfile, profileApiBase, type AgentEvent, type Citation, type FollowUp, type ToolEvent, type WorkspaceTab } from './profile-api';
 export type ChatMessage={id:string;role:'user'|'assistant';text:string;citations:Citation[];followUps:FollowUp[];tools:ToolEvent[];agents:AgentEvent[];versions:string[];version:number;feedback?:string|null;error?:string;questionRequest?:AskUserRequest;questionAnswer?:AskUserAnswer;questionDismissed?:boolean};
-type Workspace={profile:Profile;tabs:WorkspaceTab[];messages:ChatMessage[]};
+type Workspace={profile:Profile;tabs:WorkspaceTab[];messages:ChatMessage[];researchRuns?:ResearchRun[]};
 export type ConversationHistoryItem={id:string;title:string;lastUsedAt:number;messages:ChatMessage[]};
 // The profile and the global Assistant are two entry points into one workspace.
 // Keep the selected tab account-scoped too, so navigation never forks state.
@@ -46,6 +48,42 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
   const setActiveTab=useCallback((id:string)=>{setActiveTabState(id);try{localStorage.setItem(activeTabKey(currentAccount.current),id);}catch{}},[]);
   useEffect(()=>{abort.current?.abort(); requestBusy.current=false; currentAccount.current=accountId; const next=read(accountId);setWorkspace(next);setBusy(false);setError('');setActiveTabState(readActiveTab(accountId,next,view));const items=readConversations(accountId,next);setConversations(items);let active='';try{active=localStorage.getItem(activeConversationKey(accountId))||'';}catch{}if(!active&&next.messages.length){active=items[0]?.id||createLocalId();try{localStorage.setItem(activeConversationKey(accountId),active);}catch{}}setConversationId(active||createLocalId()); return ()=>abort.current?.abort();},[accountId,view]);
   const update=(fn:(w:Workspace)=>Workspace)=>setWorkspace(w=>{const next=fn(w);try{localStorage.setItem(`investoros.workspace.v2.${currentAccount.current}`,JSON.stringify(next));}catch{}return next;});
+  const [researchRefresh,setResearchRefresh]=useState(0);
+  const forcedResearch=useRef(new Set<string>());
+  const updateRef=useRef(update);updateRef.current=update;
+  const researchKey=(workspace.researchRuns??[]).map(run=>`${run.analysis_id}:${run.status}`).join('|');
+  useEffect(()=>{
+    const owner=accountId;
+    const pending=new Set([...(workspace.researchRuns??[]).filter(run=>!terminalResearch(run.status)).map(run=>run.analysis_id),...forcedResearch.current]);
+    forcedResearch.current.clear();
+    if(!pending.size)return;
+    const controller=new AbortController();let timer:ReturnType<typeof setTimeout>;const attempts=new Map<string,number>();
+    const deadline=Date.now()+180000;
+    const poll=async()=>{
+      for(const analysisId of [...pending]) {
+        try {
+          const response=await fetch(`${profileApiBase}/v1/profiles/research/${encodeURIComponent(analysisId)}?accountId=${encodeURIComponent(owner)}`,{signal:controller.signal});
+          if(!response.ok)throw new Error(`Suivi indisponible (${response.status}).`);
+          const data=await response.json() as ResearchRun;
+          if(data.analysis_id!==analysisId)throw new Error('Identifiant de recherche incohérent.');
+          if(controller.signal.aborted||currentAccount.current!==owner)return;
+          updateRef.current(w=>({...w,researchRuns:w.researchRuns?.map(run=>run.analysis_id===analysisId?{...run,...data,trackingError:undefined}:run)}));
+          if(terminalResearch(data.status))pending.delete(analysisId);
+          attempts.delete(analysisId);
+        }catch(error){
+          if(controller.signal.aborted||currentAccount.current!==owner)return;
+          const count=(attempts.get(analysisId)??0)+1;attempts.set(analysisId,count);
+          if(count>=3)pending.delete(analysisId);
+          const trackingError=count>=3?'Suivi mis en pause. Actualisez pour reprendre sans relancer l’analyse.':error instanceof Error?error.message:'Suivi interrompu.';
+          updateRef.current(w=>({...w,researchRuns:w.researchRuns?.map(run=>run.analysis_id===analysisId?{...run,trackingError}:run)}));
+        }
+      }
+      if(controller.signal.aborted)return;
+      if(pending.size&&Date.now()<deadline)timer=setTimeout(()=>void poll(),2500);
+      else if(pending.size)updateRef.current(w=>({...w,researchRuns:w.researchRuns?.map(run=>pending.has(run.analysis_id)?{...run,trackingError:'Suivi mis en pause. Actualisez pour reprendre sans relancer l’analyse.'}:run)}));
+    };
+    void poll();return()=>{controller.abort();clearTimeout(timer);};
+  },[accountId,researchKey,researchRefresh]);
   useEffect(()=>{
     if(!workspace.messages.length||!conversationId)return;
     const timer=window.setTimeout(()=>setConversations(previous=>{
@@ -93,8 +131,16 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
       if(event.type==='text')patch(m=>({...m,text:m.text+String(event.delta||'')}));
       if(event.type==='tool') {
         const tool=event as unknown as ToolEvent;
-        patch(m=>({...m,tools:[...m.tools.filter(t=>t.id!==tool.id),tool]}));
-        setActivity(tool.status==='running'?tool.name:'Préparation de la réponse');
+        patch(m=>{const previous=m.tools.find(item=>item.id===tool.id);return {...m,tools:[...m.tools.filter(t=>t.id!==tool.id),{...previous,...tool,startedAt:previous?.startedAt??Date.now(),...(tool.status!=='running'?{finishedAt:Date.now()}:{} )}]};});
+        setActivity(tool.status==='running'?toolActivityLabel(tool.name):'Préparation de la réponse');
+        if(tool.name==='start_analysis'&&tool.status==='done'&&tool.output&&typeof tool.output==='object') {
+          const run=tool.output as ResearchRun;
+          if(typeof run.analysis_id==='string'&&typeof run.status==='string') {
+            update(w=>({...w,tabs:researchTabs(w.tabs),researchRuns:[...(w.researchRuns??[]).filter(item=>item.analysis_id!==run.analysis_id),{...run,question:run.question??text}]}));
+            setActiveTab('research-results');
+          }
+        }
+        if(tool.name==='load_skill'&&tool.status==='done')update(w=>({...w,tabs:researchTabs(w.tabs)}));
         if(tool.name==='project_market_scenarios'&&tool.status==='done'&&tool.output&&typeof tool.output==='object') {
           const projection=tool.output as {ticker?:unknown;branches?:unknown};
           if(typeof projection.ticker==='string'&&Array.isArray(projection.branches)) {
@@ -112,11 +158,16 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
       if(event.type==='sources'){patch(m=>({...m,citations:(event.citations as Citation[]).map(c=>({...c,url:sourceUrl(c.url)}))}));}
       if(event.type==='questions')patch(m=>({...m,questionRequest:event.request as AskUserRequest,followUps:[]}));
       if(event.type==='followups')patch(m=>({...m,followUps:event.prompts as FollowUp[]}));
-      if(event.type==='workspace') {update(w=>({...w,profile:{...w.profile,...event.profile as Record<string,string>,confirmed:false},tabs:event.tabs as WorkspaceTab[]})); const tabs=event.tabs as WorkspaceTab[];if(tabs.length)setActiveTab(tabs[tabs.length-1].id);}
+      if(event.type==='workspace') {update(w=>({...w,profile:{...w.profile,...event.profile as Record<string,string>,confirmed:false},tabs:w.researchRuns?.length?researchTabs(event.tabs as WorkspaceTab[]):event.tabs as WorkspaceTab[]}));}
       if(event.type==='error'){const message=String(event.message);setError(message);patch(m=>({...m,error:message}));}
       if(event.type==='done'){completed=true;patch(m=>({...m,versions:[...m.versions,m.text],version:m.versions.length}));if(questionReply)update(w=>({...w,messages:w.messages.map(m=>m.id===questionReply.messageId?{...m,questionAnswer:questionReply.answer}:m)}));}
-    });}catch(e){if(currentAccount.current===owner){const message=controller.signal.aborted?'Génération arrêtée.':(e instanceof Error?e.message:'Connexion interrompue.');setError(message);patch(m=>({...m,error:message}));}}finally{if(currentAccount.current===owner){requestBusy.current=false;setBusy(false);setActivity('');}}
+    });}catch(e){if(currentAccount.current===owner){const message=controller.signal.aborted?'Génération arrêtée.':(e instanceof Error?e.message:'Connexion interrompue.');setError(message);patch(m=>({...m,error:message}));}}finally{if(currentAccount.current===owner){requestBusy.current=false;setBusy(false);setActivity('');patch(m=>({...m,tools:m.tools.map(tool=>tool.status==='running'?{...tool,status:'failed',error:'Opération interrompue avant sa confirmation.',finishedAt:Date.now()}:tool)}));}}
     return completed;
   };
-  return {workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,conversations,conversationId,startNewConversation,openConversation,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab('profile');}};
+  const attachResearch=(analysisId:string)=>{
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(analysisId))return;
+    update(w=>({...w,tabs:researchTabs(w.tabs),researchRuns:w.researchRuns?.some(run=>run.analysis_id===analysisId)?w.researchRuns:[...(w.researchRuns??[]),{analysis_id:analysisId,status:'loading'}]}));
+    setActiveTab('research-results');
+  };
+  return {attachResearch,refreshResearch:()=>{forcedResearch.current=new Set((workspace.researchRuns??[]).map(run=>run.analysis_id));setResearchRefresh(value=>value+1);},workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,conversations,conversationId,startNewConversation,openConversation,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab('profile');}};
 }

@@ -10,11 +10,21 @@ from investoros_api.demo_contexts import PersonaId, context_for
 from investoros_api.profiles.models import ScenarioAnalysisInput
 from investoros_api.profiles.portfolio import analyze_configured_scenario
 from investoros_api.profiles.router import router as profiles_router
+from investoros_api.research.router import router as research_router
+from investoros_api.knowledge.router import router as knowledge_router
 from investoros_api.simulation import router as simulation_router
+from investoros_api.source_store import router as source_store_router
+from investoros_api.source_learning import router as source_learning_router
+from investoros_api.admin_console import router as admin_router
 
 app = FastAPI(title="InvestorOS API", version="0.1.0")
 app.include_router(profiles_router)
+app.include_router(research_router)
+app.include_router(knowledge_router)
 app.include_router(simulation_router)
+app.include_router(source_store_router)
+app.include_router(source_learning_router)
+app.include_router(admin_router)
 _dynamodb = None
 
 
@@ -127,4 +137,21 @@ def demo_scenario_impact(
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
-handler = Mangum(app)
+_mangum_handler = Mangum(app)
+
+
+def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    if event.get('source') == 'investoros.research-iam' and 'requestContext' not in event:
+        from investoros_api.research.iam_handler import handle
+        return handle(event, context)
+    if os.getenv('REQUIRE_ADMIN_AUTH', 'false').lower() == 'true':
+        request_context = event.get('requestContext', {})
+        route_key = request_context.get('routeKey', '')
+        if route_key != 'GET /health' and not route_key.startswith('OPTIONS '):
+            claims = request_context.get('authorizer', {}).get('jwt', {}).get('claims', {})
+            groups = claims.get('cognito:groups', [])
+            groups = [groups] if isinstance(groups, str) else groups
+            if 'administrators' not in groups:
+                return {'statusCode': 403, 'headers': {'content-type':'application/json'},
+                        'body':json.dumps({'detail':'Administrator access required'})}
+    return _mangum_handler(event, context)
