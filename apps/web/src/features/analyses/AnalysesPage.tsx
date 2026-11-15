@@ -9,11 +9,10 @@ import './analyses.css';
 type LoadState = { kind: 'loading' } | { kind: 'ready'; result: DemoApiConnection };
 type LocalHistoryState = { analyses: ResearchHistoryItem[] | null; error?: string };
 
-function LocalResearchHistory({ analyses, persona, error }: LocalHistoryState & { persona: ResearchHistoryItem['persona'] }) {
+function LocalResearchHistory({ analyses, error }: LocalHistoryState) {
   if (error) return <div className="analyses-empty is-unavailable" role="alert"><span><CircleHelp size={19}/></span><h2>Recherche locale indisponible</h2><p>{error} Démarrez le serveur local avec <code>npm run dev:local</code> et vérifiez son accès AWS IAM si vous voulez lire les analyses AWS.</p></div>;
   if (analyses === null) return <p className="analyses-loading" role="status">Lecture des recherches enregistrées…</p>;
   return <>
-    <div className="analyses-source-status is-connected" role="status"><span className="analyses-source-icon"><BookOpenCheck size={16}/></span><div><strong>Historique du moteur de recherche</strong><p>Lecture par le serveur local · {analyses.length} résultat{analyses.length === 1 ? '' : 's'} · compte fictif {persona}</p></div><span className="analyses-status-badge">AWS IAM</span></div>
     {analyses.length ? <div className="analyses-record-list">{analyses.map((item,index)=>{
       const status = ({queued:'En attente',running:'En cours',complete:'Terminée',completed:'Terminée',partial:'Partielle',failed:'Échec',cancelled:'Annulée'} as Record<string,string>)[item.status.toLowerCase()] ?? item.status;
       const date = item.created_at && !Number.isNaN(Date.parse(item.created_at)) ? new Intl.DateTimeFormat('fr-CA',{dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created_at)) : item.created_at;
@@ -46,7 +45,6 @@ function ConnectionState({ result, persona }: { result: DemoApiConnection; perso
   if (result.status === 'connected') {
     const count = result.overview.analyses.length;
     return <>
-      <div className="analyses-source-status is-connected" role="status"><span className="analyses-source-icon"><BookOpenCheck size={16}/></span><div><strong>Lecture AWS connectée</strong><p>{result.overview.account.display_name} · table DynamoDB de démonstration · {count} analyse{count === 1 ? '' : 's'} chargée{count === 1 ? '' : 's'} (jusqu’aux 25 plus récentes)</p></div><span className="analyses-status-badge">Données fictives</span></div>
       {count ? <div className="analyses-record-list">{result.overview.analyses.map((record,index)=><AnalysisCard key={firstText(record,['analysis_id','id'])??`${persona}-${index}`} record={record} index={index}/>)}</div> : <div className="analyses-empty"><span><CircleHelp size={19}/></span><h2>Aucune analyse enregistrée</h2><p>Le compte de démonstration ne contient pas encore d’analyse dans DynamoDB. L’Assistant peut examiner les données disponibles et organiser les étapes dans un onglet partagé; cette conversation ne crée pas, à elle seule, un enregistrement AWS d’analyse.</p><Link to="/app/assistant" state={{ initialPrompt: 'Prépare une analyse à partir des données réellement disponibles pour mon compte de démonstration. Commence par indiquer les données que tu peux lire, demande les précisions manquantes et ne prétends pas enregistrer un résultat dans AWS.' }}>Préparer avec l’Assistant <ArrowRight size={14}/></Link></div>}
     </>;
   }
@@ -91,7 +89,7 @@ export function AnalysesPage() {
   return <section className="analyses-page" aria-labelledby="analyses-title">
     <header className="analyses-header"><div><h1 id="analyses-title">Analyses</h1><p>Retrouvez les dossiers, les sources et les vues interactives associés au compte de {activeAccount.name}.</p></div><Link to="/app/assistant" className="analyses-assistant-link"><Plus size={14}/>Nouvelle recherche</Link></header>
     <div className="analyses-list-toolbar"><span>{loading ? 'Chargement des analyses…' : count === undefined ? 'Historique indisponible' : `${count} dossier${count === 1 ? '' : 's'}`}</span><button type="button" onClick={() => setRevision(value => value + 1)} disabled={loading}><RefreshCw size={13}/>Actualiser</button></div>
-    {import.meta.env.DEV ? <LocalResearchHistory analyses={research.analyses} persona={activeAccount.id} error={research.error}/> : state.kind === 'loading' ? <p className="analyses-loading" role="status">Lecture des analyses du compte…</p> : <ConnectionState result={state.result} persona={activeAccount.id}/>}
+    {import.meta.env.DEV ? <LocalResearchHistory analyses={research.analyses} error={research.error}/> : state.kind === 'loading' ? <p className="analyses-loading" role="status">Lecture des analyses du compte…</p> : <ConnectionState result={state.result} persona={activeAccount.id}/>}
   </section>;
 }
 
