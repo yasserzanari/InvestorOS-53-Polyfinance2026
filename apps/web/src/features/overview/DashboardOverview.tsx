@@ -59,12 +59,9 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
   const portfolioValue = connected
     ? new Intl.NumberFormat('fr-CA', { style: 'currency', currency, maximumFractionDigits: 0 }).format(api.overview.portfolio.total_value)
     : 'À connecter';
-  const profileValue = connected
-    ? api.overview.profile.status === 'confirmed' ? 'Confirmé' : 'À revoir'
-    : api.status === 'not_configured' ? 'À compléter' : 'Indisponible';
   const statusCards = [
     { label: 'Portefeuille', value: portfolioValue, note: connected ? `${api.overview.portfolio.positions.length} positions · données fictives AWS` : 'Ajoutez vos positions', Icon: BriefcaseBusiness, href: '/app/portfolios', tone: 'blue' },
-    { label: 'Profil investisseur', value: profileValue, note: connected ? api.overview.profile.display_name : 'Définissez vos objectifs', Icon: UsersRound, href: '/app/profiles', tone: 'teal' },
+    { label: 'Profil investisseur', value: connected ? api.overview.profile.display_name : 'Aucun profil actif', note: '', Icon: UsersRound, href: '/app/profiles', tone: 'teal' },
     { label: 'Analyses', value: connected ? String(api.overview.analyses.length) : 'Aucune', note: connected ? 'Analyses enregistrées dans la démo' : 'Les résultats seront ici', Icon: ChartNoAxesCombined, href: '/app/analyses', tone: 'violet' },
     { label: 'Sources et méthode', value: 'Consulter', note: 'Provenance, disponibilité et limites', Icon: BookOpenCheck, href: '/app/evidence', tone: 'amber' },
   ];
@@ -92,7 +89,7 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
         {statusCards.map(({ label, value, note, Icon, href, tone }) => (
           <Link className={`dashboard-status-card tone-${tone}`} to={href} key={label}>
             <span className="dashboard-status-icon"><Icon size={19} aria-hidden="true" /></span>
-            <span className="dashboard-status-copy"><span>{label}</span><strong>{value}</strong><small>{note}</small></span>
+            <span className="dashboard-status-copy"><span>{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</span>
             <ArrowRight className="dashboard-status-arrow" size={15} aria-hidden="true" />
           </Link>
         ))}
