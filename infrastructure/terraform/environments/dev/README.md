@@ -10,7 +10,7 @@ Le state canonique est `s3://investoros-tfstate-010928221556-us-east-1/dev/terra
 
 **Avant toute mutation AWS**, vérifier l’identité et le state, puis lire intégralement le plan. N’appliquer que si le plan ne remplace ni ne détruit une ressource du site actif. Ne jamais supprimer les buckets préfixés simplement parce qu’ils ne sont plus ciblés par ce code.
 
-L’état AWS actuel contient aussi les ressources de recherche et de Knowledge Base gérées depuis une autre tranche; ce root `dev` ne les décrit pas toutes. Le plan complet courant propose leur suppression ainsi que le remplacement des routes de l’API. Ne pas l’appliquer avant réconciliation de cette configuration. La stack [`assistant-simulation`](../assistant-simulation/README.md) utilise un état séparé et ajoute uniquement des routes spécifiques pour ces deux espaces.
+L’état Terraform canonique contient aussi des ressources de recherche et de Knowledge Base. Le workflow de recherche Step Functions est actif dans AWS (state machine `investoros-dev-research`, worker `investoros-dev-research-worker`), mais leurs déclarations ont disparu de la configuration versionnée actuelle; le root `dev` ne décrit donc pas intégralement cet état. Le plan complet courant propose la suppression de ressources de recherche ainsi que le remplacement de routes de l’API. Ne pas l’appliquer avant réconciliation de cette configuration. La stack [`assistant-simulation`](../assistant-simulation/README.md) utilise un état séparé et ajoute uniquement des routes spécifiques pour ces deux espaces.
 
 ## Préparer et examiner le plan
 
@@ -71,7 +71,7 @@ L’analyse automatique du plan (`iam-policy-autopilot`) est utile pour repérer
 | Limites API/Lambda, logs et alarmes | Code Terraform prêt, non déployés |
 | Frontend configuré à une URL API | Code prêt; `VITE_API_BASE_URL` reste à configurer après l’API |
 | Simulation historique, événements datés, sources et scénarios conditionnels | Code prêt; déploiement et configuration des données restent à faire |
-| Step Functions pour travaux longs | À ajouter ensuite, non déployé |
+| Step Functions pour travaux longs | `investoros-dev-research` est actif dans `us-east-1`; son état est dans le state Terraform canonique, mais sa déclaration n’est pas présente dans le code versionné actuel. Voir [l’état vérifié du workflow](../../../../services/workflows/analysis/README.md). Ne pas appliquer le root tant que le drift n’est pas réconcilié. |
 | Bedrock | Profil US Nova Lite actif dans le compte et utilisé par le worker de recherche; l’API conversation n’avait pas `BEDROCK_MODEL_ID`. Cette modification le configure via Terraform, mais son invocation depuis l’API n’est pas encore validée |
 | X Recent Search | Connecteur optionnel codé, désactivé par défaut; jeton et budget non configurés |
 | Knowledge Base/RAG | Non branchés |
