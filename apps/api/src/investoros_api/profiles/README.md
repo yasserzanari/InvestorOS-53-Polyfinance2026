@@ -12,7 +12,7 @@ This module owns `/v1/profiles/*`. It calls **Amazon Bedrock** with the server c
 
 ## Configuration
 
-Set `BEDROCK_MODEL_ID` to an accessible model or inference profile supporting ConverseStream tool use, plus `AWS_REGION`. Local credentials come from the normal boto3 chain. Use a workload role in AWS with `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` scoped to the configured model/inference profile and its destination model ARNs. The API status route reports configuration presence, **not** a verified permission or model availability check.
+Set `BEDROCK_MODEL_ID` to an accessible model or inference profile supporting ConverseStream tool use, plus `AWS_REGION`. The dev Terraform defaults to the active US Nova Lite inference profile (`us.amazon.nova-lite-v1:0`); it grants the Lambda only the two inference actions on that profile and its routed foundation model. Local credentials come from the normal boto3 chain. The API status route reports configuration presence, **not** a verified permission or model availability check. The first real conversation is still needed to confirm invocation permission and model quota in the target account.
 
 The local dev API launcher sets `DEMO_PORTFOLIO_MODE=local_fixture` and uses the
 same versioned persona fixture that Terraform seeds into DynamoDB. Portfolio tools
