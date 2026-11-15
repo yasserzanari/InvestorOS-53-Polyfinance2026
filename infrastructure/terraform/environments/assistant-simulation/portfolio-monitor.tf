@@ -16,6 +16,10 @@ resource "aws_dynamodb_table" "portfolio_monitor" {
     name = "record_id"
     type = "S"
   }
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
 
   server_side_encryption {
     enabled = true
@@ -28,11 +32,18 @@ resource "aws_iam_role_policy" "portfolio_monitor_api" {
   role = aws_iam_role.api.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:Query"]
-      Resource = aws_dynamodb_table.portfolio_monitor.arn
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:Query"]
+        Resource = aws_dynamodb_table.portfolio_monitor.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = aws_lambda_function.portfolio_monitor.arn
+      }
+    ]
   })
 }
 

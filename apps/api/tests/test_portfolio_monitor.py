@@ -4,10 +4,43 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from investoros_api.portfolio_monitor import scan_persona
+from investoros_api.portfolio_monitor import handler, request_scan, scan_persona
 
 
 class PortfolioMonitorTests(unittest.TestCase):
+    @patch.dict("os.environ", {"PORTFOLIO_MONITOR_FUNCTION_NAME": "monitor-worker"})
+    @patch("investoros_api.portfolio_monitor._lambda_client")
+    @patch("investoros_api.portfolio_monitor._table")
+    @patch("investoros_api.portfolio_monitor.context_for", return_value={"account_id": "demo-account-001"})
+    def test_manual_refresh_is_queued_and_returns_pending(self, _context, table, lambda_client):
+        lambda_client.invoke.return_value = {"StatusCode": 202}
+
+        result = request_scan("mateo")
+
+        self.assertEqual(result["status"], "pending")
+        self.assertEqual(table.return_value.put_item.call_args.kwargs["Item"]["record_id"], f"scan#{result['id']}")
+        event = lambda_client.invoke.call_args.kwargs["Payload"]
+        self.assertIn(b'"detail-type": "Manual portfolio news scan"', event)
+
+    @patch("investoros_api.portfolio_monitor.scan_persona", return_value={"persona": "mateo", "checkedArticles": 2, "newCases": 1})
+    @patch("investoros_api.portfolio_monitor._table")
+    @patch("investoros_api.portfolio_monitor.context_for", return_value={"account_id": "demo-account-001"})
+    def test_manual_worker_marks_scan_complete(self, _context, table, scan):
+        event = {
+            "source": "investoros.portfolio-monitor",
+            "detail-type": "Manual portfolio news scan",
+            "persona": "mateo",
+            "scanId": "a" * 24,
+            "createdAt": "2026-11-15T12:00:00+00:00",
+        }
+
+        result = handler(event, None)
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["result"]["newCases"], 1)
+        self.assertEqual(table.return_value.put_item.call_count, 2)
+        scan.assert_called_once_with("mateo")
+
     @patch("investoros_api.portfolio_monitor.context_for", return_value={"account_id": "demo-account-001", "profile_id": "profile", "portfolio_id": "portfolio"})
     @patch("investoros_api.portfolio_monitor._query", return_value=[])
     @patch("investoros_api.portfolio_monitor.load_demo_portfolio")

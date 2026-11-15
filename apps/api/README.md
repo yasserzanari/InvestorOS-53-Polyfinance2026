@@ -46,6 +46,8 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | DELETE | `/v1/portfolio-monitor/watchlist/{ticker}?persona=mateo` | Retirer un ticker de la veille |
 | GET | `/v1/portfolio-monitor/cases?persona=mateo` | Dossiers de veille récents du compte fictif |
 | PATCH | `/v1/portfolio-monitor/cases/{id}?persona=mateo&status=read|resolved` | Marquer la notification lue ou fermer le dossier |
+| POST | `/v1/portfolio-monitor/refresh?persona=mateo` | Mettre en file une recherche immédiate pour le compte actif |
+| GET | `/v1/portfolio-monitor/scans/{id}?persona=mateo` | Lire l’état d’une recherche (`pending`, `running`, `completed`, `failed`) |
 | GET | `/v1/simulation/assets` | Univers historique configuré et ses limites |
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
 | GET | `/v1/simulation/event-study/{ticker}?event_date=YYYY-MM-DD` | Rendements descriptifs du titre et d’un indice proxy de même devise après une date; sans attribution causale |
