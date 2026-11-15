@@ -317,6 +317,13 @@
   text-decoration: none;
 }
 .activity-row:hover { border-color: #c9d8f4; background: rgba(255,255,255,.9); transform: translateY(-1px); }
+.activity-case-toggle { margin: 0 0 7px 46px; padding: 4px 8px; border: 1px solid #d9e4f4; border-radius: 6px; background: #fff; color: #356ce0; font-size: 10px; cursor: pointer; }
+.activity-case-details { display: grid; gap: 6px; margin: 0 36px 10px 46px; padding: 10px; border-left: 2px solid #e5a343; background: #fffaf2; color: #536273; font-size: 11px; line-height: 1.5; }
+.activity-case-details p,.activity-case-details blockquote { margin: 0; }
+.activity-case-details blockquote { padding-left: 9px; border-left: 2px solid #e5a343; color: #344c56; }
+.activity-case-details a { display: inline-flex; width: max-content; align-items: center; gap: 4px; color: #356ce0; }
+.activity-case-details > button { width: max-content; padding: 5px 8px; border: 1px solid #d6e0e9; border-radius: 6px; background: #fff; color: #425568; font-size: 10px; cursor: pointer; }
+.activity-case-limit { color: #7b6a54; }
 .activity-row:hover .activity-row-copy > strong { color: var(--brand); }
 .activity-row:focus-visible,
 .activity-empty-item > a:focus-visible,

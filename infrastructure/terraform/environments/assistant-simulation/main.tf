@@ -165,6 +165,7 @@ resource "aws_lambda_function" "api" {
       DEMO_PORTFOLIO_MODE              = "dynamodb"
       ENVIRONMENT                      = var.environment
       PORTFOLIOS_TABLE_NAME            = local.portfolio_table_name
+      PORTFOLIO_MONITOR_TABLE_NAME     = aws_dynamodb_table.portfolio_monitor.name
       SOURCE_WORKSPACE_TABLE           = local.accounts_table_name
       POWERTOOLS_SERVICE_NAME          = "investoros-assistant-simulation"
       SIMULATION_X_SEARCH_ENABLED      = "false"
@@ -174,7 +175,7 @@ resource "aws_lambda_function" "api" {
     }
   }
 
-  depends_on = [aws_iam_role_policy.api, aws_iam_role_policy.profile_conversations, aws_transcribe_vocabulary.finance_fr_ca]
+  depends_on = [aws_iam_role_policy.api, aws_iam_role_policy.profile_conversations, aws_iam_role_policy.portfolio_monitor_api, aws_transcribe_vocabulary.finance_fr_ca]
   tags       = local.common_tags
 }
 
@@ -214,6 +215,14 @@ resource "aws_apigatewayv2_route" "simulation" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
+resource "aws_apigatewayv2_route" "portfolio_monitor" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "ANY /v1/portfolio-monitor/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
 resource "aws_apigatewayv2_route" "profiles_preflight" {
   api_id             = data.aws_apigatewayv2_api.application.id
   route_key          = "OPTIONS /v1/profiles/{proxy+}"
@@ -224,6 +233,13 @@ resource "aws_apigatewayv2_route" "profiles_preflight" {
 resource "aws_apigatewayv2_route" "simulation_preflight" {
   api_id             = data.aws_apigatewayv2_api.application.id
   route_key          = "OPTIONS /v1/simulation/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "portfolio_monitor_preflight" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "OPTIONS /v1/portfolio-monitor/{proxy+}"
   target             = "integrations/${aws_apigatewayv2_integration.api.id}"
   authorization_type = "NONE"
 }
@@ -242,6 +258,14 @@ resource "aws_lambda_permission" "simulation" {
   function_name = aws_lambda_function.api.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${data.aws_apigatewayv2_api.application.execution_arn}/*/*/v1/simulation/*"
+}
+
+resource "aws_lambda_permission" "portfolio_monitor" {
+  statement_id  = "AllowPortfolioMonitorRoutes"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${data.aws_apigatewayv2_api.application.execution_arn}/*/*/v1/portfolio-monitor/*"
 }
 
 resource "aws_lambda_permission" "preflight" {

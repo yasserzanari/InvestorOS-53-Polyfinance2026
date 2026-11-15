@@ -19,6 +19,7 @@ from investoros_api.simulation import router as simulation_router
 from investoros_api.source_store import router as source_store_router
 from investoros_api.source_learning import router as source_learning_router
 from investoros_api.admin_console import router as admin_router
+from investoros_api.portfolio_monitor import router as portfolio_monitor_router
 
 def _cors_allowed_origins() -> list[str]:
     configured = os.getenv("CORS_ALLOWED_ORIGINS", "")
@@ -34,7 +35,7 @@ app = FastAPI(title="InvestorOS API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_allowed_origins(),
-    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["accept", "authorization", "content-type"],
 )
 from investoros_api.profiles.memory import router as profile_memory_router
@@ -50,6 +51,7 @@ app.include_router(simulation_router)
 app.include_router(source_store_router)
 app.include_router(source_learning_router)
 app.include_router(admin_router)
+app.include_router(portfolio_monitor_router)
 _dynamodb = None
 
 
