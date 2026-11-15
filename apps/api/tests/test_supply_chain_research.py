@@ -1,7 +1,7 @@
 import json
 import unittest
 from unittest.mock import patch
-from investoros_api.profiles.supply_chain_research import quarterly_revenue, validate_extraction, build_dossier, resolve, research_documents, read
+from investoros_api.profiles.supply_chain_research import quarterly_revenue, validate_extraction, build_dossier, resolve, research_documents, read, collect_filings
 from investoros_api.profiles.models import ChatRequest, WorkspaceTab
 from investoros_api.profiles.service import run_chat
 from test_profile_service import RuntimeStub, stream_tool
@@ -43,6 +43,16 @@ class SupplyChainResearchTests(unittest.TestCase):
         self.assertIsNone(resolve('ACME ' .lower()+' holdings'))
         self.assertEqual(resolve('acme')['ticker'],'ACME')
         self.assertIsNone(resolve('Acme I'))
+
+    @patch('investoros_api.profiles.supply_chain_research.read')
+    def test_long_filing_preserves_named_supplier_disclosure(self,reader):
+        index={'filings':{'recent':{'form':['10-K'],'accessionNumber':['0000000001-26-000001'],'primaryDocument':['report.htm'],'filingDate':['2026-11-01']}}}
+        generic='Our suppliers face disruption. '+('Risk context. '*120)
+        declaration='We utilize foundries, such as Contoso Foundry, to manufacture our components. We engage contract manufacturers such as Fabrikam Assembly.'
+        reader.side_effect=[json.dumps(index),'<p>'+generic*23+declaration+generic*37+'</p>']
+        docs=collect_filings({'cik_str':1,'title':'Acme'})
+        self.assertIn('Contoso Foundry',docs[0]['text'])
+        self.assertIn('Fabrikam Assembly',docs[0]['text'])
 
     def test_fixed_origins_block_ssrf(self):
         for url in ['http://data.sec.gov/','https://localhost/','https://data.sec.gov@127.0.0.1/','https://data.sec.gov:444/']:

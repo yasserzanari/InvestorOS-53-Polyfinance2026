@@ -118,10 +118,21 @@ def collect_filings(issuer, *, recent_only=False):
             text = page_text(read(url))
             # Keep source excerpts around supplier/risk/event discussion, not arbitrary first bytes.
             patterns = list(re.finditer(r'suppliers?|contract manufactur|manufacturing partners?|export control|purchase commitment|supply disruption', text, re.I))
-            # Sample across the filing so an early risk-factor list cannot hide a later supplier disclosure.
-            selected = patterns if len(patterns) <= 18 else [patterns[round(i*(len(patterns)-1)/17)] for i in range(18)]
-            segments = [text[max(0, m.start()-250):m.start()+1000] for m in selected]
-            body = '\n[…]\n'.join(dict.fromkeys(segments))[:18000] or text[:8000]
+            # Retain supplier lists before sampling general risk passages across the filing.
+            def relevance(match):
+                window = text[max(0, match.start()-300):match.start()+1100]
+                return len(re.findall(r'such as|we (?:purchase|utilize)|suppliers include|contract manufacturers|manufacturing partners', window, re.I))
+            priority = sorted(patterns, key=relevance, reverse=True)
+            selected = []
+            for match in priority:
+                if relevance(match) and all(abs(match.start()-other.start()) > 700 for other in selected):
+                    selected.append(match)
+                if len(selected) >= 6:
+                    break
+            sample = patterns if len(patterns) <= 12 else [patterns[round(i*(len(patterns)-1)/11)] for i in range(12)]
+            selected.extend(match for match in sample if all(abs(match.start()-other.start()) > 700 for other in selected))
+            segments = [text[max(0, m.start()-300):m.start()+1300] for m in selected]
+            body = '\n[…]\n'.join(dict.fromkeys(segments))[:24000] or text[:8000]
             chosen.append({'id':f'sec-{cik}-{len(chosen)}','title':f"{issuer['title']} · {form}", 'url':url, 'publishedAt':recent['filingDate'][i], 'text':body})
         except (OSError, ValueError):
             continue
