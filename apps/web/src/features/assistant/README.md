@@ -1,6 +1,6 @@
 # Assistant partagé
 
-`AssistantChatPanel` est la surface de conversation réutilisée par `/app/assistant` et `/app/profiles`. Les deux écrans s’appuient sur `useProfileWorkspace` : messages, réponses du profil, tâches, sources et onglets sont enregistrés ensemble par compte de démonstration dans le navigateur. L’onglet actif est lui aussi commun et conserve les anciennes sélections par écran lors de sa première lecture. Le panneau de travail partagé (Profil, Tâches, Agents, Sources et résultats Simulation) est visible depuis les deux routes; Assistant devient ainsi le poste central pour piloter les opérations disponibles et ouvrir les relais vers les autres modules.
+`AssistantChatPanel` est la surface de conversation réutilisée par `/app/assistant` et `/app/profiles`. Les deux écrans s’appuient sur `useProfileWorkspace` : les conversations et leurs onglets sont synchronisés par l’API avec le compte de démonstration actif. L’onglet actif est lui aussi commun et conserve les anciennes sélections par écran lors de sa première lecture. Le panneau de travail partagé (Profil, Tâches, Agents, Sources et résultats Simulation) est visible depuis les deux routes; Assistant devient ainsi le poste central pour piloter les opérations disponibles et ouvrir les relais vers les autres modules.
 
 ## Navigation et orchestration
 
@@ -10,7 +10,7 @@ L’API décrit les modules connus à Amazon Bedrock. L’assistant peut appeler
 
 Créer une tâche avec un lien ne signifie pas qu’une action a été exécutée dans le module lié. Les modules qui ne fournissent pas d’outil d’écriture ou d’analyse au backend restent des destinations de relais : l’assistant doit le dire et ne jamais annoncer une opération qu’il n’a pas exécutée. Les données de démonstration restent identifiées comme fictives.
 
-Quand `project_market_scenarios` termine un calcul avec des chocs explicites, son résultat validé est aussi conservé dans un onglet **Trajectoires · TICKER** du même workspace. Cet onglet rend les branches, leurs fourchettes de quantiles, le cours de départ, la date d’arrêt, la méthode, les limites et les liens source/module. Le résultat peut être rouvert depuis Assistant ou Profils; il est remplacé par le calcul suivant du même ticker et reste associé au compte de démonstration dans ce navigateur.
+Quand `project_market_scenarios` termine un calcul avec des chocs explicites, son résultat validé est aussi conservé dans un onglet **Trajectoires · TICKER** du même workspace. Cet onglet rend les branches, leurs fourchettes de quantiles, le cours de départ, la date d’arrêt, la méthode, les limites et les liens source/module. Le résultat peut être rouvert depuis Assistant ou Profils; il est remplacé par le calcul suivant du même ticker et est synchronisé avec le compte de démonstration côté serveur.
 
 ## Stockage
 

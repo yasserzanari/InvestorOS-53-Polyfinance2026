@@ -11,7 +11,7 @@ Le modèle local par défaut est `amazon.nova-pro-v1:0`, région `us-east-1`. Su
 - `ProfilesPage.tsx` compose la conversation et les onglets du compte actif dans le shell commun.
 - `profile-model.ts` décrit les champs et les exemples fictifs de départ.
 - `profile-api.ts` est l’adaptateur de transport NDJSON et les types d’événements côté navigateur. Il utilise `/profile-api` en développement et `VITE_API_BASE_URL` dans le build.
-- `useProfileWorkspace.ts` porte l’état de conversation, les mises à jour par événement, l’annulation et la persistance locale par persona, sous `investoros.workspace.v2.<accountId>`.
+- `useProfileWorkspace.ts` porte l’état de conversation et les mises à jour par événement. L’historique est migré depuis le navigateur puis synchronisé via `/v1/profiles/conversations/{persona}`; le serveur résout la persona vers le compte DynamoDB. Les messages ne sont plus conservés dans le stockage navigateur.
 - `components/` contient les composants de chat réutilisables et les sources UI archivées. Les exemples de démonstration des composants ne sont pas des données de production.
 - `apps/api/src/investoros_api/profiles/models.py` valide requêtes, champs et onglets.
 - `tools.py` expose les outils autorisés au modèle; `sources.py` contient les notes réellement consultables.
@@ -66,7 +66,7 @@ Pour ajouter un rendu, étendre l’union de `kind`, le schéma API et le regist
 
 ## Données, activités et limites
 
-Les personas sont fictifs. L’état local des profils, messages et onglets reste associé au compte sélectionné dans ce navigateur; il n’est pas synchronisé avec DynamoDB. L’API de conversation reçoit le contexte courant et ne doit pas être présentée comme une sauvegarde multi-utilisateur.
+Les personas sont fictifs. Les conversations et onglets de travail sont stockés côté serveur sous la clé du compte de démonstration résolue par l’API. L’API n’accepte que les personas configurées et isole chaque historique par compte; ce stockage ne constitue pas une gestion de comptes clients réels.
 
 Les traces visibles montrent les opérations effectivement exécutées, leurs entrées, sorties et temps. Elles ne révèlent pas une chaîne de pensée interne et ne simulent pas d’étapes avec un minuteur. Un spécialiste est un autre appel de modèle, sans session navigateur. Un aperçu navigateur ne peut apparaître qu’après intégration d’un véritable outil de navigation qui fournit une capture validée; aucune fausse capture ou animation de site n’est utilisée comme preuve.
 

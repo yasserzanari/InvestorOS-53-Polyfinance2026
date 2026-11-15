@@ -8,31 +8,52 @@ import { fieldOrder, initialProfiles, type Profile } from './profile-model';
 import { createLocalId, sourceUrl, streamProfile, profileApiBase, type AgentEvent, type AssistantPlan, type Citation, type FollowUp, type ToolEvent, type WorkspaceTab } from './profile-api';
 export type ChatMessage={id:string;role:'user'|'assistant';text:string;plan?:AssistantPlan;citations:Citation[];followUps:FollowUp[];tools:ToolEvent[];agents:AgentEvent[];versions:string[];version:number;feedback?:string|null;widgets?:FinancialWidgetData[];widgetVersions?:FinancialWidgetData[][];error?:string;questionRequest?:AskUserRequest;questionAnswer?:AskUserAnswer;questionDismissed?:boolean};
 type Workspace={profile:Profile;tabs:WorkspaceTab[];messages:ChatMessage[];researchRuns?:ResearchRun[];activeTab?:string;conversationScoped?:boolean;profileView?:string;widgetSelection?:Pick<FinancialWidgetData,'view'|'period'>;sources?:Citation[]};
-export type ConversationHistoryItem={id:string;title:string;lastUsedAt:number;messages:ChatMessage[];tabs?:WorkspaceTab[];researchRuns?:ResearchRun[];activeTab?:string};
-const conversationsKey=(id:string)=>`investoros.conversations.v1.${id}`;
-const activeConversationKey=(id:string)=>`investoros.conversations.active.v1.${id}`;
+export type ConversationHistoryItem={id:string;title:string;lastUsedAt:number};
+type StoredConversation=ConversationHistoryItem&{messages:ChatMessage[];tabs?:WorkspaceTab[];researchRuns?:ResearchRun[];activeTab?:string};
+const legacyConversationsKey=(id:string)=>`investoros.conversations.v1.${id}`;
+const legacyActiveKey=(id:string)=>`investoros.conversations.active.v1.${id}`;
+const workspaceKey=(id:string)=>`investoros.workspace.v2.${id}`;
 const initial=(id:string):Workspace=>({profile:initialProfiles[id],tabs:[],messages:[],researchRuns:[],activeTab:'',conversationScoped:true});
 function read(id:string):Workspace {try {const raw=JSON.parse(localStorage.getItem(`investoros.workspace.v2.${id}`)||'null'); if(raw?.profile&&Array.isArray(raw.tabs)&&Array.isArray(raw.messages))return raw.conversationScoped?raw:{...raw,conversationScoped:true,tabs:raw.messages.length?raw.tabs.filter((tab:WorkspaceTab)=>tab.id!=='profile'):[],researchRuns:raw.messages.length?raw.researchRuns??[]:[],activeTab:''};}catch{} return initial(id);}
-function readConversations(id:string,workspace:Workspace):ConversationHistoryItem[]{
-  try {
-    const raw=JSON.parse(localStorage.getItem(conversationsKey(id))||'[]');
-    if(Array.isArray(raw)&&raw.length)return raw.filter((item):item is ConversationHistoryItem=>Boolean(item&&typeof item.id==='string'&&typeof item.title==='string'&&Array.isArray(item.messages))).slice(0,30);
-  } catch {}
-  if(!workspace.messages.length)return [];
-  const first=workspace.messages.find(message=>message.role==='user')?.text||'Conversation précédente';
-  return [{id:'legacy-'+createLocalId(),title:first.slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab:workspace.activeTab}];
+function legacyConversations(id:string,workspace:Workspace):StoredConversation[]{
+  const result:StoredConversation[]=[];
+  try {const raw=JSON.parse(localStorage.getItem(legacyConversationsKey(id))||'[]');if(Array.isArray(raw))for(const item of raw){if(item&&typeof item.id==='string'&&typeof item.title==='string'&&Array.isArray(item.messages))result.push({...item,lastUsedAt:Number(item.lastUsedAt)||Date.now()});}}catch{}
+  if(workspace.messages.length&&!result.length){const first=workspace.messages.find(message=>message.role==='user')?.text||'Conversation précédente';result.push({id:`legacy-${createLocalId()}`,title:first.slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab:workspace.activeTab});}
+  return result.slice(0,30);
 }
-function storeConversations(accountId:string,items:ConversationHistoryItem[]){try{localStorage.setItem(conversationsKey(accountId),JSON.stringify(items.slice(0,30)));}catch{}}
+function conversationPayload(item:StoredConversation){return {title:item.title||'Nouvelle conversation',lastUsedAt:item.lastUsedAt||Date.now(),messages:item.messages??[],tabs:item.tabs??[],researchRuns:item.researchRuns??[],activeTab:item.activeTab??''};}
 function readActiveTab(workspace:Workspace) {return workspace.tabs.some(tab=>tab.id===workspace.activeTab)?workspace.activeTab!:workspace.tabs[0]?.id??'';}
 export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'='profiles') {
-  const [workspace,setWorkspace]=useState(()=>read(accountId)); const [busy,setBusy]=useState(false); const [activity,setActivity]=useState(''); const [error,setError]=useState(''); const [activeTab,setActiveTabState]=useState(()=>readActiveTab(read(accountId)));
-  const [conversations,setConversations]=useState<ConversationHistoryItem[]>(()=>readConversations(accountId,read(accountId)));
-  const [conversationId,setConversationId]=useState(()=>{try{return localStorage.getItem(activeConversationKey(accountId))||createLocalId();}catch{return createLocalId();}});
+  const [workspace,setWorkspace]=useState(()=>initial(accountId)); const [busy,setBusy]=useState(false); const [activity,setActivity]=useState(''); const [error,setError]=useState(''); const [activeTab,setActiveTabState]=useState('');
+  const [conversations,setConversations]=useState<ConversationHistoryItem[]>([]); const [conversationId,setConversationId]=useState('');
+  const [historyReady,setHistoryReady]=useState(false); const [historyError,setHistoryError]=useState('');
   const abort=useRef<AbortController|null>(null); const currentAccount=useRef(accountId); const requestBusy=useRef(false);
   const currentConversation=useRef(conversationId);currentConversation.current=conversationId;
-  const setActiveTab=useCallback((id:string)=>{setActiveTabState(id);setWorkspace(w=>{const next={...w,activeTab:id};try{localStorage.setItem(`investoros.workspace.v2.${currentAccount.current}`,JSON.stringify(next));}catch{}return next;});},[]);
-  useEffect(()=>{abort.current?.abort(); requestBusy.current=false; currentAccount.current=accountId; const next=read(accountId);setWorkspace(next);setBusy(false);setError('');setActiveTabState(readActiveTab(next));const items=readConversations(accountId,next);setConversations(items);let active='';try{active=localStorage.getItem(activeConversationKey(accountId))||'';}catch{}if(!active)active=(next.messages.length||next.tabs.length?items[0]?.id:undefined)||createLocalId();try{localStorage.setItem(activeConversationKey(accountId),active);}catch{}currentConversation.current=active;setConversationId(active); return ()=>abort.current?.abort();},[accountId,view]);
-  const update=(fn:(w:Workspace)=>Workspace)=>setWorkspace(w=>{const next=fn(w);try{localStorage.setItem(`investoros.workspace.v2.${currentAccount.current}`,JSON.stringify(next));}catch{}return next;});
+  const setActiveTab=useCallback((id:string)=>{setActiveTabState(id);setWorkspace(w=>({...w,activeTab:id}));},[]);
+  useEffect(()=>{
+    abort.current?.abort();requestBusy.current=false;currentAccount.current=accountId;
+    const controller=new AbortController();let alive=true;
+    setWorkspace(initial(accountId));setBusy(false);setError('');setHistoryError('');setHistoryReady(false);setConversations([]);setActiveTabState('');
+    const migrateAndLoad=async()=>{
+      try{
+        const legacyWorkspace=read(accountId);const legacy=legacyConversations(accountId,legacyWorkspace);
+        const endpoint=`${profileApiBase}/v1/profiles/conversations/${encodeURIComponent(accountId)}`;
+        const response=await authenticatedFetch(endpoint,{signal:controller.signal});if(!response.ok)throw new Error(`Historique indisponible (${response.status}).`);
+        const data=await response.json() as {conversations?:ConversationHistoryItem[]};const remote=Array.isArray(data.conversations)?data.conversations:[];const known=new Set(remote.map(item=>item.id));
+        for(const item of legacy){if(!known.has(item.id)){const save=await authenticatedFetch(`${endpoint}/${encodeURIComponent(item.id)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(conversationPayload(item)),signal:controller.signal});if(!save.ok)throw new Error(`Migration de l’historique interrompue (${save.status}).`);}}
+        const activeStored=localStorage.getItem(legacyActiveKey(accountId))||'';
+        const listResponse=await authenticatedFetch(endpoint,{signal:controller.signal});if(!listResponse.ok)throw new Error(`Historique indisponible (${listResponse.status}).`);
+        const listData=await listResponse.json() as {conversations?:ConversationHistoryItem[]};const remoteItems=Array.isArray(listData.conversations)?listData.conversations:[];const items=[...remoteItems,...legacy.filter(item=>!remoteItems.some(saved=>saved.id===item.id)).map(({id,title,lastUsedAt})=>({id,title,lastUsedAt}))].sort((a,b)=>b.lastUsedAt-a.lastUsedAt).slice(0,30);
+        const active=items.find(item=>item.id===activeStored)?.id??items[0]?.id??createLocalId();let loaded=initial(accountId);
+        if(items.some(item=>item.id===active)){const detail=await authenticatedFetch(`${endpoint}/${encodeURIComponent(active)}`,{signal:controller.signal});if(!detail.ok)throw new Error(`La conversation sélectionnée est introuvable (${detail.status}).`);const stored=await detail.json() as StoredConversation;loaded={...loaded,messages:stored.messages??[],tabs:stored.tabs??[],researchRuns:stored.researchRuns??[],activeTab:stored.activeTab??'',conversationScoped:true};}
+        if(!alive)return;
+        localStorage.removeItem(legacyConversationsKey(accountId));localStorage.removeItem(legacyActiveKey(accountId));
+        try{localStorage.setItem(workspaceKey(accountId),JSON.stringify({...legacyWorkspace,messages:[],tabs:[],researchRuns:[],activeTab:''}));}catch{}
+        setWorkspace(loaded);setActiveTabState(readActiveTab(loaded));setConversations(items);setConversationId(active);currentConversation.current=active;setHistoryReady(true);
+      }catch(e){if(!alive||controller.signal.aborted)return;setHistoryError(e instanceof Error?e.message:'Synchronisation du compte impossible.');setHistoryReady(false);}
+    };void migrateAndLoad();return()=>{alive=false;controller.abort();abort.current?.abort();};
+  },[accountId,view]);
+  const update=(fn:(w:Workspace)=>Workspace)=>setWorkspace(w=>fn(w));
   const [researchRefresh,setResearchRefresh]=useState(0);
   const forcedResearch=useRef(new Set<string>());
   const updateRef=useRef(update);updateRef.current=update;
@@ -71,44 +92,45 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     void poll();return()=>{controller.abort();clearTimeout(timer);};
   },[accountId,conversationId,researchKey,researchRefresh]);
   useEffect(()=>{
-    if((!workspace.messages.length&&!workspace.tabs.length)||!conversationId)return;
-    const timer=window.setTimeout(()=>setConversations(previous=>{
+    if(!historyReady||(!workspace.messages.length&&!workspace.tabs.length)||!conversationId)return;
+    const timer=window.setTimeout(()=>{
       const first=workspace.messages.find(message=>message.role==='user')?.text||'Nouvelle conversation';
-      const existing=previous.find(item=>item.id===conversationId);
-      const item:ConversationHistoryItem={id:conversationId,title:first.replace(/\s+/g,' ').slice(0,72),lastUsedAt:existing?.lastUsedAt||Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab};
-      const next=[item,...previous.filter(entry=>entry.id!==conversationId)].slice(0,30);storeConversations(currentAccount.current,next);return next;
-    }),250);
-    return ()=>window.clearTimeout(timer);
-  },[workspace.messages,workspace.tabs,workspace.researchRuns,activeTab,conversationId]);
+      const item:StoredConversation={id:conversationId,title:first.replace(/\s+/g,' ').slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab};
+      void authenticatedFetch(`${profileApiBase}/v1/profiles/conversations/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(conversationPayload(item))}).then(response=>{if(!response.ok)throw new Error(`Sauvegarde de l’historique impossible (${response.status}).`);if(currentAccount.current!==accountId)return;setHistoryError('');setConversations(previous=>[item,...previous.filter(entry=>entry.id!==conversationId)].slice(0,30));}).catch(e=>{if(currentAccount.current===accountId){setHistoryError(e instanceof Error?e.message:'Sauvegarde du compte impossible.');setHistoryReady(false);}});
+    },700);return()=>window.clearTimeout(timer);
+  },[accountId,historyReady,workspace.messages,workspace.tabs,workspace.researchRuns,activeTab,conversationId]);
+  const saveCurrentConversation=async()=>{
+    if(!conversationId||(!workspace.messages.length&&!workspace.tabs.length))return;
+    const title=workspace.messages.find(message=>message.role==='user')?.text||'Nouvelle conversation';
+    const item:StoredConversation={id:conversationId,title:title.replace(/\s+/g,' ').slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab};
+    const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/conversations/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(conversationPayload(item))});
+    if(!response.ok)throw new Error(`Sauvegarde de l’historique impossible (${response.status}).`);
+    setConversations(previous=>[item,...previous.filter(entry=>entry.id!==conversationId)].slice(0,30));
+  };
   const startNewConversation=useCallback(()=>{
-    if(requestBusy.current)return;
-    const active=conversationId;
-    if(workspace.messages.length||workspace.tabs.length){
-      const first=workspace.messages.find(message=>message.role==='user')?.text||'Nouvelle conversation';
-      const next=[{id:active,title:first.replace(/\s+/g,' ').slice(0,72),lastUsedAt:Date.now(),messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab},...conversations.filter(item=>item.id!==active)].slice(0,30);
-      setConversations(next);storeConversations(currentAccount.current,next);
-    }
-    const nextId=createLocalId();setConversationId(nextId);try{localStorage.setItem(activeConversationKey(currentAccount.current),nextId);}catch{}
-    currentConversation.current=nextId;forcedResearch.current.clear();
-    update(w=>({...w,messages:[],tabs:[],researchRuns:[],activeTab:'',widgetSelection:undefined}));setActiveTabState('');setError('');
-  },[conversationId,workspace,activeTab,conversations]);
+    if(requestBusy.current||!historyReady)return;
+    void (async()=>{try{await saveCurrentConversation();const nextId=createLocalId();setConversationId(nextId);currentConversation.current=nextId;forcedResearch.current.clear();update(w=>({...w,messages:[],tabs:[],researchRuns:[],activeTab:'',widgetSelection:undefined}));setActiveTabState('');setError('');setHistoryError('');}catch(e){setHistoryError(e instanceof Error?e.message:'Sauvegarde du compte impossible.');setHistoryReady(false);}})();
+  },[conversationId,workspace,activeTab,accountId,historyReady]);
   const openConversation=useCallback((id:string)=>{
-    if(requestBusy.current||id===conversationId)return;
-    const target=conversations.find(item=>item.id===id);if(!target)return;
-    const now=Date.now();
-    const current=workspace.messages.length||workspace.tabs.length?{id:conversationId,title:workspace.messages.find(message=>message.role==='user')?.text.replace(/\s+/g,' ').slice(0,72)||'Nouvelle conversation',lastUsedAt:now,messages:workspace.messages,tabs:workspace.tabs,researchRuns:workspace.researchRuns,activeTab}:null;
-    const next=[{...target,lastUsedAt:now},...conversations.filter(item=>item.id!==id&&item.id!==conversationId),...(current&&current.id!==id?[current]:[])].slice(0,30);
-    setConversations(next);storeConversations(currentAccount.current,next);setConversationId(id);try{localStorage.setItem(activeConversationKey(currentAccount.current),id);}catch{}
-    currentConversation.current=id;forcedResearch.current.clear();
-    const tabs=target.tabs??[];const selected=tabs.some(tab=>tab.id===target.activeTab)?target.activeTab!:tabs[0]?.id??'';
-    update(w=>({...w,messages:target.messages,widgetSelection:undefined,tabs,researchRuns:target.researchRuns??[],activeTab:selected}));setActiveTabState(selected);setError('');
-  },[conversations,workspace,activeTab,conversationId]);
+    if(requestBusy.current||id===conversationId||!historyReady)return;
+    const owner=accountId;const priorId=conversationId;
+    void (async()=>{
+      try{
+        await saveCurrentConversation();
+        const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/conversations/${encodeURIComponent(owner)}/${encodeURIComponent(id)}`);
+        if(!response.ok)throw new Error(`La conversation n’a pas pu être chargée (${response.status}).`);
+        const target=await response.json() as StoredConversation;if(currentAccount.current!==owner)return;
+        const tabs=target.tabs??[];const selected=tabs.some(tab=>tab.id===target.activeTab)?target.activeTab!:tabs[0]?.id??'';
+        currentConversation.current=id;setConversationId(id);forcedResearch.current.clear();
+        update(w=>({...w,messages:target.messages??[],widgetSelection:undefined,tabs,researchRuns:target.researchRuns??[],activeTab:selected}));setActiveTabState(selected);setError('');setHistoryError('');
+        const metadata={id,title:target.title,lastUsedAt:Date.now()};setConversations(previous=>[metadata,...previous.filter(item=>item.id!==id&&item.id!==priorId)].slice(0,30));
+      }catch(e){if(currentAccount.current===owner){setHistoryError(e instanceof Error?e.message:'Chargement du compte impossible.');setHistoryReady(false);}}
+    })();
+  },[conversations,workspace,activeTab,conversationId,accountId,historyReady]);
   const send=async(text:string,regenerateId?:string,questionReply?:{messageId:string;request:AskUserRequest;answer:AskUserAnswer})=>{
-    if(requestBusy.current||!text.trim()) return; requestBusy.current=true; setBusy(true);setError('');setActivity('Connexion à Bedrock');
+    if(requestBusy.current||!text.trim()||!historyReady)return; requestBusy.current=true; setBusy(true);setError('');setActivity('Connexion à Bedrock');
     let completed=false;
     const owner=accountId; const controller=new AbortController(); abort.current=controller; const id=regenerateId||createLocalId();
-    const usedAt=Date.now();
-    setConversations(previous=>{const existing=previous.find(item=>item.id===conversationId);if(!existing)return previous;const next=previous.map(item=>item.id===conversationId?{...item,lastUsedAt:usedAt}:item);storeConversations(currentAccount.current,next);return next;});
     const source=regenerateId?workspace.messages.slice(0,workspace.messages.findIndex(m=>m.id===regenerateId)):workspace.messages;
     const history=source.filter(m=>m.text&&!m.error).slice(-28).map(m=>({role:m.role,content:m.text}));
     if(regenerateId&&history.at(-1)?.role==='user')history.pop();
@@ -183,5 +205,5 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     update(w=>({...w,tabs:researchTabs(w.tabs),researchRuns:w.researchRuns?.some(run=>run.analysis_id===analysisId)?w.researchRuns:[...(w.researchRuns??[]),{analysis_id:analysisId,status:'loading'}]}));
     setActiveTab('research-results');
   };
-  return {attachResearch,refreshResearch:()=>{forcedResearch.current=new Set((workspace.researchRuns??[]).map(run=>run.analysis_id));setResearchRefresh(value=>value+1);},workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,conversations,conversationId,startNewConversation,openConversation,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab('');}};
+  return {attachResearch,historyReady,historyError,refreshResearch:()=>{forcedResearch.current=new Set((workspace.researchRuns??[]).map(run=>run.analysis_id));setResearchRefresh(value=>value+1);},workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions:(messageId:string,request:AskUserRequest,answer:AskUserAnswer)=>send(formatQuestionAnswer(request,answer),undefined,{messageId,request,answer}),stop:()=>abort.current?.abort(),update,conversations,conversationId,startNewConversation,openConversation,reset:()=>{abort.current?.abort();update(()=>initial(accountId));setActiveTab('');}};
 }

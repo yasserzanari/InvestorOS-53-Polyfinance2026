@@ -97,3 +97,50 @@ resource "aws_iam_role_policy" "profile_chat_dispatch" {
     ]
   })
 }
+
+
+resource "aws_dynamodb_table" "profile_conversations" {
+  name         = "${local.profile_chat_name}-conversations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "account_id"
+  range_key    = "conversation_id"
+
+  attribute {
+    name = "account_id"
+    type = "S"
+  }
+  attribute {
+    name = "conversation_id"
+    type = "S"
+  }
+  attribute {
+    name = "last_used_at"
+    type = "N"
+  }
+
+  global_secondary_index {
+    name               = "account-last-used"
+    hash_key           = "account_id"
+    range_key          = "last_used_at"
+    projection_type    = "INCLUDE"
+    non_key_attributes = ["title"]
+  }
+
+  server_side_encryption { enabled = true }
+  point_in_time_recovery { enabled = true }
+  deletion_protection_enabled = true
+  tags                        = local.common_tags
+}
+
+resource "aws_iam_role_policy" "profile_conversations" {
+  name = "${local.profile_chat_name}-conversations"
+  role = aws_iam_role.api.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]
+      Resource = [aws_dynamodb_table.profile_conversations.arn, "${aws_dynamodb_table.profile_conversations.arn}/index/*"]
+    }]
+  })
+}

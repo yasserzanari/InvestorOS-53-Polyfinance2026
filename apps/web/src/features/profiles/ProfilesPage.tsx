@@ -72,7 +72,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const location = useLocation();
   const navigate = useNavigate();
   const {activeAccount}=useDemoAccount();
-  const {attachResearch,refreshResearch,workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions,stop,update,reset,conversations,conversationId,startNewConversation,openConversation}=useProfileWorkspace(activeAccount.id,assistantMode?'assistant':'profiles');
+  const {attachResearch,refreshResearch,workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions,stop,update,reset,conversations,conversationId,startNewConversation,openConversation,historyReady,historyError}=useProfileWorkspace(activeAccount.id,assistantMode?'assistant':'profiles');
   const handledAssistantView=useRef(workspace.profileView??'');
   const memory=useProfileMemory(activeAccount.id,{profile:workspace.profile,tabs:workspace.tabs,sources:workspace.sources??[]},(profile,tabs,sources)=>update(w=>assistantMode?({...w,profile}):({...w,profile,tabs,sources})),assistantMode);
   const changeProfile=(key:import('./profile-model').FieldKey,value:string)=>update(w=>({...w,profile:{...w.profile,[key]:value,confirmed:false,version:(w.profile.version??1)+1,updatedAt:new Date().toISOString(),origins:{...w.profile.origins,[key]:'Modification directe'}}}));
@@ -80,14 +80,14 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const [input,setInput]=useState(''); const [connected,setConnected]=useState<boolean|null>(null); const [model,setModel]=useState('');
   const handledInitialPrompt=useRef<string|null>(null);
   useEffect(()=>{
-    if(!initialPrompt||busy||!memory.ready||handledInitialPrompt.current===location.key)return;
+    if(!initialPrompt||busy||!memory.ready||!historyReady||handledInitialPrompt.current===location.key)return;
     handledInitialPrompt.current=location.key;
     setInput('');
     navigate({pathname:location.pathname,search:location.search},{replace:true,state:null});
     void send(initialPrompt);
-  },[initialPrompt,busy,memory.ready,location.key]);
+  },[initialPrompt,busy,memory.ready,historyReady,location.key]);
   useEffect(()=>{const controller=new AbortController();readProfileApi(`${profileApiBase}/v1/profiles/status`,{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(data=>{setConnected(data.configured);setModel(data.modelId||'');}).catch(()=>{if(!controller.signal.aborted)setConnected(false)});return()=>controller.abort();},[]);
-  const submit=(text=input)=>{if(!text.trim()||busy||!memory.ready)return;setMobilePane('chat');void send(text);setInput('');};
+  const submit=(text=input)=>{if(!text.trim()||busy||!memory.ready||!historyReady)return;setMobilePane('chat');void send(text);setInput('');};
   const answerPlan=(messageId:string,request:AskUserRequest,label:string)=>{
     const question=request.questions[0];
     const choice=question?.options.find(option=>option.label.trim().toLocaleLowerCase()===label.toLocaleLowerCase());
@@ -141,13 +141,13 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const reduceMotion=useReducedMotion();
   const landing=assistantMode&&workspace.messages.length===0;
   const promptComposer=<motion.div layout layoutId={assistantMode?"assistant-prompt":undefined} transition={{duration:reduceMotion?0:0.48,ease:[0.22,1,0.36,1]}} style={{width:"100%"}}>
-    {pendingQuestion?.questionRequest&&pendingQuestion.questionRequest.purpose!=='plan_approval'&&<div className="pw-question-dock"><div className="pw-question-waiting" role="status">L’assistant attend votre réponse</div><AskUserCard key={pendingQuestion.questionRequest.id} request={pendingQuestion.questionRequest} disabled={busy||!memory.ready} onSubmit={answer=>void answerQuestions(pendingQuestion.id,pendingQuestion.questionRequest!,answer)}/></div>}
-    <PromptBar value={input} onChange={setInput} onSend={()=>submit()} disabled={!memory.ready} busy={busy} onStop={stop} placeholder={pendingQuestion?'Ou répondez librement ici…':'Posez votre question…'}/>
+    {pendingQuestion?.questionRequest&&pendingQuestion.questionRequest.purpose!=='plan_approval'&&<div className="pw-question-dock"><div className="pw-question-waiting" role="status">L’assistant attend votre réponse</div><AskUserCard key={pendingQuestion.questionRequest.id} request={pendingQuestion.questionRequest} disabled={busy||!memory.ready||!historyReady} onSubmit={answer=>void answerQuestions(pendingQuestion.id,pendingQuestion.questionRequest!,answer)}/></div>}
+    <PromptBar value={input} onChange={setInput} onSend={()=>submit()} disabled={!memory.ready||!historyReady} busy={busy} onStop={stop} placeholder={pendingQuestion?'Ou répondez librement ici…':'Posez votre question…'}/>
   </motion.div>;
   const renderWorkspaceTab=():ReactNode=>{
     if(!tab)return null;
-    if(tab.kind==='note'&&!['research-skills','research-results'].includes(tab.id))return <NoteDocument title={tab.title} content={tab.content} onTitleChange={title=>editTab({title})} onContentChange={content=>editTab({content})} persistenceLabel="Note liée à cette conversation · conservée dans ce navigateur"/>;
-    if(tab.kind==='decision')return <DecisionPanel tab={tab} profile={workspace.profile} sources={allSources} onDiscuss={prompt=>submit(prompt)} disabled={busy||!memory.ready}/>;
+    if(tab.kind==='note'&&!['research-skills','research-results'].includes(tab.id))return <NoteDocument title={tab.title} content={tab.content} onTitleChange={title=>editTab({title})} onContentChange={content=>editTab({content})} persistenceLabel="Note liée à cette conversation · synchronisée avec le compte"/>;
+    if(tab.kind==='decision')return <DecisionPanel tab={tab} profile={workspace.profile} sources={allSources} onDiscuss={prompt=>submit(prompt)} disabled={busy||!memory.ready||!historyReady}/>;
     let content:ReactNode;
     if(tab.id==='research-skills')content=<SkillsUsedTab skills={skills}/>;
     else if(tab.id==='research-results')content=<ResearchResultsTab runs={runs} onRefresh={refreshResearch}/>;
@@ -167,8 +167,9 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
         provider={connected===null?'Connexion…':connected?'Bedrock':'Statut à vérifier'}
         model={model}
         onReset={assistantMode?()=>{setTabsOpen(false);startNewConversation();}:reset}
-        resetDisabled={busy||!memory.ready}
+        resetDisabled={busy||!memory.ready||!historyReady}
         conversations={conversations}
+        historyStatus={!historyReady?historyError||'Synchronisation de l’historique avec le compte…':historyError||'Historique synchronisé avec le compte actif'}
         activeConversationId={conversationId}
         onSelectConversation={openConversation}
         assistantMode={assistantMode}
@@ -179,15 +180,15 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
         onToggleWorkspace={()=>setTabsOpen(open=>!open)}
         composerClassName={pendingQuestion?'is-awaiting-answer':''}
         composer={promptComposer}
-        error={error}
+        error={error||historyError}
       >
         {workspace.messages.length===0?<div className={`pw-empty${assistantMode?' pw-assistant-landing':''}`}>
           {assistantMode?<>
             <div className="pw-voice-orb pw-landing-orb" aria-hidden="true"><span/><span/><span/></div>
             <div className="pw-landing-heading"><h2>Par où commencer&nbsp;?</h2><p>Posez une question sur un profil, un portefeuille ou une analyse.</p></div>
             <div className="pw-landing-composer">{promptComposer}</div>
-            <div className="pw-landing-ideas" aria-label="Idées pour commencer">{demoPrompts(activeAccount.id).map(t=><button type="button" key={t} disabled={busy||!memory.ready} onClick={()=>submit(t)}><span>{t}</span><Plus size={15}/></button>)}</div>
-          </>:<><Sparkles size={28}/><h2>Commençons par vos projets.</h2><p>Parlez de vos objectifs, de votre horizon ou d’une contrainte. L’assistant structure votre profil et organise ses résultats dans les onglets.</p><div>{['Aide-moi à préciser mon profil','Crée un plan pour construire mon profil','Demande un avis à un spécialiste du risque'].map(t=><button type="button" key={t} disabled={busy||!memory.ready} onClick={()=>submit(t)}>{t}<Plus size={14}/></button>)}</div></>}
+            <div className="pw-landing-ideas" aria-label="Idées pour commencer">{demoPrompts(activeAccount.id).map(t=><button type="button" key={t} disabled={busy||!memory.ready||!historyReady} onClick={()=>submit(t)}><span>{t}</span><Plus size={15}/></button>)}</div>
+          </>:<><Sparkles size={28}/><h2>Commençons par vos projets.</h2><p>Parlez de vos objectifs, de votre horizon ou d’une contrainte. L’assistant structure votre profil et organise ses résultats dans les onglets.</p><div>{['Aide-moi à préciser mon profil','Crée un plan pour construire mon profil','Demande un avis à un spécialiste du risque'].map(t=><button type="button" key={t} disabled={busy||!memory.ready||!historyReady} onClick={()=>submit(t)}>{t}<Plus size={14}/></button>)}</div></>}
         </div>:<MessageScroller className="pw-messages" messages={workspace.messages.map(m=>({id:m.id,content:m.text,from:m.role}))} renderMessage={renderMessage}/>}
       </AssistantChatPanel>
       {(!assistantMode||tabsOpen)&&<div className="pw-split-handle" role="separator" tabIndex={0} aria-label="Redimensionner le chat et les onglets" aria-orientation="vertical" aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(split)} aria-valuetext={`${Math.round(split)} % pour le chat`} title="Glissez pour redimensionner · Double-clic pour équilibrer"
