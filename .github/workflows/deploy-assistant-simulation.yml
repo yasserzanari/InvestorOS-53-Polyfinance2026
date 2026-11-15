@@ -117,6 +117,15 @@ jobs:
           set -e
           if [[ "$apply_status" -ne 0 ]]; then
             echo "::error::terraform apply a échoué (code ${apply_status}); détails masqués pour éviter d'exposer des valeurs du state ou des URL AWS temporaires."
+            python - "$apply_log" <<'PY'
+          import re, sys
+          with open(sys.argv[1], encoding="utf-8") as log:
+              actions = sorted(set(re.findall(r"not authorized to perform:\s+([A-Za-z0-9:]+)", log.read())))
+          if actions:
+              print("Permissions AWS refusées: " + ", ".join(actions))
+          else:
+              print("Aucun refus IAM identifié; les détails du provider restent masqués.")
+          PY
             exit "$apply_status"
           fi
           echo "Application Terraform terminée avec succès."
