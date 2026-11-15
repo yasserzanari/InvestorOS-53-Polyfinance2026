@@ -6,6 +6,7 @@ import json
 import os
 import re
 import socket
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -23,6 +24,7 @@ from investoros_api.simulation import _assets, issuer_news
 router = APIRouter(prefix="/v1/portfolio-monitor", tags=["portfolio-monitor"])
 _resource = None
 _client = None
+_lambda_client = None
 _MATERIAL_TERMS = re.compile(
     r"\b(earnings|results|guidance|outlook|investigation|lawsuit|regulator|"
     r"recall|acquisition|merger|bankruptcy|fraud|cyberattack|data breach|"
@@ -131,6 +133,70 @@ def update_case(case_id: str, persona: PersonaId = Query(default="mateo"), statu
     case["updatedAt"] = datetime.now(timezone.utc).isoformat()
     table.put_item(Item={**key, "payload": json.dumps(case, ensure_ascii=False)})
     return case
+
+
+def _save_scan(persona: PersonaId, scan_id: str, status: str, **details: Any) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    item = {
+        "id": scan_id,
+        "persona": persona,
+        "status": status,
+        "updatedAt": now.isoformat(),
+        **details,
+    }
+    _table().put_item(Item={
+        "account_id": _account(persona),
+        "record_id": f"scan#{scan_id}",
+        "payload": json.dumps(item, ensure_ascii=False),
+        "expiresAt": int((now + timedelta(days=1)).timestamp()),
+    })
+    return item
+
+
+@router.post("/refresh", status_code=202)
+def request_scan(persona: PersonaId = Query(default="mateo")) -> dict[str, Any]:
+    """Queue one on-demand scan and return immediately for dashboard polling."""
+    function_name = os.getenv("PORTFOLIO_MONITOR_FUNCTION_NAME", "")
+    if not function_name:
+        raise HTTPException(503, "La recherche de nouvelles n’est pas configurée.")
+
+    scan_id = uuid.uuid4().hex[:24]
+    scan = _save_scan(persona, scan_id, "pending", createdAt=datetime.now(timezone.utc).isoformat())
+    global _lambda_client
+    if _lambda_client is None:
+        _lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
+    event = {
+        "source": "investoros.portfolio-monitor",
+        "detail-type": "Manual portfolio news scan",
+        "persona": persona,
+        "scanId": scan_id,
+        "createdAt": scan["createdAt"],
+    }
+    try:
+        response = _lambda_client.invoke(
+            FunctionName=function_name,
+            InvocationType="Event",
+            Payload=json.dumps(event).encode("utf-8"),
+        )
+        if response.get("StatusCode") != 202:
+            raise RuntimeError("Async invocation was not accepted")
+    except Exception as error:
+        failed = _save_scan(persona, scan_id, "failed", createdAt=scan["createdAt"], message="Impossible de démarrer la recherche.")
+        raise HTTPException(503, detail=failed["message"]) from error
+    return scan
+
+
+@router.get("/scans/{scan_id}")
+def get_scan(scan_id: str, persona: PersonaId = Query(default="mateo")) -> dict[str, Any]:
+    if not re.fullmatch(r"[a-f0-9]{24}", scan_id):
+        raise HTTPException(422, "Identifiant de recherche invalide.")
+    response = _table().get_item(
+        Key={"account_id": _account(persona), "record_id": f"scan#{scan_id}"},
+        ConsistentRead=True,
+    )
+    if "Item" not in response:
+        raise HTTPException(404, "Recherche introuvable.")
+    return _decode(response["Item"])
 
 
 def _public_host(url: str) -> str | None:
@@ -309,8 +375,35 @@ def run_scheduled_scan(event: dict[str, Any] | None = None) -> dict[str, Any]:
     return {"status": "completed", "results": results}
 
 
+def run_manual_scan(persona: PersonaId, scan_id: str, created_at: str | None = None) -> dict[str, Any]:
+    _save_scan(persona, scan_id, "running", createdAt=created_at or datetime.now(timezone.utc).isoformat())
+    try:
+        result = scan_persona(persona)
+    except Exception as error:
+        return _save_scan(
+            persona, scan_id, "failed",
+            createdAt=created_at or datetime.now(timezone.utc).isoformat(),
+            message=f"La recherche a échoué ({type(error).__name__}).",
+        )
+    return _save_scan(
+        persona, scan_id, "completed",
+        createdAt=created_at or datetime.now(timezone.utc).isoformat(),
+        result=result,
+        completedAt=datetime.now(timezone.utc).isoformat(),
+    )
+
+
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """EventBridge target; accepts only the dedicated scheduled event."""
-    if event.get("source") != "investoros.portfolio-monitor" or event.get("detail-type") != "Scheduled portfolio news scan":
+    """EventBridge schedule and authenticated API requests for one persona."""
+    if event.get("source") != "investoros.portfolio-monitor":
         return {"status": "ignored", "reason": "unexpected_event"}
-    return run_scheduled_scan(event)
+    detail_type = event.get("detail-type")
+    if detail_type == "Scheduled portfolio news scan":
+        return run_scheduled_scan(event)
+    if detail_type == "Manual portfolio news scan":
+        persona = event.get("persona")
+        scan_id = event.get("scanId")
+        if persona not in PERSONAS or not isinstance(scan_id, str) or not re.fullmatch(r"[a-f0-9]{24}", scan_id):
+            return {"status": "ignored", "reason": "invalid_manual_scan"}
+        return run_manual_scan(persona, scan_id, event.get("createdAt"))
+    return {"status": "ignored", "reason": "unexpected_event"}

@@ -34,6 +34,11 @@ export type PortfolioNewsCase = {
   evidenceQuote: string; source: { domain: string; url: string; indexedAt: string; classification: string };
   createdAt: string; limitations: string[];
 };
+export type PortfolioMonitorScan = {
+  id: string; persona: DemoOverview['persona']; status: 'pending' | 'running' | 'completed' | 'failed';
+  createdAt: string; updatedAt: string; completedAt?: string; message?: string;
+  result?: { checkedArticles: number; newCases: number };
+};
 
 export type DemoApiConnection =
   | { status: 'not_configured' }
@@ -331,6 +336,10 @@ export const loadPortfolioNewsCases = (persona: DemoOverview['persona'], signal?
   monitorRequest<{ persona: DemoOverview['persona']; cases: PortfolioNewsCase[] }>(`cases?persona=${encodeURIComponent(persona)}`, { signal });
 export const updatePortfolioNewsCase = (persona: DemoOverview['persona'], id: string, status: 'read' | 'resolved') =>
   monitorRequest<PortfolioNewsCase>(`cases/${encodeURIComponent(id)}?persona=${encodeURIComponent(persona)}&status=${status}`, { method: 'PATCH' });
+export const startPortfolioNewsScan = (persona: DemoOverview['persona']) =>
+  monitorRequest<PortfolioMonitorScan>(`refresh?persona=${encodeURIComponent(persona)}`, { method: 'POST' });
+export const getPortfolioNewsScan = (persona: DemoOverview['persona'], id: string, signal?: AbortSignal) =>
+  monitorRequest<PortfolioMonitorScan>(`scans/${encodeURIComponent(id)}?persona=${encodeURIComponent(persona)}`, { signal });
 
 export async function loadDemoOverview(persona: DemoOverview['persona'] = 'mateo', signal?: AbortSignal): Promise<DemoApiConnection> {
   const base = getApiBase();

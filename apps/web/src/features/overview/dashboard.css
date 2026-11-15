@@ -292,6 +292,12 @@
 .activity-feed-actions button { padding: 5px 8px; border: 0; border-radius: 999px; background: transparent; color: #66758b; font: inherit; font-size: 11px; cursor: pointer; }
 .activity-feed-actions button:hover:not(:disabled) { background: rgba(255,255,255,.8); color: #293c57; }
 .activity-feed-actions button:disabled { opacity: .45; cursor: default; }
+.activity-feed-actions .activity-refresh-button { display: inline-flex; align-items: center; gap: 5px; color: #2364d7; }
+.activity-refresh-status { margin: 0 0 8px; color: #64758a; font-size: 11px; }
+.activity-refresh-status.is-failed { color: #a34535; }
+.activity-refresh-status.is-completed { color: #23735f; }
+.activity-refresh-button .is-spinning { animation: activity-refresh-spin 1s linear infinite; }
+@keyframes activity-refresh-spin { to { transform: rotate(360deg); } }
 .activity-card { position: relative; animation: activity-arrive .38s cubic-bezier(.2,.9,.25,1.12) both; }
 .activity-card.is-read { opacity: .78; }
 .activity-dismiss { position: absolute; z-index: 2; top: 12px; right: 6px; display: grid; width: 23px; height: 23px; place-items: center; border: 0; border-radius: 50%; background: rgba(242,245,250,.85); color: #64758d; font-size: 18px; line-height: 1; opacity: 0; cursor: pointer; }
