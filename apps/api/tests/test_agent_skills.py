@@ -4,11 +4,12 @@ import os
 import unittest
 from unittest.mock import patch
 
-from investoros_api.profiles.skills import search_skills, load_skill
+from test_profile_service import RuntimeStub, stream_tool
+
+from investoros_api.profiles.models import AskUserInput, ChatRequest
 from investoros_api.profiles.research_bridge import research_tool
 from investoros_api.profiles.service import SYSTEM, run_chat
-from investoros_api.profiles.models import AskUserInput, ChatRequest
-from test_profile_service import RuntimeStub, stream_tool
+from investoros_api.profiles.skills import load_skill, search_skills
 
 
 class SkillSequence(RuntimeStub):
@@ -217,7 +218,9 @@ class ResearchIamTransportTests(unittest.TestCase):
     @patch.dict('os.environ', {'RESEARCH_LAMBDA_FUNCTION':'investoros-dev-api'})
     @patch('investoros_api.profiles.research_bridge._lambda_client')
     def test_iam_transport_preserves_persona_and_does_not_fabricate_jwt_claims(self, client):
-        import io,json
+        import io
+        import json
+
         from investoros_api.profiles.research_bridge import _call
         client.return_value.invoke.return_value={'Payload':io.BytesIO(json.dumps({'statusCode':200,'body':json.dumps({'status':'running'})}).encode())}
         result=_call('GET','/analyses/example/events?limit=150','mateo')
@@ -233,8 +236,26 @@ class ResearchIamTransportTests(unittest.TestCase):
 
     @patch.dict('os.environ', {'RESEARCH_LAMBDA_FUNCTION':'investoros-dev-api'})
     @patch('investoros_api.profiles.research_bridge._lambda_client')
+    def test_iam_transport_forwards_only_hashed_verified_principal(self, client):
+        import io
+        import json
+
+        from investoros_api.profiles.research_bridge import _call, forward_research_authorization
+        client.return_value.invoke.return_value={'Payload':io.BytesIO(json.dumps({'statusCode':200,'body':'{}'}).encode())}
+        principal='a'*64
+        with forward_research_authorization('Bearer private-token', principal):
+            _call('POST','/analyses','mateo',{'question':'question longue suffisamment précise'})
+        event=json.loads(client.return_value.invoke.call_args.kwargs['Payload'])['request']
+        self.assertEqual(event['requestContext']['trustedPrincipalHash'],principal)
+        self.assertNotIn('authorizer',event['requestContext'])
+        self.assertNotIn('private-token',str(event))
+
+    @patch.dict('os.environ', {'RESEARCH_LAMBDA_FUNCTION':'investoros-dev-api'})
+    @patch('investoros_api.profiles.research_bridge._lambda_client')
     def test_iam_transport_rejected_request_is_not_reported_as_success(self, client):
-        import io,json
+        import io
+        import json
+
         from investoros_api.profiles.research_bridge import _call
         client.return_value.invoke.return_value={'Payload':io.BytesIO(json.dumps({'statusCode':403,'body':'{}'}).encode())}
         with self.assertRaisesRegex(ValueError,'403'):_call('POST','/analyses','mateo',{'question':'test'})
@@ -260,8 +281,10 @@ class ResearchAuthorizationTests(unittest.TestCase):
     @patch.dict('os.environ',{'RESEARCH_LAMBDA_FUNCTION':'','RESEARCH_API_URL':'https://research.example'})
     @patch('investoros_api.profiles.research_bridge.build_opener')
     def test_user_bearer_is_forwarded_only_in_its_request_context(self, opener):
-        import io,json
-        from investoros_api.profiles.research_bridge import _call,forward_research_authorization
+        import io
+        import json
+
+        from investoros_api.profiles.research_bridge import _call, forward_research_authorization
         response=opener.return_value.open.return_value.__enter__.return_value
         response.read.return_value=b'{}'
         with forward_research_authorization('Bearer test-context-token'):
