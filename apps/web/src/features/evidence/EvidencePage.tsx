@@ -1,34 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, BookOpenText, ChartNoAxesCombined, CircleHelp, Database, FileText, Globe2, Landmark, MessageCircle, Newspaper, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, BookOpenText, ChartNoAxesCombined, Check, CircleHelp, Clock3, LoaderCircle, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { loadSimulationAssets, type SimulationAssetList } from '../../shared/api';
+import { loadSimulationAssets, loadSimulationHistory, type SimulationAssetList, type SimulationHistory } from '../../shared/api';
 import { profileApiBase } from '../profiles/profile-api';
 import './evidence.css';
+import { SourceExplorer } from './SourceExplorer';
 
 type AssetState = { kind: 'loading' } | { kind: 'ready'; data: SimulationAssetList } | { kind: 'error'; message: string };
-
-const sources = [
-  {
-    title: 'Dépôts des émetteurs', category: 'Source primaire', Icon: FileText,
-    description: 'Formulaires publiés par les entreprises dans EDGAR. Ils rapportent des déclarations; ils ne constituent pas une vérification indépendante ni une preuve de causalité boursière.',
-    provider: 'SEC EDGAR', href: 'https://www.sec.gov/search-filings/edgar-application-programming-interfaces', availability: 'Selon l’émetteur et la configuration du serveur',
-  },
-  {
-    title: 'Textes et avis réglementaires', category: 'Source primaire', Icon: Landmark,
-    description: 'Documents du Federal Register avec dates de publication et, quand disponible, d’entrée en vigueur. La présence d’un texte ne prouve pas qu’il s’applique à un titre.',
-    provider: 'Federal Register API', href: 'https://www.federalregister.gov/developers/documentation/api/v1', availability: 'Recherche par thème et période depuis Simulation',
-  },
-  {
-    title: 'Couverture médiatique récente', category: 'Piste secondaire', Icon: Newspaper,
-    description: 'GDELT repère des articles susceptibles de parler de l’émetteur. L’indexation peut différer de la publication; vérifier le texte de l’article et ses sources originales.',
-    provider: 'GDELT DOC 2.0', href: 'https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/', availability: 'Recherche récente depuis Simulation',
-  },
-  {
-    title: 'Publications publiques', category: 'Déclarations à vérifier', Icon: MessageCircle,
-    description: 'X Recent Search est optionnel et désactivé par défaut. Les publications et leurs médias ne sont pas vérifiés, ne prouvent pas l’identité ou le rôle d’un auteur et n’alimentent pas les calculs.',
-    provider: 'X API v2 · Recent Search', href: 'https://docs.x.com/x-api/posts/search/introduction', availability: 'Optionnel; sept derniers jours; peut être facturé',
-  },
-];
+type HistoryTestState = { kind: 'idle' | 'loading' } | { kind: 'ready'; data: SimulationHistory } | { kind: 'error'; message: string };
 
 const methods = [
   { title: 'Mouvements après une date', description: 'Les rendements sont mesurés aux séances disponibles après une date d’événement ou de publication. Ils décrivent une succession temporelle, pas un effet attribuable à cette information.' },
@@ -38,6 +17,8 @@ const methods = [
 
 export function EvidencePage() {
   const [assetState, setAssetState] = useState<AssetState>({ kind: 'loading' });
+  const [selectedTicker, setSelectedTicker] = useState('');
+  const [historyTest, setHistoryTest] = useState<HistoryTestState>({ kind: 'idle' });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,50 +30,80 @@ export function EvidencePage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (assetState.kind === 'ready' && !assetState.data.assets.some((asset) => asset.ticker === selectedTicker)) {
+      setSelectedTicker(assetState.data.assets[0]?.ticker ?? '');
+      setHistoryTest({ kind: 'idle' });
+    }
+  }, [assetState, selectedTicker]);
+
+  const selectedAsset = assetState.kind === 'ready'
+    ? assetState.data.assets.find((asset) => asset.ticker === selectedTicker)
+    : undefined;
+
+  const testSelectedHistory = async () => {
+    if (!selectedAsset) return;
+    setHistoryTest({ kind: 'loading' });
+    try {
+      const data = await loadSimulationHistory(selectedAsset.ticker);
+      setHistoryTest({ kind: 'ready', data });
+    } catch (error) {
+      setHistoryTest({ kind: 'error', message: error instanceof Error ? error.message : 'La requête de vérification a échoué.' });
+    }
+  };
+
   return (
     <section className="evidence-page" aria-labelledby="evidence-title">
       <header className="evidence-header">
         <div>
-          <span className="evidence-eyebrow"><ShieldCheck size={14} /> PROVENANCE ET MÉTHODES</span>
           <h1 id="evidence-title">Sources et méthode</h1>
           <p>Vérifiez d’où viennent les observations, ce qu’elles permettent de dire et où leur portée s’arrête.</p>
         </div>
         <Link className="evidence-open-simulation" to="/app/scenarios"><ChartNoAxesCombined size={15} /> Ouvrir Simulation</Link>
       </header>
 
-      <section className="evidence-market-status" aria-labelledby="evidence-market-title">
-        <span className="evidence-status-icon"><Database size={17} /></span>
-        <div className="evidence-status-copy">
-          <h2 id="evidence-market-title">Historique de marché configuré</h2>
-          {assetState.kind === 'loading' && <p role="status">Lecture de la source de données…</p>}
-          {assetState.kind === 'error' && <p role="status">{assetState.message} Les métadonnées des autres fournisseurs restent consultables ci-dessous.</p>}
-          {assetState.kind === 'ready' && <p>{assetState.data.source} · {assetState.data.assets.length} titres · extraction du {assetState.data.sourceAsOf}</p>}
-          {assetState.kind === 'ready' && assetState.data.limitations.map((limitation) => <small key={limitation}>{limitation}</small>)}
-        </div>
-        <span className={`evidence-state-pill is-${assetState.kind}`}>{assetState.kind === 'ready' ? 'Connecté' : assetState.kind === 'loading' ? 'Chargement' : 'Indisponible'}</span>
-      </section>
+      {assetState.kind === 'loading' && <p role="status">Chargement des titres…</p>}
+      {assetState.kind === 'error' && <p role="alert">{assetState.message}</p>}
+
 
       {assetState.kind === 'ready' && (
-        <section className="evidence-universe" aria-label="Titres présents dans l’historique configuré">
-          <span>{assetState.data.assets.length} titres dans le jeu local</span>
-          <div>{assetState.data.assets.map((asset) => <span key={asset.ticker} title={`${asset.name} · ${asset.currency}`}><strong>{asset.ticker}</strong><small>{asset.name}</small></span>)}</div>
+        <section className="evidence-assets-workspace" aria-label="Titres présents dans l’historique configuré">
+          <div className="evidence-asset-list-panel">
+            <header><div><span>UNIVERS CONFIGURÉ</span><h2>{assetState.data.assets.length} titres disponibles</h2></div><span className="evidence-list-hint">Sélectionnez un titre</span></header>
+            <div className="evidence-asset-list" role="listbox" aria-label="Titres disponibles dans Simulation">
+              {assetState.data.assets.map((asset) => (
+                <button type="button" role="option" aria-selected={selectedTicker === asset.ticker} className={`evidence-asset-option${selectedTicker === asset.ticker ? ' is-selected' : ''}`} key={asset.ticker} onClick={() => { setSelectedTicker(asset.ticker); setHistoryTest({ kind: 'idle' }); }}>
+                  <span className="evidence-asset-symbol">{asset.ticker}</span>
+                  <span className="evidence-asset-description"><strong>{asset.name}</strong><small>{asset.market} · {asset.currency} · {asset.asset_class}</small></span>
+                  <ArrowUpRight size={15} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <aside className="evidence-asset-details" aria-live="polite" aria-label="Détails et vérification du titre">
+            {selectedAsset ? <>
+              <header><span className="evidence-detail-symbol"><ChartNoAxesCombined size={18} /></span><div><span>DÉTAILS DU TITRE</span><h2>{selectedAsset.ticker}</h2><p>{selectedAsset.name}</p></div></header>
+              <dl className="evidence-asset-facts">
+                <div><dt>Marché</dt><dd>{selectedAsset.market}</dd></div><div><dt>Devise</dt><dd>{selectedAsset.currency}</dd></div><div><dt>Secteur</dt><dd>{selectedAsset.sector}</dd></div><div><dt>Type</dt><dd>{selectedAsset.asset_class}</dd></div>
+              </dl>
+              <div className="evidence-link-details"><span className="evidence-card-category">LIENS DE DONNÉES</span>
+                <a href={`https://finance.yahoo.com/quote/${encodeURIComponent(selectedAsset.ticker)}/history/`} target="_blank" rel="noopener noreferrer"><span><strong>Historique Yahoo Finance</strong><small>Source externe · prix ajustés</small></span><ArrowUpRight size={15} /></a>
+                <div><span><strong>Simulation · API locale</strong><small>Historique configuré dans le jeu de données</small></span><code>/history/{selectedAsset.ticker}</code></div>
+              </div>
+              <button className="evidence-test-button" type="button" onClick={() => void testSelectedHistory()} disabled={historyTest.kind === 'loading'}>
+                {historyTest.kind === 'loading' ? <LoaderCircle size={15} className="evidence-test-spinner" /> : <Check size={15} />}
+                {historyTest.kind === 'loading' ? 'Vérification en cours…' : 'Tester les données reçues'}
+              </button>
+              {historyTest.kind === 'ready' && <div className="evidence-test-result is-success" role="status"><span><Check size={14} /> Réponse reçue</span><p>{historyTest.data.prices.length} observations · {historyTest.data.events.length} événements · {historyTest.data.source}</p><small>Extraction : {historyTest.data.sourceAsOf} · {historyTest.data.currency}</small></div>}
+              {historyTest.kind === 'error' && <div className="evidence-test-result is-error" role="alert"><span><X size={14} /> Échec de la vérification</span><p>{historyTest.message}</p><small>Vérifiez que l’API Simulation est démarrée et que ce titre est bien configuré.</small></div>}
+              {historyTest.kind === 'idle' && <p className="evidence-test-idle"><Clock3 size={13} />Le test interroge l’API réelle au clic; aucun résultat n’est simulé.</p>}
+            </> : <p className="evidence-details-empty">Aucun titre disponible dans l’univers configuré.</p>}
+          </aside>
         </section>
       )}
 
-      <div className="evidence-section-heading"><div><span>FOURNISSEURS</span><h2>Documents et observations</h2></div><p>Les liens ouvrent la documentation ou la source primaire du fournisseur.</p></div>
-      <div className="evidence-source-grid">
-        <article className="evidence-source-card is-data-source">
-          <span className="evidence-card-icon"><ChartNoAxesCombined size={17} /></span>
-          <div className="evidence-card-copy"><span className="evidence-card-category">Jeu de données</span><h3>Prix ajustés et événements d’entreprise</h3><p>Paquet local configuré pour Simulation. Les prix peuvent être différés ou révisés; les rendements après événement ne démontrent pas de causalité.</p><span className="evidence-card-availability">{assetState.kind === 'ready' ? assetState.data.source : 'Disponibilité indiquée dans Simulation'}</span></div>
-          <a href={assetState.kind === 'ready' && assetState.data.assets[0] ? `https://finance.yahoo.com/quote/${encodeURIComponent(assetState.data.assets[0].ticker)}/history/` : 'https://finance.yahoo.com/'} target="_blank" rel="noopener noreferrer" aria-label="Ouvrir l’historique du premier titre chez Yahoo Finance"><ArrowUpRight size={15} /></a>
-        </article>
-        {sources.map(({ title, category, Icon, description, provider, href, availability }) => (
-          <article className="evidence-source-card" key={provider}>
-            <span className="evidence-card-icon"><Icon size={17} /></span>
-            <div className="evidence-card-copy"><span className="evidence-card-category">{category}</span><h3>{title}</h3><p>{description}</p><span className="evidence-card-availability">{availability}</span><a className="evidence-provider-link" href={href} target="_blank" rel="noopener noreferrer">Documentation {provider}<ArrowUpRight size={12} /></a></div>
-          </article>
-        ))}
-      </div>
+      <SourceExplorer />
 
       <div className="evidence-section-heading"><div><span>INTERPRÉTATION</span><h2>Ce que les résultats signifient</h2></div></div>
       <div className="evidence-method-grid">
