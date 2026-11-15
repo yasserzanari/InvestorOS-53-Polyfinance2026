@@ -5,8 +5,9 @@
     "apps/web"
   ],
   "scripts": {
-    "dev": "npm run dev -w @investoros/web",
+    "dev": "bash scripts/dev-local.sh",
     "dev:local": "bash scripts/dev-local.sh",
+    "dev:web": "npm run dev -w @investoros/web",
     "dev:aws": "npm run dev:aws -w @investoros/web",
     "build": "npm run build -w @investoros/web",
     "typecheck": "npm run typecheck -w @investoros/web"
