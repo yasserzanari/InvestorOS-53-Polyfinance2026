@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../../../shared/auth';
 import { profileApiBase } from '../profile-api';
 
-type Props = { value: string; onChange: (value: string) => void; onRecordingChange: (active: boolean) => void; onError: (message: string) => void };
+type Props = { value: string; onChange: (value: string) => void; onRecordingChange: (active: boolean) => void; onError: (message: string) => void; onFinished: () => void };
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -46,16 +46,16 @@ function readHeaders(bytes: Uint8Array, end: number) {
 }
 
 /** Mic audio is streamed as 16 kHz PCM to a short-lived, server-signed Amazon Transcribe socket. */
-export function VoiceOrb({ value, onChange, onRecordingChange, onError }: Props) {
+export function VoiceOrb({ value, onChange, onRecordingChange, onError, onFinished }: Props) {
   const [active, setActive] = useState(false); const [level, setLevel] = useState(0); const [label, setLabel] = useState('Connexion à la transcription AWS…');
-  const alive = useRef(false); const resources = useRef<{stream?:MediaStream;context?:AudioContext;socket?:WebSocket;processor?:ScriptProcessorNode;source?:MediaStreamAudioSourceNode;mute?:GainNode}>({});
-  const prefix = useRef(value); const finalText = useRef(''); const callbacks = useRef({onChange,onRecordingChange,onError}); callbacks.current={onChange,onRecordingChange,onError};
+  const alive = useRef(false); const finishing = useRef(false); const resources = useRef<{stream?:MediaStream;context?:AudioContext;socket?:WebSocket;processor?:ScriptProcessorNode;source?:MediaStreamAudioSourceNode;mute?:GainNode;finishTimer?:number}>({});
+  const prefix = useRef(value); const finalSegments = useRef(new Map<string,{start:number;text:string}>()); const partialSegments = useRef(new Map<string,{start:number;text:string}>()); const callbacks = useRef({onChange,onRecordingChange,onError,onFinished}); callbacks.current={onChange,onRecordingChange,onError,onFinished};
   const startRef = useRef<() => Promise<void>>(async()=>undefined);
-  const cleanup = () => { const r=resources.current; r.processor?.disconnect();r.source?.disconnect();r.mute?.disconnect();r.context?.close().catch(()=>{});r.stream?.getTracks().forEach(t=>t.stop());if(r.socket&&r.socket.readyState<2)r.socket.close();resources.current={}; };
-  const stop = () => { alive.current=false; cleanup(); setActive(false); callbacks.current.onRecordingChange(false); };
+  const cleanup = () => { const r=resources.current; if(r.finishTimer)window.clearTimeout(r.finishTimer);r.processor?.disconnect();r.source?.disconnect();r.mute?.disconnect();r.context?.close().catch(()=>{});r.stream?.getTracks().forEach(t=>t.stop());if(r.socket&&r.socket.readyState<2)r.socket.close();resources.current={}; };
+  const stop = () => { alive.current=false;finishing.current=false;cleanup();setActive(false);callbacks.current.onRecordingChange(false); };
   const start = useCallback(async () => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { onError('Le micro nécessite HTTPS et une permission du navigateur.'); return; }
-    prefix.current=value; finalText.current=''; alive.current=true; setLabel('Demande d’accès au micro…');
+    prefix.current=value;finalSegments.current.clear();partialSegments.current.clear();finishing.current=false;alive.current=true;setLevel(0);setLabel('Demande d’accès au micro…');
     try {
       const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); resources.current.stream=stream;
       if(!alive.current){cleanup();return;}
@@ -76,14 +76,39 @@ export function VoiceOrb({ value, onChange, onRecordingChange, onError }: Props)
       });
       if(!alive.current){cleanup();return;}
       const context=new AudioContext({sampleRate}); await context.resume(); resources.current.context=context;
-      const source=context.createMediaStreamSource(stream), processor=context.createScriptProcessor(4096,1,1), mute=context.createGain(); mute.gain.value=0; resources.current.source=source;resources.current.processor=processor;resources.current.mute=mute;
-      let lastLevel=0;
+      const source=context.createMediaStreamSource(stream), processor=context.createScriptProcessor(2048,1,1), mute=context.createGain(); mute.gain.value=0; resources.current.source=source;resources.current.processor=processor;resources.current.mute=mute;
+      let lastLevel=0,noiseFloor=0.0025,speechMs=0,silenceMs=0,speechDetected=false;
+      const stopCapture=()=>{const r=resources.current;if(r.processor)r.processor.onaudioprocess=null;r.processor?.disconnect();r.source?.disconnect();r.mute?.disconnect();r.context?.close().catch(()=>{});r.stream?.getTracks().forEach(t=>t.stop());r.processor=undefined;r.source=undefined;r.mute=undefined;r.context=undefined;r.stream=undefined;};
+      const complete=()=>{if(!alive.current)return;alive.current=false;cleanup();setActive(false);callbacks.current.onRecordingChange(false);callbacks.current.onFinished();};
+      const finish=()=>{
+        if(finishing.current||!alive.current)return;
+        finishing.current=true;setLabel('Vous avez cessé de parler · finalisation…');setActive(false);setLevel(0);stopCapture();
+        const current=resources.current.socket;
+        if(!current||current.readyState!==WebSocket.OPEN){complete();return;}
+        try{current.send(eventFrame(new Uint8Array()));}catch{complete();return;}
+        resources.current.finishTimer=window.setTimeout(complete,3500);
+      };
+      const publishTranscript=()=>{
+        const segments=[...finalSegments.current.values(),...partialSegments.current.values()].sort((a,b)=>a.start-b.start).map(s=>s.text).filter(Boolean);
+        callbacks.current.onChange([prefix.current,segments.join(' ')].filter(Boolean).join(' '));
+      };
       processor.onaudioprocess=(event)=>{
-        if(!alive.current||socket.readyState!==WebSocket.OPEN)return;
+        if(!alive.current||finishing.current||socket.readyState!==WebSocket.OPEN)return;
         const input=event.inputBuffer.getChannelData(0), pcm=new Int16Array(input.length); let energy=0;
         for(let i=0;i<input.length;i++){const sample=Math.max(-1,Math.min(1,input[i]));energy+=sample*sample;pcm[i]=sample<0?sample*32768:sample*32767;}
-        const measured=Math.min(1,Math.sqrt(energy/input.length)*4); if(Math.abs(measured-lastLevel)>.025){lastLevel=measured;setLevel(measured);}
+        const rms=Math.sqrt(energy/input.length),measured=Math.min(1,rms*4),blockMs=input.length/context.sampleRate*1000;
+        if(Math.abs(measured-lastLevel)>.025){lastLevel=measured;setLevel(measured);}
+        let finishAfterChunk=false;
+        if(rms>Math.max(0.008,noiseFloor*2.8)){
+          speechMs+=blockMs;silenceMs=0;
+          if(!speechDetected&&speechMs>=250){speechDetected=true;setLabel('Je vous écoute…');}
+        }else{
+          speechMs=0;
+          if(!speechDetected)noiseFloor=Math.max(0.001,Math.min(0.015,noiseFloor*0.95+rms*0.05));
+          else if((silenceMs+=blockMs)>=1600)finishAfterChunk=true;
+        }
         socket.send(eventFrame(new Uint8Array(pcm.buffer)));
+        if(finishAfterChunk)finish();
       };
       source.connect(processor);processor.connect(mute);mute.connect(context.destination);setActive(true);setLabel('Parlez, votre transcription apparaît ici');callbacks.current.onRecordingChange(true);callbacks.current.onError('');
       socket.onmessage=(message)=>{
@@ -94,13 +119,17 @@ export function VoiceOrb({ value, onChange, onRecordingChange, onError }: Props)
           const headers=readHeaders(frame,12+headerLength), body=decoder.decode(frame.subarray(12+headerLength,total-4));
           if(headers[':message-type']==='exception')throw new Error(body||'Amazon Transcribe a interrompu le flux.');
           if(headers[':event-type']!=='TranscriptEvent')return;
-          const data=JSON.parse(body), result=data.Transcript?.Results?.[0], text=result?.Alternatives?.[0]?.Transcript;
-          if(!text)return;
-          if(result.IsPartial){callbacks.current.onChange([prefix.current,finalText.current,text].filter(Boolean).join(' '));}
-          else{finalText.current=[finalText.current,text].filter(Boolean).join(' ');callbacks.current.onChange([prefix.current,finalText.current].filter(Boolean).join(' '));}
+          const results=JSON.parse(body).Transcript?.Results??[];
+          for(const [index,result] of results.entries()){
+            const text=result.Alternatives?.[0]?.Transcript?.trim();if(!text)continue;
+            const id=String(result.ResultId??`${result.StartTime??0}-${index}`),segment={start:Number(result.StartTime)||0,text};
+            if(result.IsPartial)partialSegments.current.set(id,segment);
+            else{finalSegments.current.set(id,segment);partialSegments.current.delete(id);}
+          }
+          publishTranscript();
         }catch(error){if(error instanceof Error){callbacks.current.onError(error.message);stop();}}
       };
-      socket.onclose=()=>{if(alive.current){callbacks.current.onError('Le flux Amazon Transcribe est fermé. Relancez le micro.');stop();}};
+      socket.onclose=()=>{if(finishing.current){complete();return;}if(alive.current){callbacks.current.onError('Le flux Amazon Transcribe est fermé. Relancez le micro.');stop();}};
     }catch(error){stop();onError(error instanceof Error?error.message:'Impossible de démarrer le micro. Vérifiez sa permission.');}
   },[value,onError]);
   startRef.current=start;
@@ -108,6 +137,6 @@ export function VoiceOrb({ value, onChange, onRecordingChange, onError }: Props)
   return <div className="pw-voice-live" role="status" aria-live="polite">
     <button type="button" className="pw-voice-close" aria-label="Arrêter le micro" onClick={stop}>×</button>
     <div className={`pw-voice-orb${active?' is-listening':''}`} style={{'--voice-level':level} as React.CSSProperties}><span/><span/><span/></div>
-    <strong>{label}</strong><small>{active?'Amazon Transcribe · Français (Canada)':'Préparation sécurisée du micro'}</small>
+    <strong>{label}</strong><small>{active?'Amazon Transcribe · Français (Canada) · arrêt automatique après une pause':'Préparation sécurisée du micro'}</small>
   </div>;
 }

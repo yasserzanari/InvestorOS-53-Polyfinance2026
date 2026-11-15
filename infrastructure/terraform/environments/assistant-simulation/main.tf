@@ -112,6 +112,22 @@ resource "aws_iam_role_policy" "api" {
   })
 }
 
+resource "aws_transcribe_vocabulary" "finance_fr_ca" {
+  vocabulary_name = "${local.name_prefix}-finance-fr-ca"
+  language_code   = "fr-CA"
+  phrases = [
+    "NVIDIA", "NVDA", "TSMC", "ASML", "Micron", "Broadcom", "AMD", "Intel",
+    "Samsung", "Hynix", "Nasdaq", "ETF", "FNB", "PER", "dividende",
+    "capitalisation", "rendement", "volatilite", "portefeuille", "semiconducteurs"
+  ]
+  tags = local.common_tags
+}
+
+import {
+  to = aws_transcribe_vocabulary.finance_fr_ca
+  id = "investoros-dev-assistant-simulation-finance-fr-ca"
+}
+
 resource "aws_lambda_function" "api" {
   function_name                  = local.name_prefix
   description                    = "Amazon Bedrock chat and evidence-backed Simulation API routes."
@@ -127,24 +143,25 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      PROFILE_CHAT_JOBS_TABLE       = aws_dynamodb_table.profile_chat_jobs.name
-      PROFILE_CHAT_WORKER_FUNCTION  = aws_lambda_function.profile_chat_worker.function_name
-      BEDROCK_MODEL_ID              = var.bedrock_model_id
-      CORS_ALLOWED_ORIGINS          = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
-      RESEARCH_API_URL              = data.aws_apigatewayv2_api.application.api_endpoint
-      DEMO_CONTEXTS                 = jsonencode(local.demo_contexts)
-      DEMO_PORTFOLIO_MODE           = "dynamodb"
-      ENVIRONMENT                   = var.environment
-      PORTFOLIOS_TABLE_NAME         = local.portfolio_table_name
-      SOURCE_WORKSPACE_TABLE        = local.accounts_table_name
-      POWERTOOLS_SERVICE_NAME       = "investoros-assistant-simulation"
-      SIMULATION_X_SEARCH_ENABLED   = "false"
-      X_API_BEARER_TOKEN_SECRET_ARN = ""
-      REQUIRE_ADMIN_AUTH            = "true"
+      PROFILE_CHAT_JOBS_TABLE          = aws_dynamodb_table.profile_chat_jobs.name
+      PROFILE_CHAT_WORKER_FUNCTION     = aws_lambda_function.profile_chat_worker.function_name
+      BEDROCK_MODEL_ID                 = var.bedrock_model_id
+      CORS_ALLOWED_ORIGINS             = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
+      RESEARCH_API_URL                 = data.aws_apigatewayv2_api.application.api_endpoint
+      DEMO_CONTEXTS                    = jsonencode(local.demo_contexts)
+      DEMO_PORTFOLIO_MODE              = "dynamodb"
+      ENVIRONMENT                      = var.environment
+      PORTFOLIOS_TABLE_NAME            = local.portfolio_table_name
+      SOURCE_WORKSPACE_TABLE           = local.accounts_table_name
+      POWERTOOLS_SERVICE_NAME          = "investoros-assistant-simulation"
+      SIMULATION_X_SEARCH_ENABLED      = "false"
+      X_API_BEARER_TOKEN_SECRET_ARN    = ""
+      REQUIRE_ADMIN_AUTH               = "true"
+      VOICE_TRANSCRIBE_VOCABULARY_NAME = aws_transcribe_vocabulary.finance_fr_ca.vocabulary_name
     }
   }
 
-  depends_on = [aws_iam_role_policy.api]
+  depends_on = [aws_iam_role_policy.api, aws_transcribe_vocabulary.finance_fr_ca]
   tags       = local.common_tags
 }
 
