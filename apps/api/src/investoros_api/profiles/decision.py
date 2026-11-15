@@ -104,11 +104,84 @@ def _denies_declared_loss_capacity(text: str) -> bool:
     return False
 
 
+_ZERO_CAPACITY = re.compile(
+    r'\bcapacite(?: financiere)?'
+    r'(?: (?:a|d|de) (?:absorber|supporter|subir) (?:une |des |les? )?pertes?| de perte)? '
+    r'(?:(?:est|reste|demeure|semble|apparait) )?'
+    r'(?:(?:donc|ainsi|structurellement|strictement|totalement|effectivement) )*'
+    r'(?:(?:egale|evaluee|fixee|ramenee) a |de )?(?:nulle|zero|zeroamount)\b'
+)
+
+
+def _capacity_clauses(text: str):
+    # Preserve the difference between 0 and 0.5 before stripping punctuation.
+    protected = re.sub(r'\b[0-9]+(?:[.,][0-9]+)?\b',
+                       lambda match: 'zeroamount' if all(char in '0.,' for char in match[0]) else 'nonzeroamount', text)
+    for match in re.finditer(r'([^.!?;\n]+)([.!?;\n]|$)', protected):
+        if match[2] != '?':
+            for clause in re.split(r'\b(?:mais|pourtant|cependant|toutefois)\b', match[1], flags=re.I):
+                yield _normalized_insight_text(clause)
+
+
+def _asserts_zero_loss_capacity(text: str) -> bool:
+    """Recognize the observed zero assertion, not every financial inference."""
+    for clause in _capacity_clauses(text):
+        for match in _ZERO_CAPACITY.finditer(clause):
+            prefix, suffix = clause[:match.start()], clause[match.end():]
+            if (re.fullmatch(r'(?:(?:par definition|en general) )?(?:une|la) ', prefix)
+                    and re.match(r' (?:signifie|designe|correspond a|lorsque|quand|si)\b', suffix)):
+                continue
+            if re.search(r'\b(?:si|hypothese de|hypothese d|supposons que) (?:(?:la|une|votre|sa|ma|cette) )?$', prefix):
+                continue
+            if re.search(
+                    r'\b(?:pas|sans) (?:(?:necessairement|pour autant|automatiquement) )?'
+                    r'(?:(?:de|d) )?(?:(?:conclure|deduire|affirmer|etablir|demontrer|prouver) '
+                    r'(?:(?:que|a|de) )?)?(?:(?:que|de|d|a) )?(?:(?:une|la|votre|sa|cette) )?$', prefix):
+                continue
+            if re.search(r'\b(?:aucune preuve|absence de preuve|pas de preuve) (?:de|d) (?:(?:une|la|votre|sa) )?$', prefix):
+                continue
+            if re.match(
+                    r' (?:non (?:etablie|demontree|prouvee|confirmee|declaree)|a (?:confirmer|etablir)'
+                    r'|n (?:est pas|a pas ete) (?:(?:encore|necessairement|forcement|pour autant) )?'
+                    r'(?:etablie|demontree|prouvee|confirmee|declaree|deduite|impliquee|le cas)'
+                    r'|ne peut pas etre (?:deduite|etablie|demontree|affirmee)|ne decoule pas)\b', suffix):
+                continue
+            if re.match(r' (?:pour cent )?(?:a|et|ou) (?:nonzeroamount|zeroamount)\b', suffix):
+                continue
+            if re.match(r' ou (?:tres )?faible\b', suffix):
+                continue
+            return True
+    return False
+
+
+def _declares_zero_loss_capacity(value: str) -> bool:
+    if _asserts_zero_loss_capacity(value):
+        return True
+    for clause in _capacity_clauses(value):
+        if re.fullmatch(r'(?:nulle|zero|zeroamount)(?: (?:pour cent|de perte|euros?|dollars?|cad|usd))?', clause):
+            return True
+        if re.fullmatch(
+                r'(?:(?:je|il|elle) )?ne (?:peux|peut|pourrais|pourrait) '
+                r'(?:(?:absorber|supporter|subir|accepter|tolerer) (?:aucune|la moindre) perte'
+                r'|pas (?:absorber|supporter|subir|accepter|tolerer) de pertes?'
+                r'|pas perdre d argent)(?: meme temporaire)?', clause):
+            return True
+        if re.fullmatch(r'aucune perte (?:n est acceptable|acceptable|supportable)', clause):
+            return True
+        if re.fullmatch(r'(?:je peux|je pourrais) (?:absorber|supporter|subir|perdre) zeroamount(?: (?:de perte|pour cent))?', clause):
+            return True
+    return False
+
+
 def validate_profile_claims(texts: list[str], profile: dict) -> None:
-    """Check known declaration-denial phrases, without validating financial truth."""
+    """Check known declaration conflicts, without validating financial truth."""
     if (profile_declarations(profile)['lossCapacity']['state'] == 'declared'
             and any(_denies_declared_loss_capacity(text) for text in texts)):
         raise ValueError('lossCapacity contient déjà une déclaration du profil. Reprends cette réponse qualitative; ne la présente pas comme inconnue ou non renseignée. Une quantification monétaire manquante doit être indiquée séparément.')
+    capacity = profile.get('lossCapacity', '')
+    if (not _declares_zero_loss_capacity(capacity if isinstance(capacity, str) else '')
+            and any(_asserts_zero_loss_capacity(text) for text in texts)):
+        raise ValueError('lossCapacity ne déclare pas une capacité financière nulle ni un seuil zéro. Reprends la contrainte qualitative sans la convertir en mesure nulle; indique séparément le montant maximal non chiffré.')
 
 
 class InsightInput(BaseModel):
@@ -197,7 +270,8 @@ def compare_instruments(query: CompareInput) -> dict:
 def insight_tab(args: InsightInput, profile: dict, evidence_ids: set[str]) -> dict:
     if not set(args.evidenceIds) <= evidence_ids:
         raise ValueError('Une preuve citée n’a pas été reçue dans ce tour. Lire les sources avant de les relier.')
-    validate_profile_claims([args.summary, *args.limits], profile)
+    validate_profile_claims([args.title, args.question, args.summary, *args.limits,
+                             *args.alternatives, args.nextQuestion], profile)
     payload={**args.model_dump(),'type':'insight','profileSnapshot':profile,
              'createdAt':datetime.now(timezone.utc).isoformat(),'classification':'interpretation'}
     return {'id':'profile-alignment','title':'Alignement','kind':'decision','content':json.dumps(payload,ensure_ascii=False)}

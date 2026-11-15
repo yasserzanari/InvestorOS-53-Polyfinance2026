@@ -64,6 +64,14 @@ Le bloc `aws_transcribe_vocabulary.finance_fr_ca` dans `main.tf` contient la sé
 
 La mémoire durable du profil est distincte des jobs temporaires : `SOURCE_WORKSPACE_TABLE` ou `PROFILE_WORKSPACE_TABLE` désigne la table de comptes. Seul l’attribut `profile_workspace` est modifié par l’adaptateur de mémoire, avec révision optimiste et contrôle des clés via `DEMO_CONTEXTS`.
 
+## Historique de conversation — déploiement vérifié
+
+Le 15 novembre 2026, l’essai connecté d’Alignement a révélé une erreur `500` sur `/v1/profiles/conversations/robert` : la variable `PROFILE_CONVERSATIONS_TABLE` était absente et le repli SQLite tentait d’écrire dans le système de fichiers Lambda en lecture seule.
+
+Les ressources déjà déclarées `aws_dynamodb_table.profile_conversations` et `aws_iam_role_policy.profile_conversations` ont été appliquées depuis le plan Terraform ciblé : **2 créations, aucun changement et aucune destruction dans ce plan**. La table `investoros-dev-profile-chat-conversations` et son index `account-last-used` sont `ACTIVE`, avec chiffrement, protection contre la suppression et restauration à un instant donné. Les droits du rôle existant sont limités à cette table et à ses index. Ces ressources sont enregistrées dans le state S3 de cette stack.
+
+La variable `PROFILE_CONVERSATIONS_TABLE` de `investoros-dev-assistant-simulation` a ensuite été configurée en préservant les autres variables; sa mise à jour est `Successful`. La route publique authentifiée a répondu `200` et le parcours réel Cognito → mémoire/historique → Bedrock → carte Alignement a réussi. Cette intervention ne constitue pas un apply global des autres ressources encore déclarées dans la stack.
+
 ## Préparer et examiner
 
 Depuis la racine du dépôt :
@@ -98,7 +106,7 @@ Ces commandes utilisent exclusivement le compte Cognito de test et le fichier ig
 ## Limites
 
 - Ces preuves concernent le parcours Profile testé, pas tous les connecteurs ni le lancement de toute recherche documentaire.
-- Les conversations restent locales au navigateur; profil et documents sont restaurables depuis le serveur. Les jobs expirent et ne remplacent pas cette mémoire.
+- Les conversations sont synchronisées dans la table DynamoDB dédiée, par compte de démonstration; profil et documents de Profil utilisent leur mémoire serveur distincte. Les jobs expirent et ne remplacent pas cet historique.
 - L’univers historique est fini et n’est pas un flux de marché en direct. Les scénarios sont conditionnels; aucun conseil financier personnalisé ni transaction n’est fourni.
 - Le modèle par défaut est `us.anthropic.claude-sonnet-4-6`; quotas, concurrence disponible et coûts dépendent du compte AWS.
 - X Recent Search reste désactivé; aucun secret X n’est lu.

@@ -8,6 +8,8 @@
 
 Le rouge signale une contradiction bornée entre déclarations, pas une violation réglementaire, un risque de marché mesuré ou un verdict de convenance. Le moteur est lexical, volontairement conservateur et incomplet. L’absence d’alerte ne valide pas un profil. Les références justifient les distinctions financières; les formulations reconnues sont des choix de produit, pas des règles prescrites par les régulateurs.
 
+Le validateur Python des cartes et des réponses contrôle aussi une dérive observée : transformer « une perte qui compromettrait mon projet est inacceptable » en capacité financière mesurée à zéro. Certaines affirmations de capacité « nulle » sont refusées lorsque cette valeur n’est pas explicitement déclarée, puis soumises à la reformulation bornée existante. Une déclaration explicite de zéro, une négation, une question ou une définition pédagogique restent distinctes. Ce garde-fou ciblé ne chiffre pas la capacité et ne certifie pas l’exactitude de toute interprétation générée.
+
 ## Fondements vérifiés
 
 - [OCRI, Comprendre le risque](https://www.ciro.ca/office-investor/understanding-risk), section «Your Individual Risk Profile» : disposition émotionnelle et capacité financière s’évaluent séparément.
