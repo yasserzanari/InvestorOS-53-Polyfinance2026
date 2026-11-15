@@ -1,5 +1,4 @@
-import { Database, ExternalLink, ShieldCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Database, ShieldCheck } from 'lucide-react';
 import type { DemoApiConnection } from '../../../shared/api';
 
 type DemoPortfolioSourceProps = {
@@ -45,22 +44,6 @@ export function DemoPortfolioSource({ accountName, connection }: DemoPortfolioSo
       </div>
       <div className="portfolio-live-value"><small>Valeur déclarée</small><strong>{new Intl.NumberFormat('fr-CA', { style: 'currency', currency: portfolio.currency, maximumFractionDigits: 0 }).format(portfolio.total_value)}</strong></div>
       <div className="portfolio-live-meta"><ShieldCheck size={14} aria-hidden="true" /><span>Lecture seule · {portfolio.positions.length} positions</span></div>
-      <details className="portfolio-live-details">
-        <summary>Consulter les positions</summary>
-        <div className="portfolio-live-position-list">
-          {portfolio.positions.map((position) => (
-            <div key={position.id}>
-              <span>{position.label}</span>
-              <strong>{position.weight_pct.toLocaleString('fr-CA', { maximumFractionDigits: 1 })} %</strong>
-              <span>{new Intl.NumberFormat('fr-CA', { style: 'currency', currency: portfolio.currency, maximumFractionDigits: 0 }).format(position.value)}</span>
-            </div>
-          ))}
-        </div>
-        <p>Montants et pondérations proviennent du portefeuille fictif configuré. Aucun historique de cours n’est fourni par cette fixture.</p>
-      </details>
-      <Link className="portfolio-live-assistant-link" to="/app/assistant" state={{ initialPrompt: `Analyse les positions du portefeuille fictif de ${overview.account.display_name}. Distingue les données de la fixture de toute hypothèse et explique les limites.` }}>
-        Demander une analyse à l’assistant <ExternalLink size={13} aria-hidden="true" />
-      </Link>
     </section>
   );
 }
