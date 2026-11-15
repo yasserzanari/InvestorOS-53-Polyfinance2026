@@ -71,6 +71,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const navigate = useNavigate();
   const {activeAccount}=useDemoAccount();
   const {attachResearch,refreshResearch,workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions,stop,update,reset,conversations,conversationId,startNewConversation,openConversation}=useProfileWorkspace(activeAccount.id,assistantMode?'assistant':'profiles');
+  const handledAssistantView=useRef(workspace.profileView??'');
   const memory=useProfileMemory(activeAccount.id,{profile:workspace.profile,tabs:workspace.tabs,sources:workspace.sources??[]},(profile,tabs,sources)=>update(w=>assistantMode?({...w,profile}):({...w,profile,tabs,sources})),assistantMode);
   const changeProfile=(key:import('./profile-model').FieldKey,value:string)=>update(w=>({...w,profile:{...w.profile,[key]:value,confirmed:false,version:(w.profile.version??1)+1,updatedAt:new Date().toISOString(),origins:{...w.profile.origins,[key]:'Modification directe'}}}));
   useEffect(()=>{const params=new URLSearchParams(location.search);const id=params.get('analysis_id');if(id&&/^[0-9a-f-]{36}$/i.test(id)){attachResearch(id);setTabsOpen(true);params.delete('analysis_id');navigate({pathname:location.pathname,search:params.toString()},{replace:true});}},[location.search,activeAccount.id]);
@@ -92,6 +93,19 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
     void answerQuestions(messageId,request,{requestId:request.id,answers:request.questions.map(item=>({questionId:item.id,selectedOptionIds:item.id===question.id?[choice.id]:[],text:''}))});
   };
   const tab=workspace.tabs.find(t=>t.id===activeTab)||workspace.tabs[0];
+  useEffect(()=>{
+    if(!assistantMode||!workspace.profileView||workspace.profileView===handledAssistantView.current)return;
+    const [view,,documentId]=workspace.profileView.split(':');
+    const viewTabs:Record<string,string>={profile:'profile',alignment:'profile-alignment',comparison:'profile-comparison'};
+    const targetId=documentId||viewTabs[view]|| (view==='scenarios'?workspace.tabs.find(item=>item.kind==='simulation')?.id:undefined);
+    if(targetId&&!workspace.tabs.some(item=>item.id===targetId)){
+      setTabsOpen(true);
+      return;
+    }
+    setTabsOpen(true);
+    if(targetId)setActiveTab(targetId);
+    handledAssistantView.current=workspace.profileView;
+  },[assistantMode,workspace.profileView,workspace.tabs,setActiveTab]);
   const addTab=()=>{const id=createLocalId();const count=workspace.tabs.filter(item=>item.kind==='note'&&item.id!=='research-skills'&&item.id!=='research-results').length;update(w=>({...w,tabs:[...w.tabs,{id,title:count?`Note ${count+1}`:'Notes',kind:'note',content:''}]}));setActiveTab(id);if(assistantMode)setTabsOpen(true);};
   const closeTab=(id:string)=>{if(!memory.ready)return;const remaining=workspace.tabs.filter(tab=>tab.id!==id);update(w=>({...w,tabs:w.tabs.filter(tab=>tab.id!==id)}));if(id===activeTab)setActiveTab(remaining[0]?.id??'');};
   const editTab=(patch:Partial<WorkspaceTab>)=>update(w=>({...w,tabs:w.tabs.map(t=>t.id===tab.id?{...t,...patch}:t)}));
