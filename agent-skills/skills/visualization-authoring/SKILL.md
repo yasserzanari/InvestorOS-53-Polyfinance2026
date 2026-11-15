@@ -23,3 +23,5 @@ Une carte n’est publiée que lorsque l’outil confirme son identifiant, sa ve
 
 
 `research_events` prend des paramètres vides et expose uniquement les événements datés des preuves, même sans cours disponible. Quand un historique inclut déjà ces événements, réutilise sa carte. Ne confonds pas date annoncée, date de publication et clôture observée.
+
+Pour un tab de chaîne d’approvisionnement dans Assistant ou Documents du Profil, utilise `inspect_supply_chain` plutôt que `upsert_tab` ou une note. Ce tab est distinct de l’ancien `analysis_view` : son pipeline est générique par entreprise et fournit quatre vues à partir des mêmes preuves. L’IA n’écrit ni HTML arbitraire ni chiffres de dépendance. La couleur des pressions indique une interprétation sourcée, pas une probabilité ou un score mesuré.

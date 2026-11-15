@@ -103,40 +103,7 @@ jobs:
           fi
 
           set +e
-          terraform show -json tfplan | python -c '
-          import json, sys
-          plan = json.load(sys.stdin)
-          changes = plan.get("resource_changes", [])
-          blocked = []
-          for item in changes:
-              action = item.get("change", {}).get("actions", [])
-              if "delete" not in action:
-                  continue
-              rotation = (
-                  item.get("address") == "aws_s3_object.api_package"
-                  and action == ["delete", "create"]
-                  and item.get("change", {}).get("replace_paths", []) == [["key"]]
-              )
-              if rotation:
-                  print("Rotation de l’archive Lambda adressée par contenu.")
-              else:
-                  blocked.append(item)
-          if blocked:
-              print("Application bloquée: le plan contient une suppression ou un remplacement:")
-              for item in blocked:
-                  action = item.get("change", {}).get("actions", [])
-                  paths = item.get("change", {}).get("replace_paths", [])
-                  print("- {}: {}; attributs déclencheurs: {}".format(item.get("address"), action, paths))
-              sys.exit(1)
-          planned = [
-              (item["address"], item["change"]["actions"])
-              for item in changes
-              if item.get("change", {}).get("actions") != ["no-op"]
-          ]
-          print("Plan sans suppression ni remplacement; application autorisée.")
-          for item in planned:
-              print("- {}: {}".format(item[0], item[1]))
-          '
+          terraform show -json tfplan | python "$GITHUB_WORKSPACE/scripts/check-deployment-plan.py"
           summary_status=$?
           set -e
           if [[ "$summary_status" -ne 0 ]]; then
