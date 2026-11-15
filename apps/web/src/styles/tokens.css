@@ -10,6 +10,9 @@
   --accent: #16a6b5;
   --line: #dce4ee;
   --shell-surface: rgba(255, 255, 255, 0.82);
+  --ambient-dawn: #FAFAFA;
+  --ambient-sand: #F7D797;
+  --ambient-apricot: #F7C097;
   --brand: #356ce0;
   --font-instrument-serif: Georgia, "Times New Roman", serif;
 }

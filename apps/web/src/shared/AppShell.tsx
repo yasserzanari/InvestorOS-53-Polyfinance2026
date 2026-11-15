@@ -4,6 +4,7 @@ import { LogOut, Menu, Settings2, X } from 'lucide-react';
 import { productModules } from '../app/modules';
 import { demoAccounts, useDemoAccount } from './DemoAccountContext';
 import { useAuth } from './auth';
+import { MeshDriftBackground } from './MeshDriftBackground';
 import './app-shell.css';
 
 const groups = ['Décider', 'Explorer', 'Administration'] as const;
@@ -26,6 +27,7 @@ export function AppShell() {
 
   return (
     <div className="workspace-frame">
+      <MeshDriftBackground />
       <button
         className="mobile-menu-button"
         type="button"
