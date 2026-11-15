@@ -12,10 +12,21 @@ export function PromptBar({ value, onChange, onSend, busy = false, onStop, place
   const [seconds, setSeconds] = useState(0);
   const [notice, setNotice] = useState('');
   const recognition = useRef<Recognition | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef(false);
   const prefix = useRef('');
   const onChangeRef = useRef(onChange); onChangeRef.current = onChange;
   useEffect(() => { if (!recording) return; const start = Date.now(); const timer = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000); return () => clearInterval(timer); }, [recording]);
   useEffect(() => () => { recognition.current?.abort(); }, []);
+  useEffect(() => {
+    if (busy || !restoreFocus.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const input = rootRef.current?.querySelector<HTMLTextAreaElement>('textarea');
+      if (input && (document.activeElement === document.body || rootRef.current?.contains(document.activeElement))) input.focus();
+      restoreFocus.current = false;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [busy]);
   const startVoice = () => {
     const browser = window as Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
     const Engine = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
@@ -29,8 +40,8 @@ export function PromptBar({ value, onChange, onSend, busy = false, onStop, place
     try { engine.start(); setSeconds(0); setRecording(true); setNotice(''); } catch { setNotice('Impossible de démarrer la dictée. Vérifiez les permissions du navigateur.'); }
   };
   const stopVoice = () => { recognition.current?.stop(); setRecording(false); };
-  const send = () => { if (busy || !value.trim()) return; stopVoice(); onSend(); setNotice(''); };
-  return <div className="pw-prompt-root">
+  const send = () => { if (busy || !value.trim()) return; restoreFocus.current = Boolean(rootRef.current?.contains(document.activeElement)); stopVoice(); onSend(); setNotice(''); };
+  return <div className="pw-prompt-root" ref={rootRef}>
     <AdvancedChatInput
       className="pw-shared-prompt"
       textareaProps={{

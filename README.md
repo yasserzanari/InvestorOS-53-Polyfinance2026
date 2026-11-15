@@ -25,3 +25,4 @@ Le frontend Vite/React est dans `apps/web`. L’API Python est dans `apps/api`. 
 - `docs` — notes préparatoires locales, exclues de Git.
 
 Voir [ARCHITECTURE.md](ARCHITECTURE.md) pour les frontières de composants et le flux d’une analyse.
+Voir [HACKATHON_ALIGNMENT.md](HACKATHON_ALIGNMENT.md) pour l’état coordonné des chantiers, la couverture des besoins AlphaForge et les intégrations à vérifier avant de déclarer une capacité terminée.

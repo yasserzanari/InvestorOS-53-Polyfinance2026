@@ -1,0 +1,383 @@
+{
+  "version": "1.8.13",
+  "skills": [
+    {
+      "id": "investor-profile",
+      "description": "Clarifier un profil investisseur, ses objectifs, horizon, liquidité, connaissances et capacité de perte.",
+      "tags": [
+        "profil",
+        "objectif",
+        "horizon",
+        "liquidité",
+        "connaissances",
+        "perte"
+      ],
+      "required_tools": [
+        "ask_user",
+        "update_profile"
+      ],
+      "path": "skills/investor-profile/SKILL.md"
+    },
+    {
+      "id": "company-analysis",
+      "description": "Analyser une entreprise ou un titre pour un horizon donné : recherche sourcée, événements, fondamentaux et risques.",
+      "tags": [
+        "analyse",
+        "entreprise",
+        "nvda",
+        "nvidia",
+        "action",
+        "semaine",
+        "titre",
+        "fondamentaux",
+        "actualité",
+        "annonce",
+        "catalyseur",
+        "événements"
+      ],
+      "required_tools": [
+        "start_analysis",
+        "get_analysis_status",
+        "get_analysis_result"
+      ],
+      "path": "skills/company-analysis/SKILL.md"
+    },
+    {
+      "id": "portfolio-exposures",
+      "description": "Examiner un portefeuille fictif : pondérations, concentration, diversification et adéquation au profil.",
+      "tags": [
+        "portefeuille",
+        "positions",
+        "pondération",
+        "concentration",
+        "diversification",
+        "adéquation",
+        "convenir",
+        "actif",
+        "crypto",
+        "secteur",
+        "persona"
+      ],
+      "required_tools": [
+        "analyze_demo_portfolio"
+      ],
+      "path": "skills/portfolio-exposures/SKILL.md"
+    },
+    {
+      "id": "historical-market",
+      "description": "Consulter et comparer les cours historiques sur des dates communes, avec devises, calculs et limites.",
+      "tags": [
+        "historique",
+        "cours",
+        "rendement",
+        "dividende",
+        "fractionnement",
+        "prix",
+        "comparer",
+        "comparaison",
+        "actifs"
+      ],
+      "required_tools": [
+        "inspect_simulation_history"
+      ],
+      "path": "skills/historical-market/SKILL.md"
+    },
+    {
+      "id": "market-movement-investigation",
+      "description": "Examiner une hausse ou une baisse historique en rapprochant les cours, les références de marché et les documents datés d’un dossier existant.",
+      "tags": [
+        "pourquoi",
+        "baisse",
+        "hausse",
+        "mouvement",
+        "variation",
+        "chute",
+        "cause",
+        "actualités",
+        "presse",
+        "marché",
+        "explication"
+      ],
+      "required_tools": [
+        "list_research_analyses",
+        "inspect_market_movements"
+      ],
+      "path": "skills/market-movement-investigation/SKILL.md"
+    },
+    {
+      "id": "conditional-scenarios",
+      "description": "Simuler un choc explicite sans changer les paramètres, avec unités calendaires ou séances, disponibilité des données et résultat visualisable.",
+      "tags": [
+        "scénario",
+        "simulation",
+        "choc",
+        "trajectoire",
+        "projection",
+        "jours",
+        "séances",
+        "horizon",
+        "simulation conditionnelle"
+      ],
+      "required_tools": [
+        "get_simulation_capabilities",
+        "project_market_scenarios",
+        "analyze_demo_scenario",
+        "ask_user"
+      ],
+      "path": "skills/conditional-scenarios/SKILL.md"
+    },
+    {
+      "id": "evidence-review",
+      "description": "Vérifier les preuves d’une analyse : attribution, fraîcheur, contradictions et limites des conclusions.",
+      "tags": [
+        "preuve",
+        "source",
+        "citation",
+        "vérifier",
+        "contradiction",
+        "esg",
+        "passage",
+        "retrieval",
+        "rag",
+        "document",
+        "actualité",
+        "média",
+        "déclaration",
+        "controverse",
+        "rumeur"
+      ],
+      "required_tools": [
+        "get_analysis_result"
+      ],
+      "path": "skills/evidence-review/SKILL.md"
+    },
+    {
+      "id": "supply-chain",
+      "description": "Explorer fournisseurs, sites et dépendances de chaîne documentées, en explicitant les limites géographiques.",
+      "tags": [
+        "fournisseur",
+        "chaîne",
+        "approvisionnement",
+        "réseau",
+        "tarif",
+        "port",
+        "Chine",
+        "chinois",
+        "marché chinois",
+        "géopolitique"
+      ],
+      "required_tools": [
+        "inspect_supply_chain",
+        "start_analysis",
+        "get_analysis_result"
+      ],
+      "path": "skills/supply-chain/SKILL.md"
+    },
+    {
+      "id": "workspace-navigation",
+      "description": "Organiser le travail dans InvestorOS : onglets, tâches et passages vers les modules utiles.",
+      "tags": [
+        "onglet",
+        "tâche",
+        "organiser",
+        "navigation",
+        "module"
+      ],
+      "required_tools": [
+        "upsert_tab"
+      ],
+      "path": "skills/workspace-navigation/SKILL.md"
+    },
+    {
+      "id": "research-planning",
+      "description": "Planifier une collecte DEV2 ciblée, bornée et vérifiable à partir des sources autorisées.",
+      "tags": [
+        "planifier",
+        "sources",
+        "collecte",
+        "recherche"
+      ],
+      "required_tools": [],
+      "path": "skills/research-planning/SKILL.md"
+    },
+    {
+      "id": "research-synthesis",
+      "description": "Synthétiser et contre-vérifier les preuves DEV2 avec assertions reliées aux périodes et périmètres autorisés.",
+      "tags": [
+        "synthèse",
+        "preuves",
+        "contradiction",
+        "vérification"
+      ],
+      "required_tools": [],
+      "path": "skills/research-synthesis/SKILL.md"
+    },
+    {
+      "id": "goals-horizon",
+      "description": "Spécialiste des objectifs, horizons multiples, priorités et calendrier de l’investisseur.",
+      "tags": [
+        "objectifs",
+        "horizon",
+        "priorité",
+        "projet",
+        "échéance"
+      ],
+      "required_tools": [],
+      "path": "skills/goals-horizon/SKILL.md"
+    },
+    {
+      "id": "risk-liquidity",
+      "description": "Spécialiste de la tolérance au risque, capacité de perte, liquidité et contraintes de retrait.",
+      "tags": [
+        "risque",
+        "liquidités",
+        "perte",
+        "retrait",
+        "capacité"
+      ],
+      "required_tools": [],
+      "path": "skills/risk-liquidity/SKILL.md"
+    },
+    {
+      "id": "visualization-authoring",
+      "description": "Composer des vues InvestorOS avec composants approuvés, données serveur, preuves et révisions vérifiables.",
+      "tags": [
+        "visualisation",
+        "composant",
+        "graphique",
+        "interface",
+        "carte",
+        "paramètres"
+      ],
+      "required_tools": [
+        "get_analysis_view_options",
+        "get_ui_component_registry",
+        "read_analysis_workspace",
+        "publish_ui_component"
+      ],
+      "path": "skills/visualization-authoring/SKILL.md"
+    },
+    {
+      "id": "analysis-ui-orchestration",
+      "description": "Coordonner des agents réels pour publier des vues complémentaires dans un tableau d’analyse partagé.",
+      "tags": [
+        "orchestration",
+        "agents",
+        "parallèle",
+        "tableau",
+        "visualisation",
+        "coordination"
+      ],
+      "required_tools": [
+        "get_analysis_view_options",
+        "orchestrate_analysis_ui",
+        "get_ui_component_registry",
+        "read_analysis_workspace",
+        "publish_ui_component"
+      ],
+      "path": "skills/analysis-ui-orchestration/SKILL.md"
+    },
+    {
+      "id": "analysis-planning",
+      "description": "Clarifier l’objectif, choisir un parcours d’analyse InvestorOS et proposer un plan sourcé adapté à l’usage, avec peu de questions ciblées.",
+      "tags": [
+        "analyse",
+        "plan",
+        "cadrage",
+        "intention",
+        "questions",
+        "use case",
+        "cas d’usage",
+        "recherche",
+        "entreprise",
+        "fondamentaux",
+        "actualité",
+        "média",
+        "déclaration",
+        "catalyseur",
+        "portefeuille",
+        "scénario",
+        "historique",
+        "esg",
+        "plan d’analyse"
+      ],
+      "required_tools": [
+        "search_skills",
+        "load_skill",
+        "ask_user"
+      ],
+      "path": "skills/analysis-planning/SKILL.md"
+    },
+    {
+      "id": "profile-investment-alignment",
+      "description": "Relier une demande au profil et aux expositions; expliquer les tensions étayées et les inconnues sans recommandation.",
+      "tags": [
+        "profil",
+        "incohérence",
+        "alignement",
+        "risque",
+        "prudent",
+        "demande",
+        "capital",
+        "court terme",
+        "diversification",
+        "esg",
+        "tension",
+        "capacité de perte",
+        "critères",
+        "personnel",
+        "préférences",
+        "stabilité",
+        "actualité",
+        "média",
+        "rumeur"
+      ],
+      "required_tools": [
+        "publish_profile_insight",
+        "update_profile",
+        "ask_user"
+      ],
+      "path": "skills/profile-investment-alignment/SKILL.md"
+    },
+    {
+      "id": "profile-workspace",
+      "description": "Piloter les sous-onglets Profil, Alignement, Comparer, Scénarios, Preuves et Mémoire.",
+      "tags": [
+        "profil",
+        "onglet",
+        "comparaison",
+        "comparer",
+        "mémoire",
+        "interface"
+      ],
+      "required_tools": [
+        "open_profile_view",
+        "compare_profile_instruments",
+        "publish_profile_insight",
+        "close_profile_document"
+      ],
+      "path": "skills/profile-workspace/SKILL.md"
+    },
+    {
+      "id": "platform-capabilities",
+      "description": "Expliquer les capacités et limites réelles de la plateforme à partir des outils disponibles et des données couvertes.",
+      "tags": [
+        "plateforme",
+        "capacité",
+        "capacités",
+        "outil",
+        "outils",
+        "fonctionnalité",
+        "ESG",
+        "limites",
+        "vérifier",
+        "disponible",
+        "Chine",
+        "marché chinois",
+        "couverture"
+      ],
+      "required_tools": [],
+      "path": "skills/platform-capabilities/SKILL.md"
+    }
+  ]
+}

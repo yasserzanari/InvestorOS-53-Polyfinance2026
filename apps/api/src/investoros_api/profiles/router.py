@@ -1,14 +1,31 @@
 """HTTP adapter. NDJSON avoids buffering real text/tool/agent events in local development."""
 import json
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from .models import ChatRequest
 from .service import configuration, run_chat
 from .sources import SOURCES
-from .research_bridge import research_history, research_snapshot, forward_research_authorization
+from .research_bridge import research_history, research_snapshot, forward_research_authorization, _call
 from investoros_api.demo_contexts import PersonaId
 
 router = APIRouter(prefix='/v1/profiles', tags=['profiles'])
+
+class MovementInvestigationRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    ticker: str = Field(pattern=r'^[A-Za-z0-9.^=-]{1,16}$')
+    accountId: PersonaId = 'mateo'
+    previousDate: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
+
+@router.post('/research/{analysis_id}/movement-investigation')
+def movement_investigation(analysis_id: str, body: MovementInvestigationRequest, http_request: Request):
+    from .movement_analysis import investigate_movement
+    try:
+        with forward_research_authorization(http_request.headers.get('authorization', '')):
+            return investigate_movement(analysis_id, body.accountId, body.ticker, body.previousDate, body.date)
+    except ValueError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
 
 @router.get('/status')
 def status():
@@ -25,9 +42,19 @@ def source(source_id: str):
 def chat(request: ChatRequest, http_request: Request):
     authorization = http_request.headers.get('authorization', '')
     def events():
-        with forward_research_authorization(authorization):
-            for event in run_chat(request):
+        iterator = iter(run_chat(request))
+        try:
+            while True:
+                # StreamingResponse advances this iterator in separate worker contexts.
+                # Complete token cleanup before yielding across that boundary.
+                with forward_research_authorization(authorization):
+                    try:
+                        event = next(iterator)
+                    except StopIteration:
+                        break
                 yield json.dumps(event, ensure_ascii=False) + '\n'
+        finally:
+            iterator.close()
     return StreamingResponse(events(), media_type='application/x-ndjson',
                              headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
@@ -46,3 +73,43 @@ def research_progress(analysis_id: str, http_request: Request, accountId: Person
             return research_snapshot(analysis_id, accountId)
     except ValueError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@router.get('/research')
+def research_library(http_request: Request, accountId: PersonaId = 'mateo'):
+    try:
+        with forward_research_authorization(http_request.headers.get('authorization', '')):
+            return _call('GET', '/analyses', accountId)
+    except ValueError as error:
+        raise HTTPException(502, str(error)) from error
+
+@router.get('/research-network/{ticker}')
+def research_network(ticker: str):
+    from .network_evidence import network_for
+    return network_for(ticker)
+
+
+@router.get('/research/{analysis_id}/movements')
+def research_movements(analysis_id: str, http_request: Request,
+                       ticker: str = Query(pattern=r'^[A-Za-z0-9.^=-]{1,16}$'),
+                       accountId: PersonaId = 'mateo',
+                       start: str | None = Query(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$'),
+                       end: str | None = Query(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$'),
+                       thresholdPct: float = Query(default=5, ge=.5, le=30),
+                       refresh: bool = False):
+    from .market_movement_service import movement_report
+    try:
+        with forward_research_authorization(http_request.headers.get('authorization', '')):
+            return movement_report(analysis_id, accountId, ticker, start, end, thresholdPct, refresh)
+    except ValueError as error:
+        raise HTTPException(502, str(error)) from error
+
+
+from .decision import CompareInput, compare_instruments
+
+@router.post('/compare')
+def compare_profile_instruments(query: CompareInput):
+    try:
+        return compare_instruments(query)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error

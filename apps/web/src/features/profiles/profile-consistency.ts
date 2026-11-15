@@ -41,6 +41,18 @@ function horizonYears(text: string): { min: number; max: number } | null {
     if (/\bmoins de\s+\d/.test(normalized)) return { min: 0, max: n };
     return { min: n, max: n };
   }
+  const monthRange = normalized.match(/\b(\d{1,3})\s*(?:a|[-–])\s*(\d{1,3})\s*mois\b/);
+  if (monthRange) {
+    const min = Number(monthRange[1]) / 12; const max = Number(monthRange[2]) / 12;
+    return min <= max ? { min, max } : null;
+  }
+  const months = normalized.match(/\b(\d{1,3})\s*mois\b/);
+  if (months) {
+    const n = Number(months[1]) / 12;
+    if (/\b(?:plus de|au dela de)\s+\d/.test(normalized) || /mois\s+(?:et plus|ou plus)/.test(normalized)) return { min: n, max: Infinity };
+    if (/\bmoins de\s+\d/.test(normalized)) return { min: 0, max: n };
+    return { min: n, max: n };
+  }
   if (/\b(?:court terme|moins d'un an)\b/.test(normalized)) return { min: 0, max: 3 };
   if (/\blong terme\b/.test(normalized)) return { min: 8, max: Infinity };
   return null;
@@ -49,21 +61,23 @@ function horizonYears(text: string): { min: number; max: number } | null {
 function strongRiskTolerance(text: string): boolean {
   const value = normalize(text);
   if (/\b(?:faibles?|modere(?:e|s|es)?|limiter|eviter)\b|\bne\b.{0,35}\b(?:pas|jamais)\b|\bpas de\b/.test(value)) return false;
-  return /\belevee?\b|\bfortes? (?:variations|fluctuations|baisses)\b|\brisque (?:eleve|important)\b/.test(value);
+  return /\belevee?(?:s)?\b|\bfluctuations? elevees?\b|\bfortes? (?:variations|fluctuations|baisses)\b|\brisque (?:eleve|important)\b/.test(value);
 }
 
 function shortTermWithdrawal(text: string): boolean {
   const value = normalize(text);
   // Negated plans cannot establish a positive withdrawal need.
   if (/\baucun|\bpas (?:de|besoin de) retrait|\bsans retrait|\bne\b.{0,45}\bpas\b/.test(value)) return false;
+  const numericDeadline = value.match(/\b(?:dans|d'ici)\s+(\d{1,3})\s*(mois|ans?)\b/);
+  const nearDeadline = numericDeadline && Number(numericDeadline[1]) > 0 && Number(numericDeadline[1]) <= (numericDeadline[2] === 'mois' ? 36 : 3);
   return /\b(?:retrait|retirer|besoin|necessaire|liquidite)\b/.test(value)
-    && /\bcourt terme\b|\b(?:dans|d'ici)\s+(?:[123]|un|une|deux|trois)\s*(?:an|ans|mois)\b|\bprochains? mois\b/.test(value);
+    && (Boolean(nearDeadline) || /\bcourt terme\b|\b(?:dans|d'ici)\s+(?:[123]|un|une|deux|trois)\s*(?:an|ans|mois)\b|\bprochains? mois\b/.test(value));
 }
 
 function severeLossConsequences(text: string): boolean {
   const value = normalize(text);
   if (/\b(?:aucune?|faibles?|peu de|sans) consequences?\b|\bsans impact\b|\bpas d'impact\b/.test(value)) return false;
-  return /\b(?:ne peux pas|ne pourrais pas|incapable de)\b.{0,35}\b(?:absorber|supporter|perdre)\b|\b(?:projet|depenses?|besoins?)\b.{0,25}\b(?:important|essentiel|vital)|\b(?:compromet|mettrait en peril|fortes consequences|consequences importantes)\b/.test(value);
+  return /\b(?:ne peux pas|ne peut pas|ne pourrais pas|ne pourrait pas|incapable de)\b.{0,35}\b(?:absorber|supporter|perdre)\b|\b(?:projet|depenses?|besoins?)\b.{0,25}\b(?:important|essentiel|vital)|\b(?:compromet|mettrait en peril|fortes consequences|consequences importantes)\b/.test(value);
 }
 
 /** Conservative review prompts, not a suitability score or an investment recommendation. */

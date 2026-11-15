@@ -1,131 +1,58 @@
-import { ExternalLink, GitBranch, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ExternalLink, GitBranch, ShieldCheck, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { SimulationProjection } from '../../shared/api';
+import { parseSimulationProjection, simulationEventOffset, simulationHorizon, simulationPointOffset, type SimulationProjection, type SimulationProjectionInput } from '../../shared/api';
+import type { ExploreHandler, ExplorationTarget } from '../analysis-interactions/types';
 import { safeSourceUrl } from '../profiles/profile-api';
+import { ScenarioMarketChart } from './ScenarioMarketChart';
+import { ProjectionParameters } from './ProjectionParameters';
+import { scenarioEventTarget, scenarioMoney as number, scenarioOffsetLabel as offsetLabel, scenarioPointTarget, scenarioSourceTarget } from './scenario-exploration';
 import './simulation-result-tab.css';
 
-type ProjectionWithProvenance = SimulationProjection & {
-  provenance?: { sourceUrl?: string; moduleUrl?: string };
-};
+function readProjection(content: string) { try { return parseSimulationProjection(JSON.parse(content)); } catch { return null; } }
+const colors = ['#2866dc', '#278b7e', '#be862b', '#8960c1'];
+export function SimulationResultTab({ content, onExplore, onProjectionChange, onTargets, controlled = false, onProjectionRequest, onParametersDirty }: { content: string; onExplore?: ExploreHandler; onProjectionChange?: (content: string) => void; onTargets?: (targets: ExplorationTarget[]) => void; controlled?: boolean; onProjectionRequest?: (input: SimulationProjectionInput, signal: AbortSignal) => Promise<SimulationProjection>; onParametersDirty?: (dirty: boolean) => void }) {
+  const [localResult, setLocalResult] = useState<{ input: string; result: SimulationProjection } | null>(null);
+  const fromContent = useMemo(() => readProjection(content), [content]);
+  const projection = !controlled && localResult?.input === content ? localResult.result : fromContent;
+  const [localTarget, setLocalTarget] = useState<ExplorationTarget | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const explore: ExploreHandler = target => { if (onExplore) onExplore(target); else setLocalTarget(target); };
+  const targets = useMemo(() => {
+    if (!projection || dirty) return [];
+    const candidates = projection.branches.flatMap(branch => [
+      ...branch.path.map(point => scenarioPointTarget(projection, branch, point)),
+      scenarioEventTarget(projection, branch),
+      ...(branch.sourceUrl && safeSourceUrl(branch.sourceUrl) !== '#' ? [scenarioSourceTarget(projection, 'Source de l’hypothèse', safeSourceUrl(branch.sourceUrl), true)] : []),
+    ]);
+    const url = projection.provenance?.sourceUrl || projection.sourceUrl;
+    if (url && safeSourceUrl(url) !== '#') candidates.push(scenarioSourceTarget(projection, projection.source, safeSourceUrl(url)));
+    return candidates.filter((target, index) => candidates.findIndex(other => other.id === target.id) === index);
+  }, [projection, dirty]);
+  useEffect(() => { onTargets?.(targets); }, [targets, onTargets]);
+  useEffect(() => { setDirty(false); setLocalTarget(null); }, [content]);
 
-function parseProjection(content: string): ProjectionWithProvenance | null {
-  try {
-    const value: unknown = JSON.parse(content);
-    if (!value || typeof value !== 'object') return null;
-    const projection = value as Partial<ProjectionWithProvenance>;
-    const validBranches = Array.isArray(projection.branches) && projection.branches.every((branch) =>
-      Boolean(branch && typeof branch.id === 'string' && typeof branch.title === 'string' &&
-        typeof branch.event === 'string' && typeof branch.shockPct === 'number' &&
-        typeof branch.eventAfterObservations === 'number' && Array.isArray(branch.path) &&
-        branch.path.every((point) => Boolean(point && typeof point.observations === 'number' &&
-          typeof point.eventApplied === 'boolean' && typeof point.lowerPrice === 'number' &&
-          typeof point.medianPrice === 'number' && typeof point.upperPrice === 'number')))
-    );
-    if (
-      typeof projection.ticker !== 'string' ||
-      typeof projection.asOf !== 'string' ||
-      typeof projection.startingPrice !== 'number' ||
-      typeof projection.currency !== 'string' ||
-      typeof projection.horizonObservations !== 'number' ||
-      !validBranches ||
-      typeof projection.method !== 'string' ||
-      !Array.isArray(projection.limitations) ||
-      !projection.limitations.every((item) => typeof item === 'string')
-    ) return null;
-    return projection as ProjectionWithProvenance;
-  } catch {
-    return null;
-  }
-}
-
-const number = (value: number, currency: string) => new Intl.NumberFormat('fr-CA', {
-  style: 'currency', currency, maximumFractionDigits: 2,
-}).format(value);
-
-function BranchChart({ branch, currency }: {
-  branch: ProjectionWithProvenance['branches'][number];
-  currency: string;
-}) {
-  const points = branch.path;
-  const all = points.flatMap((point) => [point.lowerPrice, point.medianPrice, point.upperPrice]);
-  const min = Math.min(...all);
-  const max = Math.max(...all);
-  const span = max - min || 1;
-  const x = (index: number) => points.length < 2 ? 8 : 8 + index / (points.length - 1) * 284;
-  const y = (value: number) => 68 - (value - min) / span * 56;
-  const median = points.map((point, index) => `${index ? 'L' : 'M'}${x(index)},${y(point.medianPrice)}`).join(' ');
-  const area = [
-    ...points.map((point, index) => `${index ? 'L' : 'M'}${x(index)},${y(point.upperPrice)}`),
-    ...points.slice().reverse().map((point, reverseIndex) => {
-      const index = points.length - reverseIndex - 1;
-      return `L${x(index)},${y(point.lowerPrice)}`;
-    }),
-    'Z',
-  ].join(' ');
-
-  return (
-    <figure className="assistant-scenario-chart">
-      <svg viewBox="0 0 300 82" role="img" aria-label={`Fourchette historique marginale pour ${branch.title}`}>
-        <path d={area} className="assistant-scenario-band" />
-        <path d={median} className="assistant-scenario-median" />
-      </svg>
-      <figcaption>
-        <span>{points[0]?.observations ?? 0} séance</span>
-        <span>{points.at(-1)?.observations ?? 0} séances</span>
-        <span>{number(points.at(-1)?.medianPrice ?? 0, currency)} médiane</span>
-      </figcaption>
-    </figure>
-  );
-}
-
-export function SimulationResultTab({ content }: { content: string }) {
-  const projection = parseProjection(content);
-  if (!projection) return <p className="assistant-scenario-invalid" role="status">Le résultat de simulation enregistré est illisible. Relancez le calcul depuis l’Assistant.</p>;
-  const moduleUrl = projection.provenance?.moduleUrl;
-  const sourceUrl = projection.provenance?.sourceUrl;
-
-  return (
-    <section className="assistant-scenario-result" aria-label={`Trajectoires conditionnelles pour ${projection.ticker}`}>
-      <header className="assistant-scenario-summary">
-        <span className="assistant-scenario-icon"><GitBranch size={16} aria-hidden="true" /></span>
-        <div>
-          <h2>{projection.ticker} · hypothèses comparées</h2>
-          <p>Départ {number(projection.startingPrice, projection.currency)} au {projection.asOf} · horizon {projection.horizonObservations} séances</p>
-        </div>
-      </header>
-
-      <div className="assistant-scenario-branches">
-        {projection.branches.map((branch, index) => {
-          const end = branch.path.at(-1);
-          return (
-            <article className="assistant-scenario-branch" key={branch.id} data-branch-index={index}>
-              <div className="assistant-scenario-branch-title">
-                <span aria-hidden="true" />
-                <div><h3>{branch.title}</h3><p>{branch.event} · choc {branch.shockPct > 0 ? '+' : ''}{branch.shockPct} % après {branch.eventAfterObservations} séances</p></div>
-              </div>
-              {branch.sourceUrl && <a className="assistant-scenario-branch-source" href={safeSourceUrl(branch.sourceUrl)} target="_blank" rel="noreferrer"><ExternalLink size={12} aria-hidden="true" /> Source déclarée pour cette hypothèse</a>}
-              <BranchChart branch={branch} currency={projection.currency} />
-              <dl className="assistant-scenario-quantiles">
-                <div><dt>10e percentile</dt><dd>{end ? number(end.lowerPrice, projection.currency) : '—'}</dd></div>
-                <div><dt>Médiane</dt><dd>{end ? number(end.medianPrice, projection.currency) : '—'}</dd></div>
-                <div><dt>90e percentile</dt><dd>{end ? number(end.upperPrice, projection.currency) : '—'}</dd></div>
-              </dl>
-            </article>
-          );
-        })}
-      </div>
-
-      <section className="assistant-scenario-method" aria-label="Méthode et limites">
-        <h3><ShieldCheck size={14} aria-hidden="true" /> Méthode et limites</h3>
-        <p>{projection.method}</p>
-        <ul>{projection.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
-        <p className="assistant-scenario-source">Source : {projection.source}</p>
-      </section>
-
-      <nav className="assistant-scenario-links" aria-label="Ouvrir les données de la simulation">
-        {moduleUrl && <Link to={safeSourceUrl(moduleUrl)}><ExternalLink size={13} aria-hidden="true" /> Ouvrir {projection.ticker} dans Simulation</Link>}
-        {sourceUrl && <a href={safeSourceUrl(sourceUrl)} target="_blank" rel="noreferrer"><ExternalLink size={13} aria-hidden="true" /> Historique du fournisseur</a>}
-      </nav>
-    </section>
-  );
+  if (!projection) return <p className="assistant-scenario-invalid" role="status">Le résultat de simulation enregistré est illisible ou ses unités sont incohérentes. Relancez le calcul depuis l’Assistant.</p>;
+  const moduleUrl = typeof projection.provenance?.moduleUrl === 'string' ? projection.provenance.moduleUrl : `/app/scenarios?ticker=${encodeURIComponent(projection.ticker)}`;
+  const sourceUrl = typeof projection.provenance?.sourceUrl === 'string' ? projection.provenance.sourceUrl : typeof projection.sourceUrl === 'string' ? projection.sourceUrl : undefined;
+  const classification = projection.sourceClassification === 'illustrative' ? 'Jeu historique illustratif / fictif' : projection.sourceClassification === 'observations' ? 'Observations historiques' : 'Classification du jeu non confirmée';
+  const resultKey = `${projection.ticker}:${projection.asOf}:${projection.timeUnit || 'observations'}:${simulationHorizon(projection)}:${JSON.stringify(projection.branches)}`;
+  return <section className="assistant-scenario-result" aria-label={`Trajectoires conditionnelles pour ${projection.ticker}`}>
+    <header className="assistant-scenario-summary"><span className="assistant-scenario-icon"><GitBranch size={18} aria-hidden="true"/></span><div><h2>{projection.ticker} · {projection.branches.length === 1 ? 'hypothèse conditionnelle' : 'hypothèses comparées'}</h2><p>Dernier cours du jeu : <strong>{number(projection.startingPrice, projection.currency)}</strong> au {projection.asOf} · horizon {offsetLabel(projection, simulationHorizon(projection))}</p><p>{classification} · cours de départ historique, pas une cotation en temps réel.</p></div></header>
+    <ProjectionParameters key={resultKey} projection={projection} onRequest={onProjectionRequest} onDirtyChange={value => { setDirty(value); onParametersDirty?.(value); }} onApply={result => { if (!controlled) setLocalResult({ input: content, result }); setDirty(false); setLocalTarget(null); onProjectionChange?.(JSON.stringify(result)); }}/>
+    {dirty ? <div className="assistant-scenario-stale" role="status"><GitBranch size={20}/><strong>Recalcul nécessaire</strong><p>Les paramètres ont changé. Les anciennes courbes sont masquées jusqu’au résultat du calcul; utilisez « Rétablir » pour les retrouver.</p></div> : <>
+      <div className="assistant-scenario-branches">{projection.branches.map((branch, index) => {
+        const end = branch.path[branch.path.length - 1];
+        const branchSource = typeof branch.sourceUrl === 'string' ? safeSourceUrl(branch.sourceUrl) : undefined;
+        return <article className="assistant-scenario-branch" key={`${resultKey}:${branch.id}`} data-branch-index={index} style={{ borderTopColor: colors[index] }}><div className="assistant-scenario-branch-title"><div><h3>{branch.title}</h3><button type="button" className="assistant-scenario-event-button" onClick={() => explore(scenarioEventTarget(projection, branch))}><span className="assistant-scenario-event-tag">Hypothèse</span>{branch.event}<ExternalLink size={12}/></button><p>Choc explicite <strong>{branch.shockPct > 0 ? '+' : ''}{branch.shockPct.toLocaleString('fr-CA')} %</strong> après {offsetLabel(projection, simulationEventOffset(branch))}</p>{branchSource && branchSource !== '#' && <div className="assistant-scenario-branch-source"><button type="button" onClick={() => explore(scenarioSourceTarget(projection, 'Source de l’hypothèse', branchSource, true))}>Examiner la source</button><a href={branchSource} target="_blank" rel="noreferrer" aria-label={`Ouvrir la source de ${branch.title}`}><ExternalLink size={12}/></a></div>}</div></div>
+          <ScenarioMarketChart branch={branch} projection={projection} color={colors[index]} onExplore={explore}/>
+          <dl className="assistant-scenario-quantiles">{[{ label: '10e percentile', value: end.lowerPrice }, { label: 'Médiane', value: end.medianPrice }, { label: '90e percentile', value: end.upperPrice }].map(item => <div key={item.label}><dt>{item.label} · horizon final</dt><dd><button type="button" onClick={() => explore(scenarioPointTarget(projection, branch, end))}>{number(item.value, projection.currency)}<ExternalLink size={11}/></button></dd></div>)}</dl>
+          <details className="assistant-scenario-values"><summary>Valeurs exactes et jalons du calcul</summary><div><table><caption>Quantiles marginaux conditionnels · {projection.currency}</caption><thead><tr><th>Jalon</th><th>Choc</th><th>10e</th><th>Médiane</th><th>90e</th></tr></thead><tbody>{branch.path.map(point => <tr key={simulationPointOffset(point)}><th><button type="button" onClick={() => explore(scenarioPointTarget(projection, branch, point))}>+{offsetLabel(projection, simulationPointOffset(point))}<ExternalLink size={10}/></button></th><td>{point.eventApplied ? 'Appliqué' : 'Non appliqué'}</td><td>{number(point.lowerPrice, projection.currency)}</td><td>{number(point.medianPrice, projection.currency)}</td><td>{number(point.upperPrice, projection.currency)}</td></tr>)}</tbody></table></div></details>
+        </article>;
+      })}</div>
+      {localTarget && <section className="assistant-scenario-local-detail" aria-label="Fiche du jalon sélectionné"><div><h3>{localTarget.title}</h3><button type="button" aria-label="Fermer la fiche" onClick={() => setLocalTarget(null)}><X size={14}/></button></div><p>{localTarget.summary}</p><dl>{localTarget.metrics?.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value}</dd></div>)}</dl>{localTarget.source && <a href={safeSourceUrl(localTarget.source.url)} target="_blank" rel="noreferrer">{localTarget.source.title} ↗</a>}</section>}
+      <details className="assistant-scenario-method"><summary><ShieldCheck size={15}/>Méthode, sources et limites</summary><p>{projection.method}</p>{projection.validation&&<p>Validation chronologique : {projection.validation.trainingReturns} rendements d’ajustement · {projection.validation.holdoutWindows} fenêtres de contrôle · couverture empirique p10–p90 : {projection.validation.empiricalCoveragePct??"indisponible"} %. Ce diagnostic ne garantit pas la couverture future.</p>}<ul>{projection.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul><p className="assistant-scenario-source">Source : {projection.source} · {classification}</p>{projection.sourceDescription && <p>{projection.sourceDescription}</p>}</details>
+      <nav className="assistant-scenario-links" aria-label="Ouvrir les données de la simulation">{moduleUrl && safeSourceUrl(moduleUrl) !== '#' && <Link to={safeSourceUrl(moduleUrl)}><ExternalLink size={13}/>Ouvrir {projection.ticker} dans Simulation</Link>}{sourceUrl && safeSourceUrl(sourceUrl) !== '#' && <><button type="button" onClick={() => explore(scenarioSourceTarget(projection, projection.source, safeSourceUrl(sourceUrl)))}>Examiner la source du jeu</button><a href={safeSourceUrl(sourceUrl)} target="_blank" rel="noreferrer"><ExternalLink size={13}/>Historique du fournisseur</a></>}</nav>
+    </>}
+  </section>;
 }

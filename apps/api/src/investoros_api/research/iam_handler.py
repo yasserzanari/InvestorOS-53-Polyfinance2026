@@ -1,6 +1,7 @@
 """Narrow Lambda Invoke entry for trusted IAM callers, separate from HTTP JWT entry."""
 import json
 import re
+from copy import deepcopy
 from fastapi import FastAPI
 from mangum import Mangum
 from investoros_api.research.router import router
@@ -12,11 +13,27 @@ _UUID = r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F
 
 
 def handle(event, context):
-    request = event.get('request', {})
-    method = request.get('requestContext', {}).get('http', {}).get('method')
-    path = request.get('rawPath', '')
-    read = method == 'GET' and re.fullmatch(r'/v1/research/analyses(?:/'+_UUID+r'(?:/events|/evidence)?)?', path)
+    denied = {'statusCode':403,'body':json.dumps({'detail':'Operation not allowed on the IAM research entry'})}
+    if not isinstance(event, dict) or event.get('source') != 'investoros.research-iam' or 'requestContext' in event:
+        return denied
+    request = event.get('request')
+    if not isinstance(request, dict) or request.get('version') != '2.0':
+        return denied
+    request_context = request.get('requestContext')
+    http = request_context.get('http') if isinstance(request_context, dict) else None
+    if not isinstance(http, dict):
+        return denied
+    method = http.get('method')
+    path = request.get('rawPath')
+    # Mangum routes HTTP v2 requests by http.path, not by rawPath.
+    if not isinstance(path, str) or http.get('path') != path:
+        return denied
+    read = method == 'GET' and (path == '/v1/research/sources' or re.fullmatch(r'/v1/research/analyses(?:/'+_UUID+r'(?:/events|/evidence)?)?', path))
     write = method == 'POST' and (path == '/v1/research/analyses' or re.fullmatch(r'/v1/research/analyses/'+_UUID+r'/cancel', path))
-    if event.get('source') != 'investoros.research-iam' or 'requestContext' in event or not (read or write):
-        return {'statusCode':403,'body':json.dumps({'detail':'Operation not allowed on the IAM research entry'})}
-    return _handler(request, context)
+    if not (read or write):
+        return denied
+    forwarded = deepcopy(request)
+    # IAM invocation does not establish a Cognito/Gateway JWT identity.
+    forwarded['requestContext'].pop('authorizer', None)
+    forwarded['requestContext'].pop('apiId', None)
+    return _handler(forwarded, context)

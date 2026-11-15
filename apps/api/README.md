@@ -2,6 +2,8 @@
 
 FastAPI est l’application HTTP commune au développement local et à AWS Lambda. Mangum adapte FastAPI à Lambda. L’API expose la lecture du contexte de démonstration, la conversation partagée avec Bedrock dans `/v1/profiles/*`, et des séries historiques de marché dans `/v1/simulation/*`.
 
+Ce README décrit les contrats et capacités du code. Leur présence ne prouve pas que chaque stack AWS est déployée ou que chaque intégration distante répond. Pour toute affirmation sur l’état réel, consulter la matrice de [HACKATHON_ALIGNMENT.md](../../HACKATHON_ALIGNMENT.md), les README Terraform de la stack concernée et une vérification de bout en bout datée.
+
 ## Contrat de démonstration
 
 `GET /v1/demo/overview` renvoie un compte fictif fixe, son profil, son portefeuille et jusqu’à 25 analyses. Les objets portent `is_demo: true`, `data_class: fictional`, `source: fictional_fixture` ou `data_source: fictional_fixture`. Il n’existe aucun endpoint qui accepte un identifiant de compte choisi par le navigateur; les clés sont fixées par configuration Lambda. Les lectures DynamoDB utilisent ces clés de partition et l’API vérifie l’association compte/profil/portefeuille avant de répondre.
@@ -157,19 +159,32 @@ l’événement. Les posts sont des pistes sociales, jamais des faits établis o
 de Simulation. Il s’agit d’une recherche récente, pas d’une archive historique
 ni d’un suivi complet des dirigeants, responsables publics ou autres comptes.
 
-## Ce qui n’est pas encore branché
+## Capacités, intégrations et limites
 
-La conversation partagée entre le profil et la page Assistant utilise le SDK Bedrock côté serveur lorsqu’un modèle est configuré; son statut de configuration ne prouve pas que l’invocation réussira. L’outil `analyze_demo_portfolio` lit le portefeuille fictif fixe configuré pour le déploiement et calcule les pondérations/concentration de manière déterministe. `inspect_simulation_history` lit les cours ajustés et événements du jeu Simulation configuré; `project_market_scenarios` exécute le même calcul de quantiles conditionnels que la page Simulation et n’accepte que les hypothèses explicites de l’utilisateur. Ces résultats comprennent un lien vers Simulation avec le ticker sélectionné. Un lien de relais n’exécute pas d’autres mutations dans le module cible. Les outils de conversation peuvent gérer le profil et les onglets partagés, consulter des spécialistes Bedrock ou préparer des tâches avec des liens vers les modules. Simulation ne prédit pas les cours. Il n’existe pas encore Step Functions, RAG/Knowledge Base, recherche générale externe, authentification utilisateur ou accès financier. Seuls les statuts émis par les opérations réellement appelées peuvent être présentés comme des exécutions réelles.
+L’Assistant partage le contexte du profil et du portefeuille fictif, appelle des outils contrôlés, peut charger les skills approuvés et peut préparer des actions ou des vues de travail. `analyze_demo_portfolio` calcule les pondérations et concentrations; `inspect_simulation_history` lit les cours ajustés et événements configurés; `project_market_scenarios` compare des hypothèses explicites aux fenêtres historiques. Ces calculs ne prédisent pas les cours. Un lien de relais vers un autre module ne signifie pas qu’une mutation ou une analyse supplémentaire y a été exécutée.
+
+Les modules `research/` et `knowledge/` et les routes correspondantes sont présents dans le code. Le runtime de recherche peut lancer des collectes et workflows configurés; les capacités AWS effectivement disponibles dépendent de la stack, de ses permissions, de son état Terraform et de ses variables. Les endpoints Knowledge Base ne constituent pas à eux seuls une preuve que le corpus est ingéré, que la récupération est active ou que l’Assistant s’appuie sur les passages retournés. Même règle pour Bedrock : `/v1/profiles/status` décrit une configuration, pas une invocation réussie. Vérifier une exécution réelle et ses preuves avant de la présenter comme intégrée.
+
+La recherche est bornée aux connecteurs et opérations documentés, par exemple les dépôts SEC, certains documents réglementaires, la couverture indexée GDELT et, si explicitement activée, X Recent Search. Cela ne constitue pas une recherche Web générale ni une couverture exhaustive. Le paquet AlphaForge inclus dans Simulation apporte les prix historiques, actifs et opérations sur titres; il ne fournit pas les actualités, publications sociales, fondamentaux d’entreprise, données ESG ou compositions complètes des FNB. Les champs absents doivent rester « indisponibles » et ne pas être inférés par un modèle.
+
+L’authentification dépend du mode : le développement local est sans connexion; les stacks AWS documentées utilisent Cognito et des contrôles JWT/admin. Le produit de démonstration utilise des personas, portefeuilles et comptes fictifs; il n’accède pas à des comptes financiers réels et n’exécute pas de transactions. L’état de déploiement précis est consigné par stack dans les README Terraform; il doit être confirmé par des appels réels, pas extrapolé du code ou d’un plan Terraform.
+
+Seuls les statuts et étapes issus d’opérations réellement appelées peuvent être présentés comme des exécutions réelles. Une collecte partielle, une source indisponible ou une couverture manquante doit rester visible dans l’analyse et ses visualisations.
 
 ## Recherche documentaire et skills
 
-Les modules `research/` et `knowledge/` font partie du paquet API commun. L’Assistant
-lance un workflow AWS via start_analysis; le moteur collecte les sources autorisées,
-les documents et calendriers pertinents, calcule l’historique puis compose un rapport
-sourcé. Les procédures approuvées sont découvertes avec search_skills et lues avec
-load_skill. Voir [profiles/SKILLS.md](src/investoros_api/profiles/SKILLS.md) et
-[profiles/README.md](src/investoros_api/profiles/README.md) pour les contrats,
-la provenance et les vérifications du parcours réel NVDA.
+Les modules `research/` et `knowledge/` font partie du code API. Si `RESEARCH_API_URL`
+est configurée dans le runtime profil, `start_analysis` relaie vers l’API de recherche;
+le backend de recherche peut lancer ses collectes et son workflow configurés. Cela ne
+prouve pas que toutes les stacks pointent vers cette API, que les tâches AWS sont
+déployées ou qu’une exécution réussit. Les routes Knowledge Base de `knowledge/`
+permettent les opérations déclarées par leur configuration, mais le corpus et la
+récupération depuis l’Assistant doivent être vérifiés séparément. Les procédures
+approuvées sont découvertes avec `search_skills` et lues avec `load_skill`; elles ne
+sont pas éditées par le runtime. Voir [profiles/SKILLS.md](src/investoros_api/profiles/SKILLS.md)
+et [profiles/README.md](src/investoros_api/profiles/README.md) pour les contrats et
+les limites. Une recette NVDA documentée ou un ancien appel réel n’atteste pas l’état
+actuel du déploiement.
 
 `research/coverage.py` distingue la fin d’exécution et la couverture de la demande;
 `documents.py` borne la lecture des sources primaires; `report.py` restitue les faits

@@ -147,13 +147,25 @@
 .pw-question-dock .ask-user-card{border:0;border-radius:0}
 .pw-question-dock .ask-user-footer{justify-content:flex-end}
 .pw-chat{position:relative}
-.pw-floating-new{position:absolute;z-index:8;right:20px;top:16px;width:36px;height:36px;box-shadow:0 3px 12px #16243b12}
+.pw-floating-actions{position:absolute;z-index:8;top:16px;right:20px;display:flex;align-items:center;gap:8px}
+.pw-floating-new{position:static;width:36px;height:36px;box-shadow:0 3px 12px #16243b12}
 .pw-workspace.is-assistant-mode .pw-messages{padding-top:48px}
 .assistant-topbar-actions{display:flex;align-items:center;gap:8px}
 .assistant-topbar-actions:empty{display:none}
 .assistant-topbar-actions .pw-history-trigger{cursor:pointer}
 .assistant-topbar-actions .pw-history-trigger:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-@media(max-width:760px){.assistant-topbar-actions .pw-history-trigger>span{display:none}.assistant-topbar-actions .pw-history-trigger{padding:0 8px}.pw-floating-new{right:12px;top:12px}}
+@media(max-width:760px){.assistant-topbar-actions .pw-history-trigger>span{display:none}.assistant-topbar-actions .pw-history-trigger{padding:0 8px}.pw-floating-actions{top:12px;right:12px}}
+.pw-overview-control{position:relative;flex:none}
+.pw-overview-trigger{width:36px;height:36px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid #e3e8f1;border-radius:9px;background:#fff;color:#60728e;box-shadow:0 3px 12px #16243b12}
+.pw-overview-trigger:hover,.pw-overview-trigger[aria-expanded=true]{border-color:#c7d4ea;background:#f7f9fd;color:#304f8f}
+.pw-overview-popover{position:absolute;z-index:30;top:calc(100% + 10px);right:0;width:min(340px,calc(100vw - 24px));max-height:min(520px,calc(100vh - 100px));display:flex;flex-direction:column;overflow:auto;border:1px solid #dce4ee;border-radius:13px;background:#fff;box-shadow:0 16px 44px #16243b24;color:#34445d}
+.pw-overview-popover>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid #edf0f4;background:#fff}
+.pw-overview-popover>header>div{display:grid;gap:3px}.pw-overview-popover>header strong{font-size:12px}.pw-overview-popover>header span{font-size:10px;color:#8490a2}.pw-overview-popover>header button{width:26px;height:26px;display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:#7a8799}.pw-overview-popover>header button:hover{background:#f2f5f9}
+.pw-overview-section{padding:11px 12px 8px;border-bottom:1px solid #eef1f5}.pw-overview-section h3{display:flex;align-items:center;gap:7px;margin:0 2px 7px;color:#77859a;font-size:10px;font-weight:650;letter-spacing:.03em}.pw-overview-section h3 span{margin-left:auto;min-width:18px;padding:2px 5px;border-radius:999px;background:#f1f4f8;text-align:center;color:#64748b;font-size:9px}
+.pw-overview-tabs,.pw-overview-sources{list-style:none;margin:0;padding:0}.pw-overview-tabs li+li,.pw-overview-sources li+li{border-top:1px solid #f0f2f6}.pw-overview-tabs button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px;border:0;border-radius:7px;background:#fff;text-align:left}.pw-overview-tabs button:hover,.pw-overview-tabs button.is-active{background:#f4f7fc}.pw-overview-tabs button>span,.pw-overview-sources strong{overflow:hidden;color:#354b6b;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.pw-overview-tabs small{flex:none;color:#8793a4;font-size:9px}.pw-overview-tabs button.is-active small{color:#356ce0}
+.pw-overview-sources a{display:flex;align-items:center;gap:8px;padding:8px;border-radius:7px;color:#60728e;text-decoration:none}.pw-overview-sources a:hover{background:#f4f7fc}.pw-overview-sources a>span{min-width:0;flex:1;display:grid;gap:3px}.pw-overview-sources small{overflow:hidden;color:#8a96a7;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.pw-overview-empty{margin:0;padding:5px 3px 8px;color:#8994a4;font-size:10px;line-height:1.5}
+.pw-overview-agent-count{display:flex;align-items:center;gap:8px;padding:12px 15px;color:#65758c;font-size:11px}.pw-overview-agent-count strong{margin-left:auto;color:#304f8f;font-size:12px}
+@media(max-width:760px){.pw-overview-popover{right:-42px}}
 .pw-research-tab{max-width:960px;margin:auto;color:var(--text);font-size:13px;line-height:1.65}
 .pw-research-tab>p{color:var(--muted)}
 .pw-skills-list{list-style:none;margin:18px 0;padding:0;display:grid;gap:10px}

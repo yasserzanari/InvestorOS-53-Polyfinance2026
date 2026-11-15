@@ -147,6 +147,13 @@ def summarize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
         "asOf": portfolio.get("as_of"),
         "totalValue": float(total_value),
         "positionCount": len(normalized),
+        "lookThroughAvailable": False,
+        "namedAssetFitAssessment": {
+            "status": "insufficient_data_for_named_asset_fit",
+            "diversificationChangeComputable": False,
+            "requiredInputs": ["instrument-level holdings", "proposed weight", "funding source"],
+            "interpretation": "Broad demo position labels do not prove that a named asset is held or that adding it improves or worsens diversification.",
+        },
         "weightTotalPct": round(total_weight, 2),
         "largestPositionPct": round(sorted_positions[0]["weightPct"], 2),
         "topThreeWeightPct": round(
@@ -173,6 +180,7 @@ def summarize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
                     "calculated."
                 ),
                 "Positions and weights come from a fictional fixture, not a brokerage account.",
+                "Position labels are broad demo categories; no constituent look-through proves that a named asset is held.",
                 (
                     "This is the single portfolio configured for the deployment and may not "
                     "match the selected chat persona."

@@ -29,10 +29,17 @@ def build_snapshot(source: Path) -> dict:
 
 
 if __name__ == '__main__':
+    repository = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser()
-    parser.add_argument('source', type=Path)
+    parser.add_argument(
+        'source',
+        nargs='?',
+        type=Path,
+        default=repository / 'agent-skills',
+        help='Skill source directory (defaults to the versioned agent-skills/ directory)',
+    )
     args = parser.parse_args()
-    target = Path(__file__).resolve().parents[1] / 'apps/api/src/investoros_api/profiles/skills_snapshot.json'
+    target = repository / 'apps/api/src/investoros_api/profiles/skills_snapshot.json'
     snapshot = build_snapshot(args.source)
     tmp = target.with_suffix('.tmp')
     tmp.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + '\n')

@@ -11,3 +11,15 @@ test('inability to absorb a loss is not read as high capacity',()=>assert.ok(ass
 test('moderate tolerance and unknown loss capacity do not fabricate conflict',()=>{const r=assessProfile({...base,riskTolerance:'Modérée',lossCapacity:'À préciser'});assert.equal(r.issues.filter(i=>i.severity==='warning').length,0);});
 
 test('more than three years is not parsed as a short horizon',()=>assert.equal(assessProfile({...base,horizon:'Plus de 3 ans'}).issues.length,0));
+
+test('reported high fluctuations and inability to absorb a loss stay a tension',()=>{const result=assessProfile({...base,riskTolerance:'Fluctuations élevées',lossCapacity:'Ne peut pas absorber une perte qui compromettrait le projet'});assert.ok(result.issues.some(i=>i.id==='tolerance-loss-capacity'));});
+test('reported low consequences are not interpreted as inability',()=>{const result=assessProfile({...base,riskTolerance:'Fluctuations élevées',lossCapacity:'Aucune conséquence sur le projet'});assert.equal(result.issues.filter(i=>i.severity==='warning').length,0);});
+
+test('an eighteen-month project is a short horizon, including a month range',()=>{
+  for(const horizon of ['18 mois','12 à 24 mois'])assert.ok(assessProfile({...base,horizon}).issues.some(i=>i.id==='short-horizon-high-risk'));
+  for(const horizon of ['Plus de 36 mois','48 mois'])assert.equal(assessProfile({...base,horizon}).issues.filter(i=>i.severity==='warning').length,0);
+});
+test('withdrawals in eighteen months conflict with a long horizon only when declared positively',()=>{
+  assert.ok(assessProfile({...base,liquidity:'Je dois retirer ce capital dans 18 mois'}).issues.some(i=>i.id==='long-horizon-short-liquidity'));
+  for(const liquidity of ['Je ne dois pas retirer ce capital dans 18 mois','Besoin de liquidités dans 48 mois'])assert.equal(assessProfile({...base,liquidity}).issues.filter(i=>i.severity==='warning').length,0);
+});

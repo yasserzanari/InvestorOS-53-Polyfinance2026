@@ -2,6 +2,8 @@
 
 import csv
 import json
+import math
+from bisect import bisect_left
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
@@ -14,7 +16,7 @@ from urllib.request import Request, urlopen
 
 import boto3
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 router = APIRouter(prefix="/v1/simulation", tags=["simulation"])
 REGULATION_TERMS = {
@@ -32,12 +34,20 @@ X_SEARCH_DOCS_URL = "https://docs.x.com/x-api/posts/search/introduction"
 
 
 class ScenarioBranch(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     id: str = Field(min_length=1, max_length=40, pattern=r"^[a-zA-Z0-9_-]+$")
     title: str = Field(min_length=1, max_length=80)
     event: str = Field(min_length=1, max_length=160)
     sourceUrl: str | None = Field(default=None, max_length=1000)
-    shockPct: float = Field(ge=-80, le=100)
-    eventAfterObservations: int = Field(ge=0, le=120)
+    shockPct: float = Field(ge=-80, le=100, allow_inf_nan=False, strict=True)
+    eventAfterObservations: int | None = Field(default=None, ge=0, le=120, strict=True)
+    eventAfterDays: int | None = Field(default=None, ge=0, le=120, strict=True)
+
+    @model_validator(mode="after")
+    def exactly_one_offset_unit(self):
+        if (self.eventAfterDays is None) == (self.eventAfterObservations is None) or {"eventAfterDays", "eventAfterObservations"} <= self.model_fields_set:
+            raise ValueError("Indiquez exactement un décalage : eventAfterDays ou eventAfterObservations.")
+        return self
 
     @field_validator("sourceUrl")
     @classmethod
@@ -51,24 +61,27 @@ class ScenarioBranch(BaseModel):
 
 
 class ScenarioProjectionRequest(BaseModel):
-    ticker: str = Field(min_length=1, max_length=16)
-    horizonObservations: int = Field(ge=20, le=120)
-    branches: list[ScenarioBranch] = Field(min_length=2, max_length=4)
-
-    @field_validator("horizonObservations")
-    @classmethod
-    def supported_horizon(cls, value: int) -> int:
-        if value not in (20, 60, 120):
-            raise ValueError("Horizon must be 20, 60 or 120 observations")
-        return value
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    ticker: str = Field(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9.^=-]+$")
+    horizonObservations: int | None = Field(default=None, ge=1, le=120, strict=True)
+    horizonDays: int | None = Field(default=None, ge=1, le=120, strict=True)
+    branches: list[ScenarioBranch] = Field(min_length=1, max_length=4)
 
     @model_validator(mode="after")
     def unique_branch_ids_and_valid_offsets(self):
+        if (self.horizonDays is None) == (self.horizonObservations is None) or {"horizonDays", "horizonObservations"} <= self.model_fields_set:
+            raise ValueError("Indiquez exactement un horizon : horizonDays ou horizonObservations.")
+        calendar = self.horizonDays is not None
+        horizon = self.horizonDays if calendar else self.horizonObservations
         ids = [branch.id for branch in self.branches]
         if len(ids) != len(set(ids)):
             raise ValueError("Branch ids must be unique")
-        if any(branch.eventAfterObservations > self.horizonObservations for branch in self.branches):
-            raise ValueError("An event cannot occur after the selected horizon")
+        for branch in self.branches:
+            offset = branch.eventAfterDays if calendar else branch.eventAfterObservations
+            if offset is None:
+                raise ValueError("L’unité du décalage doit correspondre à celle de l’horizon.")
+            if offset > horizon:
+                raise ValueError("An event cannot occur after the selected horizon")
         return self
 
 
@@ -149,9 +162,9 @@ def history(
             observed = date.fromisoformat(row["date"])
             adjusted = float(row["adj_close"])
             volume = int(float(row.get("volume") or 0))
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, OverflowError):
             continue
-        if adjusted <= 0 or (start and observed < start) or (end and observed > end):
+        if not math.isfinite(adjusted) or adjusted <= 0 or (start and observed < start) or (end and observed > end):
             continue
         prices.append({"date": observed.isoformat(), "adjustedClose": adjusted, "volume": volume})
     prices.sort(key=lambda point: point["date"])
@@ -197,7 +210,8 @@ def history(
         "events": actions,
         "currency": asset.get("currency"),
         "source": "prices_daily.csv · adj_close; corporate_actions.csv",
-        "sourceAsOf": "2026-11-12",
+        "sourceAsOf": prices[-1]["date"],
+        **_source_provenance(),
         "method": "Comparaison du cours ajusté à la première clôture disponible à la date ex ou après, puis aux clôtures 1, 5 et 20 observations ensuite; les horizons comptent des séances, pas des jours civils.",
         "limitations": [
             "Une coïncidence de date ne démontre pas que l’événement a causé le mouvement du cours.",
@@ -308,9 +322,104 @@ def _quantile(values: list[float], fraction: float) -> float:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
 
 
+def _source_provenance() -> dict[str, str]:
+    """Report the configured pack's declared origin without inferring a live feed."""
+    classification = "unknown"
+    description = "Paquet historique fourni; provenance non documentée dans les métadonnées locales."
+    try:
+        records = _read_csv("sources_metadata.csv")
+    except HTTPException:
+        records = []
+    metadata = next((row for row in records if row.get("file") == "prices_daily.csv"), {})
+    declared = " ".join(str(metadata.get(key, "")) for key in ("source", "content", "processing", "limitations")).casefold()
+    if any(word in declared for word in ("synthetic", "synthétique", "illustrative", "fixture", "fictif", "simulated")):
+        classification = "illustrative"
+        description = "Séries illustratives déclarées dans les métadonnées du paquet fourni."
+    elif any(word in declared for word in ("yahoo", "yfinance", "historical observations", "observations historiques")):
+        classification = "observations"
+        description = "Observations historiques déclarées par les métadonnées du paquet fourni; pas un cours en direct."
+    provenance = {"sourceClassification": classification, "sourceDescription": description}
+    declared_url = str(metadata.get("source_url", "")).strip()
+    if classification == "observations" and len(declared_url) <= 2000:
+        try:
+            parsed = urlsplit(declared_url)
+            if parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:
+                provenance["sourceUrl"] = declared_url
+        except ValueError:
+            pass
+    return provenance
+
+
+@router.get("/capabilities")
+def simulation_capabilities() -> dict[str, Any]:
+    """Inspect local readiness and bounds before an agent promises a calculation."""
+    required = {
+        "assets_universe.csv": {"ticker", "name", "currency"},
+        "prices_daily.csv": {"ticker", "date", "adj_close"},
+        "corporate_actions.csv": {"ticker", "ex_date", "action", "value", "unit"},
+    }
+    files = []
+    rows_by_file: dict[str, list[dict[str, str]]] = {}
+    failures = []
+    for name, columns in required.items():
+        path = _data_dir() / name
+        exists = path.is_file()
+        valid = False
+        code = "missing_file"
+        if exists:
+            try:
+                with path.open(newline="", encoding="utf-8-sig") as stream:
+                    reader = csv.DictReader(stream)
+                    valid = columns <= set(reader.fieldnames or ())
+                    if valid:
+                        rows_by_file[name] = list(reader)
+                    else:
+                        code = "invalid_columns"
+            except (OSError, UnicodeError, csv.Error):
+                code = "unreadable_file"
+        files.append({"name": name, "available": exists, "valid": valid})
+        if not valid:
+            failures.append({"code": code, "file": name, "message": "Fichier requis absent ou illisible; configurer le paquet historique autorisé."})
+    assets = {row["ticker"].strip().upper() for row in rows_by_file.get("assets_universe.csv", []) if row.get("ticker", "").strip()}
+    dates_by_ticker: dict[str, set[date]] = {}
+    for row in rows_by_file.get("prices_daily.csv", []):
+        try:
+            observed = date.fromisoformat(row["date"])
+            price = float(row["adj_close"])
+            ticker = row["ticker"].strip().upper()
+            if ticker in assets and math.isfinite(price) and price > 0:
+                dates_by_ticker.setdefault(ticker, set()).add(observed)
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+    tickers = []
+    for ticker, observed_dates in sorted(dates_by_ticker.items()):
+        dates = sorted(observed_dates)
+        if len(dates) < 22:
+            continue
+        # A calendar target has an available endpoint iff it is no later than
+        # the last historical quote. The twentieth start date bounds 20 windows.
+        max_days = min(120, (dates[-1] - dates[19]).days)
+        tickers.append({"ticker": ticker, "observations": len(dates), "asOf": dates[-1].isoformat(), "maxHorizonObservations": min(120, len(dates) - 20), "maxHorizonDays": max_days})
+    if not tickers and all(item["valid"] for item in files):
+        failures.append({"code": "insufficient_history", "message": "Aucun titre ne dispose de 22 observations valides pour calculer une référence historique."})
+    ready = not failures and bool(tickers)
+    return {
+        "ready": ready,
+        "available": ready,
+        "requiredFiles": files,
+        "supportedTickers": [item["ticker"] for item in tickers],
+        "tickerCapabilities": tickers,
+        "timeUnits": ["calendar_days", "observations"],
+        "limits": {"calendar_days": {"min": 1, "max": 120}, "observations": {"min": 1, "max": 120}, "branches": {"min": 1, "max": 4}},
+        **_source_provenance(),
+        "failures": failures,
+        "limitations": ["Paquet historique fourni; aucun cours en temps réel n’est interrogé.", "Chaque horizon requiert au moins 20 fenêtres historiques; les limites effectives par titre sont indiquées.", "En jours civils, chaque fenêtre utilise la première clôture disponible à la date cible ou après, y compris après un week-end ou un jour férié."],
+    }
+
+
 @router.post("/scenarios")
 def project_scenarios(request: ScenarioProjectionRequest) -> dict[str, Any]:
-    """Calculate user-specified event shocks against empirical historical return ranges."""
+    """Apply precisely the supplied shocks using one explicit calendar/observation unit."""
     ticker = request.ticker.upper()
     if ticker not in _assets():
         raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
@@ -320,68 +429,56 @@ def project_scenarios(request: ScenarioProjectionRequest) -> dict[str, Any]:
     as_of = prices[-1]["date"]
     if len(prices) < 22:
         raise HTTPException(status_code=422, detail="Il faut au moins 22 observations historiques pour calculer une référence.")
-
-    horizons = sorted(set([0, request.horizonObservations, *(round(request.horizonObservations * i / 6) for i in range(1, 6))] + [branch.eventAfterObservations for branch in request.branches]))
+    calendar = request.horizonDays is not None
+    horizon = request.horizonDays if calendar else request.horizonObservations
+    time_key = "days" if calendar else "observations"
+    event_key = "eventAfterDays" if calendar else "eventAfterObservations"
+    horizon_key = "horizonDays" if calendar else "horizonObservations"
+    offsets = [branch.eventAfterDays if calendar else branch.eventAfterObservations for branch in request.branches]
+    dates = [date.fromisoformat(point["date"]) for point in prices]
+    horizons = sorted(set([0, horizon, *(round(horizon * i / 6) for i in range(1, 6)), *offsets]))
     baseline = []
-    for horizon in horizons:
-        if horizon == 0:
-            baseline.append({"observations": 0, "p10Pct": 0.0, "p50Pct": 0.0, "p90Pct": 0.0})
+    for step in horizons:
+        if step == 0:
+            baseline.append({time_key: 0, "p10Pct": 0.0, "p50Pct": 0.0, "p90Pct": 0.0})
             continue
-        returns = [
-            prices[index + horizon]["adjustedClose"] / prices[index]["adjustedClose"] - 1
-            for index in range(len(prices) - horizon)
-        ]
+        returns = []
+        if calendar:
+            for index, observed in enumerate(dates):
+                target_index = bisect_left(dates, observed + timedelta(days=step), lo=index + 1)
+                if target_index < len(prices):
+                    returns.append(prices[target_index]["adjustedClose"] / prices[index]["adjustedClose"] - 1)
+        else:
+            returns = [prices[index + step]["adjustedClose"] / prices[index]["adjustedClose"] - 1 for index in range(len(prices) - step)]
         if len(returns) < 20:
-            raise HTTPException(status_code=422, detail="Pas assez de fenêtres historiques pour cet horizon.")
-        baseline.append({
-            "observations": horizon,
-            "p10Pct": round(_quantile(returns, 0.10) * 100, 4),
-            "p50Pct": round(_quantile(returns, 0.50) * 100, 4),
-            "p90Pct": round(_quantile(returns, 0.90) * 100, 4),
-        })
-
+            raise HTTPException(status_code=422, detail="Pas assez de fenêtres historiques pour cet horizon; conservez les paramètres demandés et consultez les capacités disponibles.")
+        baseline.append({time_key: step, "p10Pct": round(_quantile(returns, .10) * 100, 4), "p50Pct": round(_quantile(returns, .50) * 100, 4), "p90Pct": round(_quantile(returns, .90) * 100, 4)})
     branches = []
     for branch in request.branches:
-        event_factor = 1 + branch.shockPct / 100
-        event_time = branch.eventAfterObservations
+        event_time = branch.eventAfterDays if calendar else branch.eventAfterObservations
         path = []
         for point in baseline:
-            event_applied = point["observations"] >= event_time
-            factor = event_factor if event_applied else 1.0
-            path.append({
-                "observations": point["observations"],
-                "eventApplied": event_applied,
+            step = point[time_key]
+            event_applied = step >= event_time
+            factor = 1 + branch.shockPct / 100 if event_applied else 1.0
+            path.append({time_key: step, "eventApplied": event_applied,
+                **({"targetDate": (date.fromisoformat(as_of) + timedelta(days=step)).isoformat(), "dateKind": "scenario_target"} if calendar else {}),
                 "lowerPrice": round(starting_price * (1 + point["p10Pct"] / 100) * factor, 4),
                 "medianPrice": round(starting_price * (1 + point["p50Pct"] / 100) * factor, 4),
-                "upperPrice": round(starting_price * (1 + point["p90Pct"] / 100) * factor, 4),
-            })
-        branches.append({
-            "id": branch.id,
-            "title": branch.title,
-            "event": branch.event,
-            **({"sourceUrl": branch.sourceUrl} if branch.sourceUrl else {}),
-            "shockPct": branch.shockPct,
-            "eventAfterObservations": event_time,
-            "path": path,
-        })
-
-    return {
-        "ticker": ticker,
-        "horizonObservations": request.horizonObservations,
-        "asOf": as_of,
-        "startingPrice": starting_price,
-        "currency": historical["currency"],
-        "source": historical["source"],
-        "branches": branches,
-        "method": "À chaque jalon, les percentiles 10/50/90 sont calculés sur toutes les fenêtres historiques du même titre et de même durée disponibles dans le jeu. Le choc indiqué par l’utilisateur est appliqué au jalon choisi, puis multiplié aux percentiles historiques suivants. Les points intermédiaires sont des quantiles marginaux, pas des trajectoires individuelles cohérentes.",
-        "limitations": [
-            "Les pourcentages de choc sont des hypothèses saisies par l’utilisateur; ils ne sont pas estimés par le modèle.",
+                "upperPrice": round(starting_price * (1 + point["p90Pct"] / 100) * factor, 4)})
+        branches.append({"id": branch.id, "title": branch.title, "event": branch.event,
+            **({"sourceUrl": branch.sourceUrl} if branch.sourceUrl else {}), "shockPct": branch.shockPct, event_key: event_time, "path": path})
+    calendar_method = " Les fenêtres en jours civils cherchent la première clôture historique disponible à la date cible ou après; week-ends et jours fériés peuvent allonger la durée observée. Les dates cibles du scénario sont des dates modélisées, jamais des cours futurs observés." if calendar else " Les horizons comptent des observations de marché, pas des jours civils."
+    return {"ticker": ticker, horizon_key: horizon, "timeUnit": "calendar_days" if calendar else "observations",
+        "asOf": as_of, "startingPrice": starting_price, "currency": historical["currency"], "source": historical["source"],
+        **_source_provenance(), "branches": branches,
+        "method": "À chaque jalon, les percentiles 10/50/90 sont calculés sur toutes les fenêtres historiques du même titre et de même durée disponibles dans le jeu. Le choc indiqué par l’utilisateur est appliqué au jalon choisi, puis multiplié aux percentiles historiques suivants. Les points intermédiaires sont des quantiles marginaux, pas des trajectoires individuelles cohérentes." + calendar_method,
+        "limitations": ["Les pourcentages de choc sont des hypothèses saisies par l’utilisateur; ils ne sont pas estimés par le modèle.",
             "Les liens de branche proviennent de l’utilisateur ou de l’événement sélectionné; leur contenu n’est pas vérifié par le calcul.",
-        "Cette projection conditionnelle n’est pas une prévision et n’établit ni probabilité de scénario ni causalité événement-cours.",
-            "Le cours de départ est le dernier cours du paquet configuré; il peut être différé par rapport au marché actuel.",
+            "Cette projection conditionnelle n’est pas une prévision et n’établit ni probabilité de scénario ni causalité événement-cours.",
+            "Le cours de départ est le dernier cours du paquet historique fourni; aucun cours en direct n’est chargé et il peut être différé par rapport au marché actuel.",
             "Les quantiles historiques ne tiennent pas compte d’un changement de régime, de volatilité future, d’impôts ou des positions d’un portefeuille.",
-        ],
-    }
+            *(["Les fenêtres historiques en jours civils utilisent une approximation par la première clôture disponible à la date cible ou après, même après un week-end ou un jour férié."] if calendar else [])]}
 
 
 def _fetch_json(url: str, user_agent: str, timeout: float = 7) -> Any:
