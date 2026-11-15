@@ -48,7 +48,7 @@ def main() -> int:
         if exists.returncode:
             print(f"{address} reste marqué tainted : le rôle AWS n’a pas pu être confirmé.")
             continue
-        result = run(["terraform", "state", "untaint", address])
+        result = run(["terraform", "untaint", address])
         if result.returncode:
             print(f"Impossible de corriger l’état pour {address}; arrêt avant le plan Terraform.", file=sys.stderr)
             return result.returncode
