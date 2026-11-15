@@ -1,14 +1,12 @@
-"""Admin-token protected telemetry, architecture inventory, and voice vocabulary management."""
+"""Cognito-administrator protected telemetry, architecture, and voice vocabulary management."""
 
 from __future__ import annotations
 
 import csv
-import hmac
 import io
 import json
 import os
 import re
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -18,13 +16,14 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from investoros_api.admin_terraform import terraform_architecture
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
-_token_cache: tuple[str, float] | None = None
+# The deployed Lambda entry point enforces API Gateway JWT claims and the
+# Cognito administrators group in main.handler before forwarding requests here.
 
 RECOMMENDED_FINANCE_VOCABULARY = [
     "NVIDIA", "NVDA", "TSMC", "ASML", "Micron", "Broadcom", "AMD", "Intel",
@@ -72,49 +71,6 @@ def _client(service: str, region: str | None = None):
 
 def _read_at() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _secret_token() -> str | None:
-    global _token_cache
-    direct = os.getenv("INVESTOROS_ADMIN_TOKEN", "").strip()
-    if direct:
-        return direct
-    if _token_cache and _token_cache[1] > time.monotonic():
-        return _token_cache[0]
-    secret_arn = (
-        os.getenv("ADMIN_CONSOLE_TOKEN_SECRET_ARN", "").strip()
-        or os.getenv("RESEARCH_ADMIN_TOKEN_SECRET_ARN", "").strip()
-    )
-    if not secret_arn:
-        return None
-    try:
-        value = _client("secretsmanager").get_secret_value(SecretId=secret_arn).get("SecretString", "")
-    except (BotoCoreError, ClientError):
-        return None
-    if not value:
-        return None
-    try:
-        parsed = json.loads(value)
-        if isinstance(parsed, dict):
-            value = next(
-                (parsed[key] for key in ("admin_token", "token", "secret") if isinstance(parsed.get(key), str)),
-                value,
-            )
-    except json.JSONDecodeError:
-        pass
-    token = value.strip() if isinstance(value, str) else ""
-    if token:
-        _token_cache = (token, time.monotonic() + 60)
-        return token
-    return None
-
-
-def require_admin(x_admin_token: str | None = Header(default=None, alias="x-admin-token")) -> None:
-    expected = _secret_token()
-    if expected is None:
-        raise HTTPException(status_code=503, detail="La console Admin n’est pas configurée sur ce serveur.")
-    if not x_admin_token or not hmac.compare_digest(expected, x_admin_token.strip()):
-        raise HTTPException(status_code=401, detail="Jeton Admin invalide ou manquant.")
 
 
 def _paginate(client: Any, operation: str, result_key: str, **params: Any) -> list[dict[str, Any]]:
@@ -416,7 +372,7 @@ def _live_architecture(resources: dict[str, Any], errors: list[dict[str, str]]) 
 
 
 @router.get("/summary")
-def admin_summary(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+def admin_summary() -> dict[str, Any]:
     resources, errors = _collect_resources()
     specs = _metric_specs(resources)
     metrics, metric_errors = _metric_data(specs)
@@ -483,7 +439,7 @@ def admin_summary(_: None = __import__("fastapi").Depends(require_admin)) -> dic
 
 
 @router.get("/architecture")
-def admin_architecture(mode: str = "live", _: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+def admin_architecture(mode: str = "live") -> dict[str, Any]:
     if mode == "terraform":
         return terraform_architecture()
     if mode != "live":
@@ -495,7 +451,7 @@ def admin_architecture(mode: str = "live", _: None = __import__("fastapi").Depen
 
 
 @router.get("/activity")
-def admin_activity(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+def admin_activity() -> dict[str, Any]:
     runs: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     try:
@@ -521,7 +477,7 @@ def admin_activity(_: None = __import__("fastapi").Depends(require_admin)) -> di
 
 
 @router.get("/costs")
-def admin_costs(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+def admin_costs() -> dict[str, Any]:
     now = datetime.now(timezone.utc).date()
     start = now.replace(day=1)
     end = now
@@ -554,7 +510,7 @@ def admin_costs(_: None = __import__("fastapi").Depends(require_admin)) -> dict[
 
 
 @router.get("/quotas")
-def admin_quotas(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+def admin_quotas() -> dict[str, Any]:
     quotas: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     try:
@@ -570,7 +526,7 @@ def admin_quotas(_: None = __import__("fastapi").Depends(require_admin)) -> dict
 
 
 @router.get("/security")
-def admin_security(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+def admin_security() -> dict[str, Any]:
     apis = []
     errors: list[dict[str, str]] = []
     try:
@@ -579,14 +535,13 @@ def admin_security(_: None = __import__("fastapi").Depends(require_admin)) -> di
             apis.append({"name": api.get("Name"), "endpoint": api.get("ApiEndpoint"), "gatewayAuthentication": {"protected": all(route.get("AuthorizationType") not in (None, "NONE") for route in routes), "unprotectedRoutes": sum(route.get("AuthorizationType") in (None, "NONE") for route in routes), "totalRoutes": len(routes)}, "corsOrigins": api.get("CorsConfiguration", {}).get("AllowOrigins", [])})
     except (BotoCoreError, ClientError) as error:
         errors.append(_safe_error("API Gateway", error))
-    token_configured = bool(os.getenv("INVESTOROS_ADMIN_TOKEN") or os.getenv("ADMIN_CONSOLE_TOKEN_SECRET_ARN") or os.getenv("RESEARCH_ADMIN_TOKEN_SECRET_ARN"))
     return {
         "readAt": _read_at(),
-        "adminConsole": {"tokenConfigured": token_configured, "tokenValuesExposed": False, "browserStorage": "mémoire de la page seulement", "apiGate": "Jeton vérifié côté serveur avec comparaison constante"},
+        "adminConsole": {"authentication": "JWT Amazon Cognito · groupe administrators", "browserSession": "Session Cognito de l’application", "additionalSecretRequired": False},
         "apis": apis,
         "notes": [
-            "Le jeton Admin n’est jamais retourné par l’API ni conservé dans le stockage du navigateur.",
-            "Les routes de démonstration existantes peuvent rester publiques; les routes /v1/admin exigent le jeton côté serveur.",
+            "API Gateway valide le JWT Cognito et le handler Lambda exige l’appartenance au groupe administrators.",
+            "La console Admin réutilise la session de connexion de l’application; aucun jeton Admin distinct n’est demandé.",
             "Les identifiants AWS restent dans le rôle du backend et ne sont pas transmis au navigateur.",
         ],
         "errors": errors,
@@ -651,7 +606,7 @@ def _download_vocabulary_phrases(download_uri: str) -> list[str]:
 
 
 @router.get("/voice-vocabulary")
-def admin_voice_vocabulary(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+def admin_voice_vocabulary() -> dict[str, Any]:
     try:
         response = _client("transcribe").get_vocabulary(VocabularyName=_vocabulary_name())
     except ClientError as error:
@@ -667,7 +622,6 @@ def admin_voice_vocabulary(_: None = __import__("fastapi").Depends(require_admin
 @router.put("/voice-vocabulary")
 def update_admin_voice_vocabulary(
     request: VocabularyUpdate,
-    _: None = __import__("fastapi").Depends(require_admin),
 ) -> dict[str, Any]:
     name = _vocabulary_name()
     client = _client("transcribe")
