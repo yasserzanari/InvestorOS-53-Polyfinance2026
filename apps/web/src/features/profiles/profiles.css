@@ -65,8 +65,8 @@
 @keyframes agent-pulse{50%{opacity:.45;transform:scale(.85)}}
 @media(max-width:1050px){.agent-workspace-grid{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.agent-workspace-card,.agent-workspace-pulse,.agent-workspace-spinner{animation:none}}
-.pw-workspace.is-assistant-mode{grid-template-columns:minmax(0,1fr)}
-.pw-workspace.is-assistant-mode .pw-chat{border-right:0}
+.pw-workspace.is-assistant-mode{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.pw-workspace.is-assistant-mode .pw-chat{border-right:1px solid var(--line)}
 .pw-chat-header{position:relative;z-index:4}
 .pw-history-control{position:relative;flex:none}
 .pw-history-trigger{height:32px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid #e3e8f1;border-radius:8px;background:#fff;color:#5f6f88;font:inherit;font-size:11px}
@@ -116,3 +116,19 @@
 .pw-prompt-mic.is-recording{color:#b33c50;background:#fff0f2}
 .pw-prompt-hint{font-size:11px;color:var(--muted);padding-inline:6px}
 .pw-prompt-root>.pw-prompt-notice{max-width:none;margin:10px 4px 0;text-align:left;color:#966820;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+
+.pw-composer>div:first-child{width:100%;max-width:820px;margin-inline:auto}
+.pw-landing-composer{position:relative;z-index:1}
+
+@media(min-width:701px){
+  .pw-workspace:not(.is-assistant-mode){grid-template-columns:minmax(0,var(--profile-split,50%)) 8px minmax(0,1fr)}
+  .pw-workspace:not(.is-assistant-mode)>.pw-chat{border-right:0}
+}
+.pw-split-handle{position:relative;z-index:5;display:flex;align-items:center;justify-content:center;min-height:0;cursor:col-resize;touch-action:none;background:var(--surface);border-inline:1px solid var(--line);outline:none}
+.pw-split-handle:before{content:"";position:absolute;inset:0 -4px}
+.pw-split-handle>span{width:3px;height:34px;border-radius:4px;background:#c5cfdd;pointer-events:none;transition:background .15s,height .15s}
+.pw-split-handle:hover,.pw-split-handle:focus-visible,.is-resizing>.pw-split-handle{background:#eaf1ff;border-color:#9db8e8}
+.pw-split-handle:hover>span,.pw-split-handle:focus-visible>span,.is-resizing>.pw-split-handle>span{background:var(--brand);height:48px}
+.pw-workspace.is-resizing,.pw-workspace.is-resizing *{cursor:col-resize!important;user-select:none!important}
+@media(max-width:700px){.pw-split-handle{display:none}}
+@media(prefers-reduced-motion:reduce){.pw-split-handle>span{transition:none}}

@@ -167,7 +167,12 @@
   align-content: stretch;
   gap: 13px;
 }
-.dashboard-main-column { grid-template-rows: minmax(0, 1fr) auto; }
+.dashboard-main-column {
+  height: fit-content;
+  align-self: start;
+  align-content: start;
+  grid-template-rows: auto;
+}
 .dashboard-side-column { grid-template-rows: minmax(0, 1fr) auto; }
 .dashboard-panel {
   min-width: 0;
@@ -293,7 +298,7 @@
 .activity-dismiss:hover { background: #e8edf6; color: #233958; }
 @keyframes activity-arrive { from { opacity: 0; transform: translateY(-9px) scale(.985); } to { opacity: 1; transform: none; } }
 .activity-count { display: grid; min-width: 25px; height: 25px; place-items: center; padding-inline: 7px; border: 0; border-radius: 999px; background: #17191f; color: #fff; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.activity-list { min-height: 0; flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
+.activity-list { min-height: 0; max-height: min(44vh, 470px); flex: 0 1 auto; overflow-y: auto; scrollbar-gutter: stable; }
 .activity-row {
   display: grid;
   min-height: 70px;
@@ -604,12 +609,12 @@
   .dashboard-prompt-center { width: 100%; }
   .dashboard-main-column,
   .dashboard-side-column { height: auto; gap: 8px; }
-  .dashboard-main-column { grid-template-rows: minmax(280px, auto) auto; }
+  .dashboard-main-column { grid-template-rows: auto; }
   .dashboard-side-column { grid-template-rows: minmax(250px, auto) auto; }
   .dashboard-panel-heading h2 { font-size: 14px; }
   .dashboard-panel-heading p { font-size: 11px; }
   .activity-panel, .portfolio-state-panel, .platform-stats-panel { padding: 12px; }
-  .activity-panel { min-height: 280px; }
+  .activity-panel { min-height: 0; }
   .activity-row-copy > strong { font-size: 11px; }
   .activity-row-copy > small { font-size: 10px; }
   .activity-dismiss { opacity: 1; }
@@ -641,7 +646,7 @@
   .dashboard-status-card { grid-template-columns: 26px minmax(0, 1fr) 10px; gap: 6px; }
   .dashboard-status-icon { width: 26px; height: 26px; }
   .dashboard-status-icon svg { width: 16px; }
-  .activity-panel { min-height: 250px; }
+  .activity-panel { min-height: 0; }
   .activity-empty-item { grid-template-columns: 30px minmax(0, 1fr) 14px; gap: 7px; }
   .activity-row { grid-template-columns: 30px minmax(0, 1fr) 14px; gap: 7px; }
   .activity-row-icon { width: 29px; height: 29px; }
