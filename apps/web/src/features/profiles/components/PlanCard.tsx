@@ -1,4 +1,4 @@
-import { ArrowRight, Check, ListChecks, LoaderCircle } from 'lucide-react';
+import { ArrowRight, Check, ListChecks, LoaderCircle, Pencil } from 'lucide-react';
 import type { AssistantPlan } from '../profile-api';
 
 /** Recognizes the concise French step plans currently returned by the profile assistant. */
@@ -19,11 +19,12 @@ export function parsePlan(text: string): AssistantPlan | null {
   return steps.length ? { title, description: description || undefined, steps } : null;
 }
 
-export function PlanCard({ plan, waiting = false, responded = false, onApprove, approveDisabled = false }: {
+export function PlanCard({ plan, waiting = false, responded = false, onApprove, onRevise, approveDisabled = false }: {
   plan: AssistantPlan;
   waiting?: boolean;
   responded?: boolean;
   onApprove?: () => void;
+  onRevise?: () => void;
   approveDisabled?: boolean;
 }) {
   const status = responded ? 'Réponse envoyée' : waiting ? 'À confirmer' : `${plan.steps.length} étapes`;
@@ -40,7 +41,7 @@ export function PlanCard({ plan, waiting = false, responded = false, onApprove, 
         <span>{step.title}{step.detail && <small>{step.detail}</small>}</span>
       </li>)}
     </ol>
-    {waiting && <footer><span>Rien ne démarre avant votre confirmation.</span>{onApprove && <button type="button" onClick={onApprove} disabled={approveDisabled} aria-label="Confirmer et lancer le plan de recherche">{approveDisabled ? <LoaderCircle size={14} className="pw-plan-approve-spinner" /> : <ArrowRight size={14} />}Lancer le plan</button>}</footer>}
+    {waiting && <footer><span>Rien ne démarre avant votre confirmation.</span><div className="pw-plan-actions">{onRevise && <button type="button" className="pw-plan-revise" onClick={onRevise} disabled={approveDisabled}><Pencil size={13} />Modifier le plan</button>}{onApprove && <button type="button" className="pw-plan-launch" onClick={onApprove} disabled={approveDisabled} aria-label="Confirmer et lancer le plan de recherche">{approveDisabled ? <LoaderCircle size={14} className="pw-plan-approve-spinner" /> : <ArrowRight size={14} />}Lancer le plan</button>}</div></footer>}
     {responded && <footer className="pw-plan-card-confirmed"><Check size={14} aria-hidden="true" />Confirmation envoyée</footer>}
   </section>;
 }
