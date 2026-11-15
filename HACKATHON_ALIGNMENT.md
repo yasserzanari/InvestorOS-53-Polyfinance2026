@@ -1,6 +1,15 @@
 # InvestorOS — alignement du projet Datathon Polyfinance 2026
 
-**Note de coordination locale, mise à jour le 14 novembre 2026.** À lire avant tout travail sur les profils, les données, la recherche, les agents, les skills, les visualisations ou AWS. Elle décrit les écarts visibles entre l’objectif du hackathon, le code principal et les worktrees observés. Elle ne remplace ni les contrats API ni une vérification des déploiements AWS. Les états de conversation et de fichiers sont un instantané : actualiser avant une intégration.
+**Note de coordination, mise à jour le 15 novembre 2026.** À lire avant tout travail sur les profils, les données, la recherche, les agents, les skills, les visualisations ou AWS. Elle décrit les écarts visibles entre l’objectif du hackathon, le code et les worktrees observés. Elle ne remplace ni les contrats API ni une vérification des déploiements AWS. Les états de conversation et de fichiers sont un instantané : actualiser avant une intégration.
+
+## État après intégration sur `staging` — 15 novembre 2026
+
+- La branche distante `origin/staging` contient le dossier d’analyse agentique, le suivi interactif, les compétences métier et leurs sources versionnées. Aucun merge vers `main` n’a été effectué.
+- Les 19 skills versionnés dans `agent-skills/` (v1.8.11) correspondent au snapshot API par identifiant et SHA-256. Le script de synchronisation fonctionne sans chemin externe. `/v1/profiles/status` confirme la version chargée par l’API locale; cela ne confirme pas un déploiement AWS.
+- Vérifications locales : 193 tests API; 24 tests de contrat web; tests navigateur des onglets de conversation et du plan soumis à approbation explicite; TypeScript et build de production. Le build affiche un avertissement : le chunk JavaScript principal fait environ 1,17 Mo minifié.
+- Le test d’approbation du plan intercepte le modèle pour être reproductible : il prouve le comportement UI et le payload, pas la qualité d’une réponse Bedrock réelle. L’appel de recherche AWS réel renvoie une indisponibilité liée à des credentials AWS expirés; aucune validation ou mise à jour AWS de cette version n’est confirmée.
+- L’inventaire des conversations Codex n’a renvoyé aucune entrée depuis cet hôte. Les transcriptions complètes et les identifiants nécessaires pour écrire aux autres fils n’étaient donc pas disponibles; les points ci-dessous viennent des résumés antérieurs et des worktrees locaux.
+- Worktrees observés au même relevé : `analysis-visual-tabs` a 88 chemins modifiés (40 divergents avec les fichiers de `staging`); `starter-dataset-audit`, 70 (36 divergents); `investoros-analysis-ui`, 9 (4 divergents). Ils recoupent les contrats backend et web : ne pas cherry-pick ni copier ces lots sans revue fichier par fichier. Les worktrees `backend-foundation` et `network-dynamodb-persistence` étaient propres.
 
 ## 1. Objectif du concours : la boussole commune
 
