@@ -3,7 +3,7 @@ import { authenticatedFetch } from '../../shared/auth';
 export type Citation = { id: string; index: number; title: string; url: string; snippet?: string };
 export type FollowUp = { id: string; label: string };
 export type AssistantPlan = { title: string; description?: string; steps: {id:string;title:string;detail?:string}[] };
-export type WorkspaceTab = { id: string; title: string; kind: 'profile'|'note'|'tasks'|'agents'|'sources'|'simulation'|'decision'; content: string; items?: {id: string; title: string; status?: string; url?: string}[] };
+export type WorkspaceTab = { id: string; title: string; kind: 'profile'|'note'|'tasks'|'agents'|'sources'|'simulation'|'decision'|'network'; content: string; items?: {id: string; title: string; status?: string; url?: string}[] };
 export type ToolEvent = { actor?:string; phase?: 'preparing'|'executing'; startedAt?:number; finishedAt?:number; id: string; name: string; status: 'running'|'done'|'failed'; input?: unknown; output?: unknown; error?: string };
 export type AgentEvent = { id: string; name: string; status: 'running'|'done'|'failed'; task: string; summary?: string; startedAt?: number; durationMs?: number; kind?: 'bedrock'|'collector'; skills?: {id:string;version?:string;sha256?:string}[]; skill_trace?: {tool:string;actor?:string;input?:{skill_id?:string}}[] };
 export type ProfileEvent = {type: string; [key: string]: unknown};
@@ -65,7 +65,7 @@ async function pollProfileJob(body: unknown, signal: AbortSignal, onEvent: (even
   signal.addEventListener('abort',cancel,{once:true});
   if(signal.aborted)cancel();
   let cursor=0;
-  const deadline=Date.now()+190000;
+  const deadline=Date.now()+370000;
   try{
     onEvent({type:'status',label:'Réponse en préparation sur AWS'});
     while(!signal.aborted){

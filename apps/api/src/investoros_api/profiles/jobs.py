@@ -24,7 +24,7 @@ router = APIRouter(prefix='/v1/profiles/chat/jobs', tags=['profiles'])
 MAX_REQUEST_BYTES = 200_000
 MAX_EVENT_BYTES = 378_000
 JOB_TTL_SECONDS = 3600
-JOB_DEADLINE_SECONDS = 180
+JOB_DEADLINE_SECONDS = 360
 WORKER_SOURCE = 'investoros.profile-chat-job'
 _UNAVAILABLE = 'Le suivi de la réponse est temporairement indisponible. Réessayez.'
 _FAILED = 'La réponse n’a pas pu être terminée. Les résultats déjà reçus restent disponibles.'

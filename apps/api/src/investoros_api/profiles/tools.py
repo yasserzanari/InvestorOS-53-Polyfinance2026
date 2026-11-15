@@ -78,7 +78,7 @@ TOOLS.extend([
 
 TOOLS.extend([
  spec('estimate_market_trajectories', 'Estimer une référence quantitative par bootstrap historique, sans demander de choc. Utiliser pour une demande de trajectoires estimées; indiquer date de départ, horizon en séances, diagnostic de validation et limites. Ne prédit pas l’effet d’un événement.', {'ticker':{'type':'string','pattern':'^[A-Za-z0-9.^=-]{1,16}$'},'horizonObservations':{'type':'integer','minimum':1,'maximum':120}}, ['ticker','horizonObservations']),
- spec('inspect_supply_chain', 'Lire les relations fournisseur vérifiées et leurs preuves pour un titre. Les positions sont des repères schématiques de pays; aucun risque ni poids de dépendance n’est inféré. Signaler une absence de couverture.', {'ticker':{'type':'string','pattern':'^[A-Za-z0-9.^=-]{1,16}$'}}, ['ticker']),
+ spec('inspect_supply_chain', 'Rechercher les fournisseurs documentés, revenus trimestriels SEC et événements sourcés pour une entreprise; ouvre le tab dédié Graphe/Liste/Pressions/Événements. Couverture incomplète explicite. Réutiliser analysis_id pour les documents déjà collectés.', {'ticker':{'type':'string','minLength':1,'maxLength':120}, 'analysis_id':{'type':'string','format':'uuid'}}, ['ticker']),
 ])
 
 
