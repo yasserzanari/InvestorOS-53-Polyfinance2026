@@ -9,6 +9,7 @@ locals {
 }
 
 data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
 
 data "aws_lambda_function" "assistant" {
   function_name = "investoros-${var.environment}-assistant-simulation"
@@ -94,6 +95,20 @@ resource "aws_iam_role_policy" "runtime" {
   }
 }
 
+resource "aws_iam_role_policy" "voice_vocabulary" {
+  name = "${var.name_prefix}-api-voice-vocabulary"
+  role = aws_iam_role.lambda_execution.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "ManageConfiguredFinanceVocabulary"
+      Effect   = "Allow"
+      Action   = ["transcribe:GetVocabulary", "transcribe:UpdateVocabulary"]
+      Resource = "arn:${data.aws_partition.current.partition}:transcribe:${var.aws_region}:${data.aws_caller_identity.current.account_id}:vocabulary/${var.voice_transcribe_vocabulary_name}"
+    }]
+  })
+}
+
 resource "aws_lambda_function" "api" {
   function_name                  = local.function_name
   description                    = "InvestorOS demo data, Simulation, and Amazon Bedrock chat API."
@@ -109,28 +124,29 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      ACCOUNTS_TABLE_NAME            = var.table_names.accounts
-      PROFILES_TABLE_NAME            = var.table_names.profiles
-      PORTFOLIOS_TABLE_NAME          = var.table_names.portfolios
-      ANALYSES_TABLE_NAME            = var.table_names.analyses
-      DEMO_ACCOUNT_ID                = var.demo_account_id
-      DEMO_PROFILE_ID                = var.demo_profile_id
-      DEMO_PORTFOLIO_ID              = var.demo_portfolio_id
-      DEMO_CONTEXTS                  = jsonencode(var.demo_contexts)
-      DEMO_PORTFOLIO_MODE            = "dynamodb"
-      REQUIRE_ADMIN_AUTH             = "true"
-      CORS_ALLOWED_ORIGINS           = join(",", local.allowed_origins)
-      POWERTOOLS_SERVICE_NAME        = "investoros-api"
-      ENVIRONMENT                    = var.environment
-      BEDROCK_MODEL_ID               = var.bedrock_model_id
-      SIMULATION_X_SEARCH_ENABLED    = tostring(var.simulation_x_search_enabled)
-      X_API_BEARER_TOKEN_SECRET_ARN  = var.simulation_x_search_enabled ? var.x_api_bearer_token_secret_arn : ""
-      ADMIN_CONSOLE_TOKEN_SECRET_ARN = var.admin_console_token_secret_arn
+      ACCOUNTS_TABLE_NAME              = var.table_names.accounts
+      PROFILES_TABLE_NAME              = var.table_names.profiles
+      PORTFOLIOS_TABLE_NAME            = var.table_names.portfolios
+      ANALYSES_TABLE_NAME              = var.table_names.analyses
+      DEMO_ACCOUNT_ID                  = var.demo_account_id
+      DEMO_PROFILE_ID                  = var.demo_profile_id
+      DEMO_PORTFOLIO_ID                = var.demo_portfolio_id
+      DEMO_CONTEXTS                    = jsonencode(var.demo_contexts)
+      DEMO_PORTFOLIO_MODE              = "dynamodb"
+      REQUIRE_ADMIN_AUTH               = "true"
+      CORS_ALLOWED_ORIGINS             = join(",", local.allowed_origins)
+      POWERTOOLS_SERVICE_NAME          = "investoros-api"
+      ENVIRONMENT                      = var.environment
+      BEDROCK_MODEL_ID                 = var.bedrock_model_id
+      SIMULATION_X_SEARCH_ENABLED      = tostring(var.simulation_x_search_enabled)
+      X_API_BEARER_TOKEN_SECRET_ARN    = var.simulation_x_search_enabled ? var.x_api_bearer_token_secret_arn : ""
+      ADMIN_CONSOLE_TOKEN_SECRET_ARN   = var.admin_console_token_secret_arn
+      VOICE_TRANSCRIBE_VOCABULARY_NAME = var.voice_transcribe_vocabulary_name
 
     }
   }
 
-  depends_on = [aws_iam_role_policy.runtime]
+  depends_on = [aws_iam_role_policy.runtime, aws_iam_role_policy.voice_vocabulary]
 
   # The live API Lambda also serves the separately maintained research stack.
   # Keep its research-owned environment values while Terraform manages this

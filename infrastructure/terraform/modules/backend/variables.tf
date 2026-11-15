@@ -93,3 +93,8 @@ variable "admin_console_token_secret_arn" {
   type        = string
   default     = ""
 }
+
+variable "voice_transcribe_vocabulary_name" {
+  description = "Nom du vocabulaire Amazon Transcribe utilisé par la dictée fr-CA et géré depuis la console Admin."
+  type        = string
+}
