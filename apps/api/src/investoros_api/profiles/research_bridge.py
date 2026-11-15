@@ -143,4 +143,3 @@ def research_snapshot(analysis_id: str, persona: str) -> dict:
         cursor = page.get('next_after')
     evidence = _call('GET', '/analyses/' + identifier + '/evidence', persona) if result.get('result') else {}
     return {**result, 'events': items, 'events_truncated': bool(cursor), 'evidence': evidence.get('evidence', [])}
-
