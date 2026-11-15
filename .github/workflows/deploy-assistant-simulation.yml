@@ -107,18 +107,26 @@ jobs:
           import json, sys
           plan = json.load(sys.stdin)
           changes = plan.get("resource_changes", [])
-          destructive = [
-              (item["address"], item["change"]["actions"])
-              for item in changes
-              if "delete" in item.get("change", {}).get("actions", [])
-          ]
-          if destructive:
+          blocked = []
+          for item in changes:
+              action = item.get("change", {}).get("actions", [])
+              if "delete" not in action:
+                  continue
+              rotation = (
+                  item.get("address") == "aws_s3_object.api_package"
+                  and action == ["delete", "create"]
+                  and item.get("change", {}).get("replace_paths", []) == [["key"]]
+              )
+              if rotation:
+                  print("Rotation de l'archive Lambda adressée par contenu.")
+              else:
+                  blocked.append(item)
+          if blocked:
               print("Application bloquée: le plan contient une suppression ou un remplacement:")
-              for item in changes:
+              for item in blocked:
                   action = item.get("change", {}).get("actions", [])
-                  if "delete" in action:
-                      paths = item.get("change", {}).get("replace_paths", [])
-                      print("- {}: {}; attributs déclencheurs: {}".format(item.get("address"), action, paths))
+                  paths = item.get("change", {}).get("replace_paths", [])
+                  print("- {}: {}; attributs déclencheurs: {}".format(item.get("address"), action, paths))
               sys.exit(1)
           planned = [
               (item["address"], item["change"]["actions"])
