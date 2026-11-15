@@ -3,13 +3,17 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from investoros_api.research.coverage import research_window, audit_coverage
-from investoros_api.research.documents import nvidia_documents, macro_calendar, read_public, page_text
-from investoros_api.research import runtime
+from investoros_api.research import iam_handler, runtime
+from investoros_api.research.coverage import audit_coverage, research_window
+from investoros_api.research.documents import (
+    macro_calendar,
+    nvidia_documents,
+    page_text,
+    read_public,
+)
 from investoros_api.research.financials import financial_snapshot
 from investoros_api.research.report import grounded_report
-from investoros_api.research import iam_handler
-from investoros_api.research.validation import validate_disclosure_dates,dates_in
+from investoros_api.research.validation import dates_in, validate_disclosure_dates
 
 
 class CoverageTests(unittest.TestCase):
@@ -132,6 +136,19 @@ class PrimaryDocumentTests(unittest.TestCase):
         with patch.object(iam_handler,'_handler',return_value={'statusCode':200}) as handler:
             self.assertEqual(iam_handler.handle(event,None)['statusCode'],200)
             self.assertNotIn('authorizer',handler.call_args.args[0]['requestContext'])
+
+    def test_iam_entry_preserves_only_a_well_formed_trusted_principal_hash(self):
+        path='/v1/research/analyses'
+        principal='a'*64
+        event={'source':'investoros.research-iam','request':{'version':'2.0','rawPath':path,
+            'requestContext':{'trustedPrincipalHash':principal,'http':{'method':'POST','path':path}}}}
+        with patch.object(iam_handler,'_handler',return_value={'statusCode':202}) as handler:
+            self.assertEqual(iam_handler.handle(event,None)['statusCode'],202)
+            self.assertEqual(handler.call_args.args[0]['requestContext']['trustedPrincipalHash'],principal)
+        event['request']['requestContext']['trustedPrincipalHash']='not-a-hash'
+        with patch.object(iam_handler,'_handler') as handler:
+            self.assertEqual(iam_handler.handle(event,None)['statusCode'],403)
+            handler.assert_not_called()
 
     def test_iam_entry_rejects_mismatched_mangum_path(self):
         event={'source':'investoros.research-iam','request':{'version':'2.0','rawPath':'/v1/research/sources','requestContext':{'http':{'method':'GET','path':'/v1/profiles/chat'}}}}

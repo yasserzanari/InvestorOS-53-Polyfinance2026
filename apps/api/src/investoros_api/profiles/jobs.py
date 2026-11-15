@@ -1,19 +1,23 @@
 """Bounded, short-lived chat jobs for API Gateway's buffered Lambda integration."""
-from contextlib import contextmanager
-from functools import lru_cache
+import hashlib
 import json
 import os
+import re
 import time
+from contextlib import contextmanager
+from functools import lru_cache
 from uuid import UUID, uuid4
 
 import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from investoros_api.demo_contexts import PersonaId
+
 from .models import ChatRequest
+from .research_bridge import forward_research_authorization
 from .service import run_chat
 
 router = APIRouter(prefix='/v1/profiles/chat/jobs', tags=['profiles'])
@@ -80,12 +84,19 @@ def _write_events(table, job_id, token, events, status):
 
 
 @router.post('', status_code=202)
-def start_job(request: ChatRequest):
+def start_job(request: ChatRequest, http_request: Request):
     """The caller is authenticated by the existing API Gateway/Lambda wrapper."""
     payload = _json(request.model_dump(mode='json'))
     if len(payload.encode('utf-8')) > MAX_REQUEST_BYTES:
         raise HTTPException(413, 'Le contexte est trop volumineux. Fermez certains documents avant de réessayer.')
     table, worker, region = _storage(require_worker=True)
+    event = http_request.scope.get('aws.event', {})
+    claims = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {})
+    subject = claims.get('sub') if isinstance(claims, dict) else None
+    if isinstance(subject, str) and subject.strip():
+        principal_hash = hashlib.sha256(subject.encode('utf-8')).hexdigest()
+    else:
+        principal_hash = ''
     job_id, now = str(uuid4()), int(time.time())
     item = {'job_id': job_id, 'accountId': request.accountId, 'status': 'queued',
             'eventsJson': '[]', 'eventCount': 0, 'createdAt': now, 'updatedAt': now,
@@ -96,7 +107,7 @@ def start_job(request: ChatRequest):
             response = _lambda(region).invoke(
                 FunctionName=worker, InvocationType='Event',
                 Payload=_json({'source': WORKER_SOURCE, 'jobId': job_id,
-                               'request': json.loads(payload)}).encode('utf-8'),
+                               'request': json.loads(payload), 'principalHash': principal_hash}).encode('utf-8'),
             )
             if response.get('StatusCode') != 202:
                 raise RuntimeError('Worker did not acknowledge the job')
@@ -180,10 +191,11 @@ def cancel_job(job_id: UUID, accountId: PersonaId = 'mateo'):
 
 
 @contextmanager
-def _event_stream(request):
+def _event_stream(request, principal_hash=''):
     iterator = iter(run_chat(request))
     try:
-        yield iterator
+        with forward_research_authorization('', principal_hash):
+            yield iterator
     finally:
         close = getattr(iterator, 'close', None)
         if close:
@@ -219,11 +231,14 @@ def execute_job(event):
     last_check, previous_type = 0, ''
     try:
         request = ChatRequest.model_validate(event['request'])
+        principal_hash = event.get('principalHash', '')
+        if principal_hash and (not isinstance(principal_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', principal_hash)):
+            raise ValueError('invalid_principal')
         if request.accountId != item['accountId']:
             raise ValueError('account_mismatch')
         if int(item['deadlineAt']) <= now:
             raise TimeoutError('job_timeout')
-        with _event_stream(request) as iterator:
+        with _event_stream(request, principal_hash) as iterator:
             while True:
                 if previous_type != 'text' or time.monotonic() - last_check >= .5:
                     current = table.get_item(Key={'job_id': job_id}, ConsistentRead=True).get('Item')

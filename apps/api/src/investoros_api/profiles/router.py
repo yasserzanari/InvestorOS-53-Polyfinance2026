@@ -1,15 +1,33 @@
 """HTTP adapter. NDJSON avoids buffering real text/tool/agent events in local development."""
+import hashlib
 import json
+
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from .models import ChatRequest
-from .service import configuration, run_chat
-from .sources import SOURCES
-from .research_bridge import research_history, research_snapshot, forward_research_authorization, _call
+from pydantic import BaseModel, ConfigDict, Field
+
 from investoros_api.demo_contexts import PersonaId
 
+from .models import ChatRequest
+from .research_bridge import (
+    _call,
+    forward_research_authorization,
+    research_history,
+    research_snapshot,
+)
+from .service import configuration, run_chat
+from .sources import SOURCES
+
 router = APIRouter(prefix='/v1/profiles', tags=['profiles'])
+
+def _validated_principal_hash(request: Request) -> str:
+    """Hash the subject from API Gateway's verified JWT claims for the trusted IAM hop."""
+    event = request.scope.get('aws.event', {})
+    claims = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {})
+    subject = claims.get('sub') if isinstance(claims, dict) else None
+    if not isinstance(subject, str) or not subject.strip():
+        return ''
+    return hashlib.sha256(subject.encode('utf-8')).hexdigest()
 
 class MovementInvestigationRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -22,7 +40,7 @@ class MovementInvestigationRequest(BaseModel):
 def movement_investigation(analysis_id: str, body: MovementInvestigationRequest, http_request: Request):
     from .movement_analysis import investigate_movement
     try:
-        with forward_research_authorization(http_request.headers.get('authorization', '')):
+        with forward_research_authorization(http_request.headers.get('authorization', ''), _validated_principal_hash(http_request)):
             return investigate_movement(analysis_id, body.accountId, body.ticker, body.previousDate, body.date)
     except ValueError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
@@ -34,9 +52,9 @@ def status():
 @router.post('/voice/session')
 def voice_session():
     """Issue a short-lived Amazon Transcribe WebSocket URL for live dictation."""
+    import boto3
     from botocore.auth import SigV4QueryAuth
     from botocore.awsrequest import AWSRequest
-    import boto3
 
     region = configuration()['region']
     credentials = boto3.Session().get_credentials()
@@ -62,13 +80,14 @@ def source(source_id: str):
 @router.post('/chat')
 def chat(request: ChatRequest, http_request: Request):
     authorization = http_request.headers.get('authorization', '')
+    principal_hash = _validated_principal_hash(http_request)
     def events():
         iterator = iter(run_chat(request))
         try:
             while True:
                 # StreamingResponse advances this iterator in separate worker contexts.
                 # Complete token cleanup before yielding across that boundary.
-                with forward_research_authorization(authorization):
+                with forward_research_authorization(authorization, principal_hash):
                     try:
                         event = next(iterator)
                     except StopIteration:
@@ -82,7 +101,7 @@ def chat(request: ChatRequest, http_request: Request):
 @router.get('/research/analyses')
 def research_analyses(http_request: Request, accountId: PersonaId = 'mateo', limit: int = Query(default=30, ge=1, le=60)):
     try:
-        with forward_research_authorization(http_request.headers.get('authorization', '')):
+        with forward_research_authorization(http_request.headers.get('authorization', ''), _validated_principal_hash(http_request)):
             return research_history(accountId, limit)
     except ValueError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
@@ -90,7 +109,7 @@ def research_analyses(http_request: Request, accountId: PersonaId = 'mateo', lim
 @router.get('/research/{analysis_id}')
 def research_progress(analysis_id: str, http_request: Request, accountId: PersonaId = 'mateo'):
     try:
-        with forward_research_authorization(http_request.headers.get('authorization', '')):
+        with forward_research_authorization(http_request.headers.get('authorization', ''), _validated_principal_hash(http_request)):
             return research_snapshot(analysis_id, accountId)
     except ValueError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
@@ -99,7 +118,7 @@ def research_progress(analysis_id: str, http_request: Request, accountId: Person
 @router.get('/research')
 def research_library(http_request: Request, accountId: PersonaId = 'mateo'):
     try:
-        with forward_research_authorization(http_request.headers.get('authorization', '')):
+        with forward_research_authorization(http_request.headers.get('authorization', ''), _validated_principal_hash(http_request)):
             return _call('GET', '/analyses', accountId)
     except ValueError as error:
         raise HTTPException(502, str(error)) from error
@@ -120,13 +139,14 @@ def research_movements(analysis_id: str, http_request: Request,
                        refresh: bool = False):
     from .market_movement_service import movement_report
     try:
-        with forward_research_authorization(http_request.headers.get('authorization', '')):
+        with forward_research_authorization(http_request.headers.get('authorization', ''), _validated_principal_hash(http_request)):
             return movement_report(analysis_id, accountId, ticker, start, end, thresholdPct, refresh)
     except ValueError as error:
         raise HTTPException(502, str(error)) from error
 
 
 from .decision import CompareInput, compare_instruments
+
 
 @router.post('/compare')
 def compare_profile_instruments(query: CompareInput):

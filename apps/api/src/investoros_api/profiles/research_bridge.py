@@ -2,27 +2,31 @@
 import json
 import os
 import re
-from functools import lru_cache
 from contextlib import contextmanager
 from contextvars import ContextVar
-
+from functools import lru_cache
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
-from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import UUID
+
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 _authorization = ContextVar('research_authorization', default='')
+_principal_hash = ContextVar('research_principal_hash', default='')
 
 
 @contextmanager
-def forward_research_authorization(value: str):
+def forward_research_authorization(value: str, principal_hash: str = ''):
     token = _authorization.set(value if value.startswith('Bearer ') else '')
+    valid_hash = re.fullmatch(r'[0-9a-f]{64}', principal_hash)
+    principal_token = _principal_hash.set(principal_hash if valid_hash else '')
     try:
         yield
     finally:
+        _principal_hash.reset(principal_token)
         _authorization.reset(token)
 
 
@@ -71,10 +75,14 @@ def _invoke_research(method: str, path: str, persona: str, body: dict | None) ->
     query = parsed.query
     if method == 'GET' or path.endswith('/cancel'):
         query += ('&' if query else '') + urlencode({'persona': persona})
+    request_context = {'http': {'method': method, 'path': parsed.path,
+                 'sourceIp': '127.0.0.1', 'protocol': 'HTTP/1.1'}, 'requestId': 'local-iam-research'}
+    if _principal_hash.get():
+        # Derived from API Gateway-validated Cognito `sub`; never forward the JWT or raw identifier.
+        request_context['trustedPrincipalHash'] = _principal_hash.get()
     event = {'version': '2.0', 'routeKey': '$default', 'rawPath': parsed.path, 'rawQueryString': query,
              'headers': {'content-type': 'application/json', 'host': 'local-development'},
-             'requestContext': {'http': {'method': method, 'path': parsed.path,
-                 'sourceIp': '127.0.0.1', 'protocol': 'HTTP/1.1'}, 'requestId': 'local-iam-research'},
+             'requestContext': request_context,
              'body': json.dumps(body) if body is not None else None, 'isBase64Encoded': False}
     try:
         response = _lambda_client().invoke(FunctionName=function, InvocationType='RequestResponse',

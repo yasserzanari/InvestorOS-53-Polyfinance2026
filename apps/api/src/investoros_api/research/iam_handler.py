@@ -2,8 +2,10 @@
 import json
 import re
 from copy import deepcopy
+
 from fastapi import FastAPI
 from mangum import Mangum
+
 from investoros_api.research.router import router
 
 _app = FastAPI()
@@ -36,4 +38,10 @@ def handle(event, context):
     # IAM invocation does not establish a Cognito/Gateway JWT identity.
     forwarded['requestContext'].pop('authorizer', None)
     forwarded['requestContext'].pop('apiId', None)
+    principal_hash = forwarded['requestContext'].get('trustedPrincipalHash')
+    invalid_hash = principal_hash is not None and (
+        not isinstance(principal_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', principal_hash)
+    )
+    if invalid_hash:
+        return denied
     return _handler(forwarded, context)

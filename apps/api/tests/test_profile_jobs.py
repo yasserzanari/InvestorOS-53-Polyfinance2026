@@ -86,7 +86,8 @@ class ProfileJobTests(unittest.TestCase):
         self.addCleanup(self.lambda_patch.stop)
 
     def start(self, **kwargs):
-        result = jobs.start_job(ChatRequest(message='Compare les historiques', accountId='robert', **kwargs))
+        http_request = types.SimpleNamespace(scope={'aws.event': {'requestContext': {'authorizer': {'jwt': {'claims': {'sub': 'test-user'}}}}}})
+        result = jobs.start_job(ChatRequest(message='Compare les historiques', accountId='robert', **kwargs), http_request)
         event = json.loads(self.invoker.invoke.call_args.kwargs['Payload'])
         return result['jobId'], event
 
@@ -101,12 +102,20 @@ class ProfileJobTests(unittest.TestCase):
         self.assertEqual(event['request']['profile'], {'horizon': '18 mois'})
         self.assertNotIn('request', record)
         self.assertNotIn('authorization', event)
+        self.assertRegex(event['principalHash'], r'^[0-9a-f]{64}$')
         self.assertEqual(self.invoker.invoke.call_args.kwargs['InvocationType'], 'Event')
+
+    def test_worker_scopes_principal_hash_to_research_calls(self):
+        from investoros_api.profiles.research_bridge import _principal_hash
+        principal = 'b' * 64
+        with jobs._event_stream(ChatRequest(message='question suffisamment longue'), principal):
+            self.assertEqual(_principal_hash.get(), principal)
+        self.assertEqual(_principal_hash.get(), '')
 
     def test_missing_configuration_is_explicit_not_mock_fallback(self):
         with patch.dict(os.environ, {'PROFILE_CHAT_WORKER_FUNCTION': ''}):
             with self.assertRaises(HTTPException) as error:
-                jobs.start_job(ChatRequest(message='Bonjour'))
+                jobs.start_job(ChatRequest(message='Bonjour'), types.SimpleNamespace(scope={}))
         self.assertEqual(error.exception.status_code, 503)
         self.assertFalse(self.table.items)
 

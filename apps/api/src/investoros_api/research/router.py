@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -16,8 +17,8 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from investoros_api.demo_contexts import PersonaId, context_for
 from investoros_api.research.models import ResearchRequest, SourcePolicyUpdate
 from investoros_api.research.runtime import emit
-from investoros_api.research.sources import DEFAULT_SOURCES, public_source
 from investoros_api.research.social import canonical_post_url
+from investoros_api.research.sources import DEFAULT_SOURCES, public_source
 from investoros_api.research.validation import validate_disclosure_dates
 
 router = APIRouter(prefix="/v1/research", tags=["research"])
@@ -181,10 +182,25 @@ def update_source_policy(source_id: str, request: SourcePolicyUpdate, x_admin_to
 
 
 def _consume_daily_quota(request: Request, persona: PersonaId):
-    client_host = request.client.host if request.client else "unknown"
+    event = request.scope.get("aws.event", {})
+    request_context = event.get("requestContext", {}) if isinstance(event, dict) else {}
+    claims = request_context.get("authorizer", {}).get("jwt", {}).get("claims", {}) if isinstance(request_context, dict) else {}
+    subject = claims.get("sub") if isinstance(claims, dict) else None
+    trusted_hash = request_context.get("trustedPrincipalHash") if isinstance(request_context, dict) else None
+    if isinstance(subject, str) and subject.strip():
+        principal = f"user:{hashlib.sha256(subject.encode('utf-8')).hexdigest()}"
+        principal_label = "compte"
+    elif isinstance(trusted_hash, str) and re.fullmatch(r"[0-9a-f]{64}", trusted_hash):
+        principal = f"user:{trusted_hash}"
+        principal_label = "compte"
+    else:
+        client_host = request.client.host if request.client else "unknown"
+        host_hash = hashlib.sha256(client_host.encode("utf-8")).hexdigest()
+        principal = f"ip:{host_hash}"
+        principal_label = "adresse réseau"
     now = datetime.now(timezone.utc)
-    ip_hash = hashlib.sha256(f"{client_host}:{persona}".encode("utf-8")).hexdigest()
-    quota_key = f"{now.date().isoformat()}:{ip_hash}"
+    principal_hash = hashlib.sha256(f"{principal}:{persona}".encode("utf-8")).hexdigest()
+    quota_key = f"{now.date().isoformat()}:{principal_hash}"
     limit = int(os.getenv("RESEARCH_DAILY_IP_LIMIT", "12"))
     expires_at = int((now + timedelta(days=2)).timestamp())
     try:
@@ -196,7 +212,8 @@ def _consume_daily_quota(request: Request, persona: PersonaId):
         )
     except ClientError as error:
         if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
-            raise HTTPException(429, "Limite quotidienne de recherches atteinte pour cette adresse réseau et ce compte démo.") from error
+            detail = f"Limite quotidienne de recherches atteinte pour ce {principal_label} démo."
+            raise HTTPException(429, detail) from error
         raise HTTPException(503, "Impossible de vérifier la limite quotidienne de recherches.") from error
     except BotoCoreError as error:
         raise HTTPException(503, "Impossible de vérifier la limite quotidienne de recherches.") from error
