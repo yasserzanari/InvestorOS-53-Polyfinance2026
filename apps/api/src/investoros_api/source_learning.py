@@ -16,7 +16,14 @@ from investoros_api.source_store import Account
 
 router = APIRouter(prefix='/v1/simulation/source-learning', tags=['sources'])
 _lock = Lock()
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = next(
+    (
+        parent
+        for parent in Path(__file__).resolve().parents
+        if (parent / 'scripts' / 'learn-source.mjs').is_file()
+    ),
+    None,
+)
 JOBS = Path.home() / '.local/share/investoros/source-learning'
 
 class LearnRequest(BaseModel):
@@ -54,6 +61,8 @@ def _run(url, folder):
 
 @router.post('/{account}')
 def start_learning(account: Account, request: LearnRequest):
+    if ROOT is None:
+        raise HTTPException(501, 'Cet apprentissage de source est disponible uniquement en développement local.')
     parts = urlsplit(request.url)
     if parts.scheme != 'https' or not parts.hostname or parts.username or parts.password or parts.port not in (None,443):
         raise HTTPException(422, 'Utilisez le lien HTTPS d’une page publique.')
