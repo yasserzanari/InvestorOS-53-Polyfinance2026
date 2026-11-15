@@ -16,6 +16,10 @@ def financials(rows):
 
 
 class SupplyChainResearchTests(unittest.TestCase):
+    def setUp(self):
+        collector=patch('investoros_api.profiles.supplier_disclosures.official_supplier_documents',return_value=[])
+        collector.start();self.addCleanup(collector.stop)
+
     def test_quarterly_not_ytd_and_deduplicates_amendments(self):
         result = quarterly_revenue(financials([fact('2026-04-01','2026-06-30',10e9), fact('2026-07-01','2026-09-30',12e9), fact('2026-01-01','2026-09-30',30e9),fact('2026-07-01','2026-09-30',11e9,filed='2026-11-01')]))
         self.assertEqual(result['current']['val'],12e9)
