@@ -98,22 +98,10 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
         ))}
       </section>
 
-      <div className="dashboard-prompt-center">{children}</div>
-
       <div className="dashboard-overview-grid">
         <div className="dashboard-main-column">
+          <div className="dashboard-prompt-center">{children}</div>
           <DashboardActivityFeed api={api} news={marketNews} newsStatus={newsStatus} hasLinkedTickers={tickers.length > 0} />
-        </div>
-
-        <div className="dashboard-side-column">
-          <section className="dashboard-panel portfolio-state-panel" aria-labelledby="portfolio-state-title">
-            <div className="dashboard-panel-heading">
-              <div><h2 id="portfolio-state-title">Diversification du portefeuille</h2><p>{connected ? `${api.overview.portfolio.display_name} · ${portfolioValue}` : 'Répartition des positions et poids relatifs'}</p></div>
-              <span className="portfolio-state-icon"><Layers3 size={18} /></span>
-            </div>
-            <PortfolioDiversificationMap portfolio={connected ? api.overview.portfolio : undefined} />
-          </section>
-
           <section className="dashboard-panel platform-stats-panel" aria-labelledby="platform-stats-title">
             <div className="dashboard-panel-heading">
               <div><h2 id="platform-stats-title">InvestorOS en bref</h2><p>Les ressources de cet environnement de démonstration.</p></div>
@@ -126,6 +114,17 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
             </div>
             <p className="platform-stats-note">Les profils et portefeuilles affichés sont fictifs; les nouvelles de marché ne sont associées qu’aux tickers explicitement présents dans les positions.</p>
           </section>
+        </div>
+
+        <div className="dashboard-side-column">
+          <section className="dashboard-panel portfolio-state-panel" aria-labelledby="portfolio-state-title">
+            <div className="dashboard-panel-heading">
+              <div><h2 id="portfolio-state-title">Diversification du portefeuille</h2><p>{connected ? `${api.overview.portfolio.display_name} · ${portfolioValue}` : 'Répartition des positions et poids relatifs'}</p></div>
+              <span className="portfolio-state-icon"><Layers3 size={18} /></span>
+            </div>
+            <PortfolioDiversificationMap portfolio={connected ? api.overview.portfolio : undefined} />
+          </section>
+
         </div>
       </div>
     </section>
