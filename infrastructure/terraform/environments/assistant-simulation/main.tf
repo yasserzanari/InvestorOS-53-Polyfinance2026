@@ -94,13 +94,14 @@ resource "aws_lambda_function" "api" {
   handler                        = "investoros_api.main.handler"
   filename                       = local.package_path
   source_code_hash               = filebase64sha256(local.package_path)
-  timeout                        = 28
+  timeout                        = 120
   memory_size                    = 512
   reserved_concurrent_executions = 2
 
   environment {
     variables = {
       BEDROCK_MODEL_ID              = var.bedrock_model_id
+      RESEARCH_API_URL              = data.aws_apigatewayv2_api.application.api_endpoint
       DEMO_CONTEXTS                 = jsonencode(local.demo_contexts)
       DEMO_PORTFOLIO_MODE           = "dynamodb"
       ENVIRONMENT                   = var.environment

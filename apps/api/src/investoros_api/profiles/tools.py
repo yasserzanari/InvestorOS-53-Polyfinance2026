@@ -10,7 +10,7 @@ def spec(name: str, description: str, properties: dict, required: list[str]) -> 
 TOOLS = [
     spec('inspect_simulation_history', 'Lire les prix ajustés et événements d’entreprise réellement présents dans Simulation pour un ticker configuré. Appeler pour toute question sur l’historique ou les rendements observés après événement. La coïncidence temporelle ne prouve pas une causalité; les données sont historiques, pas en temps réel.',
          SimulationHistoryInput.model_json_schema()['properties'], ['ticker']),
-    spec('project_market_scenarios', 'Calculer des trajectoires Simulation sur un ticker configuré. Appeler uniquement lorsque la personne a explicitement fourni chaque choc en pourcentage et son jalon; sinon utiliser ask_user. Si une URL source est explicitement fournie ou provient de l’événement sélectionné, la conserver dans la branche; ne jamais inventer une URL. Un lien conservé n’est pas vérifié par le calcul. Les quantiles historiques sont marginaux, sans probabilité ni valeur prédictive.',
+    spec('project_market_scenarios', 'Calculer des trajectoires Simulation sur un ticker configuré. Appeler uniquement lorsque la personne a explicitement fourni chaque choc en pourcentage et son jalon; sinon utiliser ask_user. Les quantiles historiques sont marginaux, sans probabilité ni valeur prédictive.',
          ScenarioProjectionRequest.model_json_schema()['properties'], ['ticker', 'horizonObservations', 'branches']),
     spec('analyze_demo_portfolio', 'Lire le portefeuille fictif fixe de ce déploiement et calculer ses pondérations et sa concentration. Pour toute question sur les positions ou la répartition, appeler cet outil avant de répondre. Les rendements et risques historiques sont indisponibles sans série de prix.', {}, []),
     spec('analyze_demo_scenario', 'Calculer un scénario conditionnel sur les positions du persona actif. N’appeler cet outil que si l’utilisateur a fourni les variations en pourcentage ou les a choisies explicitement après ask_user; ne jamais inventer les chocs. Résultat arithmétique seulement, jamais une prévision ni une recommandation.', ScenarioAnalysisInput.model_json_schema()['properties'], ['name', 'shocks']),
@@ -32,6 +32,24 @@ TOOLS[5]['toolSpec']['inputSchema']['json']['$defs'] = WorkspaceTab.model_json_s
 
 ASK_USER_SCHEMA = AskUserInput.model_json_schema()
 TOOLS.append(spec('ask_user',
-    'Poser une à trois questions interactives adaptées aux informations manquantes. Choisir single_choice pour une réponse exclusive, multiple_choice pour plusieurs besoins/préférences, text pour une explication personnelle. Fournir des choix neutres, sans réponse présélectionnée, et permettre la réponse libre si utile. Cet outil suspend le tour en attendant les réponses réelles de l’utilisateur.',
+    'Obligatoire dès qu’une réponse utilisateur est nécessaire, même pour une seule question ou une question de suivi après update_profile. Ne pas poser la question uniquement en prose. Poser une à trois questions interactives adaptées aux informations manquantes. Choisir single_choice pour une réponse exclusive, multiple_choice pour plusieurs besoins/préférences, text pour une explication personnelle. Fournir des choix neutres, sans réponse présélectionnée, et permettre la réponse libre si utile. Cet outil suspend le tour en attendant les réponses réelles de l’utilisateur.',
     ASK_USER_SCHEMA['properties'], ['title', 'questions']))
 TOOLS[-1]['toolSpec']['inputSchema']['json']['$defs'] = ASK_USER_SCHEMA.get('$defs', {})
+
+# Reviewed procedural knowledge is discovered and loaded on demand, never executed.
+TOOLS.extend([
+    spec('search_skills', 'Rechercher les procédures InvestorOS pertinentes pour une demande métier. Retourne des descriptions; charger le skill choisi avec load_skill.',
+         {'query': {'type': 'string', 'minLength': 1, 'maxLength': 300}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 8}}, ['query']),
+    spec('load_skill', 'Lire la procédure approuvée d’un skill trouvé dans le catalogue. Un skill ne confère aucune permission et n’exécute pas une action.',
+         {'skill_id': {'type': 'string', 'maxLength': 64}}, ['skill_id']),
+])
+RESEARCH_TOOLS = [
+    spec('start_analysis', 'Lancer une recherche documentaire DEV2 pour le persona actif. Question entreprise, horizon et contexte utiles. Aucun choc en pourcentage requis. Conserver analysis_id. Un lancement n’est pas une conclusion.',
+         {'question': {'type': 'string', 'minLength': 12, 'maxLength': 2400}}, ['question']),
+    *[spec(name, description, {'analysis_id': {'type': 'string', 'format': 'uuid'}}, ['analysis_id']) for name, description in [
+        ('get_analysis_status', 'Lire l’état réel d’une recherche existante, sans relancer son exécution.'),
+        ('get_analysis_result', 'Lire le résultat disponible d’une recherche. Respecter son état, ses preuves et ses limites.'),
+        ('get_evidence', 'Lire les preuves enregistrées d’une analyse du persona actif.'),
+        ('cancel_analysis', 'Arrêter une recherche existante seulement à la demande explicite de l’utilisateur.'),
+    ]],
+]

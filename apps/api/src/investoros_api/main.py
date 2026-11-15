@@ -4,6 +4,7 @@ from typing import Any
 
 import boto3
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
 from investoros_api.demo_contexts import PersonaId, context_for
@@ -13,6 +14,12 @@ from investoros_api.profiles.router import router as profiles_router
 from investoros_api.simulation import router as simulation_router
 
 app = FastAPI(title="InvestorOS API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["accept", "content-type"],
+)
 app.include_router(profiles_router)
 app.include_router(simulation_router)
 _dynamodb = None

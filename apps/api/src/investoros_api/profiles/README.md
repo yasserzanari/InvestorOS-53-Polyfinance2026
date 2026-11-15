@@ -8,11 +8,11 @@ This module owns `/v1/profiles/*`. It calls **Amazon Bedrock** with the server c
 - `models.py`: bounded browser input, profile fields and workspace schema.
 - `service.py`: actual ConverseStream tool loop and optional specialist Converse calls.
 - `tools.py`: allowlisted tool declarations. Add a schema **and** validated implementation when introducing a tool.
-- `sources.py`: exact product methodology excerpts and citation URLs. Replace this repository with a retrieval adapter to add Bedrock Knowledge Bases. No web search is implemented.
+- `sources.py`: exact product methodology excerpts and citation URLs. Replace this repository with a retrieval adapter to add Bedrock Knowledge Bases. External research is available through the DEV2 adapter when RESEARCH_API_URL is configured; see SKILLS.md.
 
 ## Configuration
 
-Set `BEDROCK_MODEL_ID` to an accessible model or inference profile supporting ConverseStream tool use, plus `AWS_REGION`. The dev Terraform defaults to the active US Nova Lite inference profile (`us.amazon.nova-lite-v1:0`); it grants the Lambda only the two inference actions on that profile and its routed foundation model. Local credentials come from the normal boto3 chain. The API status route reports configuration presence, **not** a verified permission or model availability check. The first real conversation is still needed to confirm invocation permission and model quota in the target account.
+Set `BEDROCK_MODEL_ID` to an accessible model or inference profile supporting ConverseStream tool use, plus `AWS_REGION`. Local credentials come from the normal boto3 chain. Use a workload role in AWS with `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` scoped to the configured model/inference profile and its destination model ARNs. The API status route reports configuration presence, **not** a verified permission or model availability check.
 
 The local dev API launcher sets `DEMO_PORTFOLIO_MODE=local_fixture` and uses the
 same versioned persona fixture that Terraform seeds into DynamoDB. Portfolio tools
@@ -64,10 +64,10 @@ allowlisted fields. `upsert_tab` creates or replaces by id. `read_sources` retur
 verbatim notes from the catalog; the model can reference their stable per-turn
 `[index]`. `suggest_followups` publishes up to three questions. `run_specialist`
 performs an actual separate Bedrock call limited to two consultations per turn.
-There is no browser agent, image capture or invented browser preview. The UI
+There is no direct browser execution or image capture in this chat module; DEV2 may use its own controlled research tools. The UI
 should show the actual specialist result when no browser tool has run.
 
-The orchestrator allows six model rounds and explicitly caps output tokens per call. Configuration, AWS denial, throttling and incomplete responses produce explicit errors. Prompt data and tool outputs are untrusted; all changes are validated server-side and there is no arbitrary network access or code execution.
+The orchestrator allows ten model rounds and explicitly caps output tokens per call. Configuration, AWS denial, throttling and incomplete responses produce explicit errors. Prompt data and tool outputs are untrusted; all changes are validated server-side and there is no arbitrary network access or code execution.
 
 ## Persistence and deployment
 
@@ -156,3 +156,12 @@ Tests sans réseau :
 ```sh
 PYTHONPATH=apps/api/src python -m unittest discover -s apps/api/tests -v
 ```
+
+## Skills métier (runtime actuel)
+
+Voir [SKILLS.md](SKILLS.md) pour le catalogue, sa synchronisation depuis le dépôt
+InvestorOS-skills, les outils search_skills/load_skill, les limites d’exécution
+et la connexion optionnelle au moteur de recherche DEV2 via RESEARCH_API_URL.
+Le catalogue est embarqué dans le paquet Lambda; aucune installation distante
+n’est effectuée par l’agent. La boucle est désormais bornée à dix tours pour
+permettre découverte, chargement et action dans une même demande.
