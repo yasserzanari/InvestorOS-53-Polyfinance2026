@@ -46,7 +46,7 @@ export function AppShell() {
           {groups.map((group) => (
             <section className="sidebar-group" key={group} aria-label={group}>
               <h2>{group}</h2>
-              {productModules.filter((module) => module.group === group && module.id !== 'network').map((module) => {
+              {productModules.filter((module) => module.group === group && module.id !== 'network' && module.id !== 'evidence').map((module) => {
                 const Icon = module.icon;
                 return (
                   <NavLink
