@@ -1,6 +1,8 @@
 # Dashboard InvestorOS
 
-`DashboardPage` est la vue d’accueil de `/app`. Elle lit l’aperçu du compte de démonstration actif depuis l’API AWS, montre l’état des modules et propose les prochaines étapes. Les valeurs de portefeuille proviennent des fixtures fictives DynamoDB et restent identifiées comme telles; le Dashboard ne calcule ni rendement historique, ni volatilité, ni alerte de risque.
+`DashboardPage` est la vue d’accueil de `/app`. Elle lit l’aperçu du compte de démonstration actif depuis l’API AWS, met en avant les notifications et présente les ressources de la plateforme. Les valeurs de portefeuille proviennent des fixtures fictives DynamoDB et restent identifiées comme telles; le Dashboard ne calcule ni rendement historique, ni volatilité, ni alerte de risque.
+
+La vue d’ensemble consacre maintenant son panneau principal à l’activité du compte : enregistrements d’analyse lus dans `/v1/demo/overview` et nouvelles de Simulation seulement pour les tickers explicitement fournis par une position. Les catégories génériques des portefeuilles de démonstration ne sont pas converties en actions. Si l’API ou les tickers manquent, le panneau explique l’état sans générer d’événements fictifs. La carte de diversification est un treemap dont la surface représente le poids déclaré de chaque position; elle ne code aucune variation de marché. Les compteurs de profils et d’espaces décrivent les options de démonstration disponibles, pas l’activité des utilisateurs.
 
 ## Données et états
 

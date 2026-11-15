@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Mic, Square, X } from 'lucide-react';
-import { cn } from '../../../shared/utils';
+import { Mic, Square } from 'lucide-react';
+import { AdvancedChatInput } from '../../../shared/ui/advanced-ai-chat-input';
 
 type Recognition = { lang: string; continuous: boolean; interimResults: boolean; start(): void; stop(): void; abort(): void; onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null };
 
@@ -12,10 +12,8 @@ export function PromptBar({ value, onChange, onSend, busy = false, onStop, place
   const [seconds, setSeconds] = useState(0);
   const [notice, setNotice] = useState('');
   const recognition = useRef<Recognition | null>(null);
-  const textarea = useRef<HTMLTextAreaElement>(null);
   const prefix = useRef('');
   const onChangeRef = useRef(onChange); onChangeRef.current = onChange;
-  useEffect(() => { const el = textarea.current; if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(150, el.scrollHeight)}px`; } }, [value]);
   useEffect(() => { if (!recording) return; const start = Date.now(); const timer = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000); return () => clearInterval(timer); }, [recording]);
   useEffect(() => () => { recognition.current?.abort(); }, []);
   const startVoice = () => {
@@ -32,12 +30,24 @@ export function PromptBar({ value, onChange, onSend, busy = false, onStop, place
   };
   const stopVoice = () => { recognition.current?.stop(); setRecording(false); };
   const send = () => { if (busy || !value.trim()) return; stopVoice(); onSend(); setNotice(''); };
-  return <div className="pw-prompt-root w-full">
-    <div className={cn('mx-auto w-full max-w-[680px] rounded-[22px] border border-neutral-200 bg-neutral-50/70 p-2 shadow-[0_2px_12px_rgba(0,0,0,0.035)] transition-colors focus-within:border-neutral-300', recording && 'border-rose-200 bg-rose-50/30')}>
-      {recording && <div className="flex h-12 items-center justify-between gap-3 px-3"><span role="status" className="flex items-center gap-2 font-mono text-xs text-rose-600"><span className="size-1.5 rounded-full bg-rose-500 motion-safe:animate-pulse" />{Math.floor(seconds / 60).toString().padStart(2, '0')}:{(seconds % 60).toString().padStart(2, '0')}</span><span className="text-xs text-neutral-500">Dictée en cours</span><button type="button" aria-label="Arrêter la dictée" onClick={stopVoice} className="grid size-7 place-items-center rounded-full text-neutral-500 hover:bg-neutral-100"><X size={14} /></button></div>}
-      <textarea ref={textarea} value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} placeholder={recording ? 'Votre transcription apparaît ici…' : placeholder} rows={1} aria-label="Message à l’assistant" disabled={busy} className="block min-h-[46px] w-full resize-none border-0 bg-transparent px-3 py-2.5 text-[13px] leading-6 text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60" />
-      <div className="flex items-center justify-between gap-2 px-1 pb-0.5"><span className="px-2 text-[11px] text-neutral-400">Entrée pour envoyer</span><div className="flex gap-1"><button type="button" disabled={busy} aria-label={recording ? 'Arrêter la dictée' : 'Dicter un message'} aria-pressed={recording} onClick={recording ? stopVoice : startVoice} title={recording ? 'Arrêter la dictée' : 'Dicter un message'} className={cn('grid size-8 place-items-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 disabled:opacity-40', recording && 'bg-rose-100 text-rose-600')}>{recording ? <Square size={13} fill="currentColor" /> : <Mic size={16} />}</button><button type="button" onClick={busy ? onStop : send} disabled={!busy && !value.trim()} aria-label={busy ? 'Arrêter la réponse' : 'Envoyer le message'} title={busy ? 'Arrêter la réponse' : 'Envoyer'} className="grid size-8 place-items-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-700 disabled:bg-neutral-200 disabled:text-neutral-400">{busy ? <Square size={12} fill="currentColor" /> : <ArrowUp size={17} />}</button></div></div>
-    </div>
-    {notice && <p role="status" className="mx-auto mt-2 max-w-[680px] text-xs text-amber-700">{notice}</p>}
+  return <div className="pw-prompt-root">
+    <AdvancedChatInput
+      className="pw-shared-prompt"
+      textareaProps={{
+        value, disabled:busy, 'aria-label':'Message à l’assistant',
+        placeholder:recording?'Votre transcription apparaît ici…':placeholder,
+        onChange:event=>onChange(event.currentTarget.value),
+        onKeyDown:event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();send();}},
+      }}
+      onSend={send}
+      hideSendButton={busy}
+      sendButtonProps={{disabled:!value.trim(), 'aria-label':'Envoyer le message'}}
+      actionIcons={[
+        <button key="microphone" type="button" className={`pw-prompt-mic${recording?' is-recording':''}`} disabled={busy} aria-label={recording?'Arrêter la dictée':'Dicter un message'} aria-pressed={recording} onClick={recording?stopVoice:startVoice}>{recording?<Square size={16}/>:<Mic size={18}/>}</button>,
+        <span key="hint" className="pw-prompt-hint">{recording?`Dictée en cours · ${seconds} s`:'Entrée pour envoyer'}</span>,
+        ...(busy?[<button key="stop" type="button" className="pw-prompt-mic" onClick={onStop} aria-label="Arrêter la réponse"><Square size={16}/></button>]:[]),
+      ]}
+    />
+    {notice&&<p role="status" className="pw-prompt-notice">{notice}</p>}
   </div>;
 }

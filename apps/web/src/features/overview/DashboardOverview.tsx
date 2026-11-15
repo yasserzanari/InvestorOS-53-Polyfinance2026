@@ -1,30 +1,60 @@
-import type { ReactNode } from 'react';
-import {
-  ArrowRight, BadgeAlert, BookOpenCheck, BriefcaseBusiness, ChartNoAxesCombined,
-  CircleHelp, Compass, FileSearch, GitBranch, Layers3, ShieldCheck, UsersRound,
-} from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ArrowRight, BookOpenCheck, BriefcaseBusiness, ChartNoAxesCombined, Layers3, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { productModules } from '../../app/modules';
-import type { DemoApiConnection } from '../../shared/api';
+import { demoAccounts } from '../../shared/DemoAccountContext';
+import { loadSimulationNews, type DemoApiConnection, type SimulationNewsArticle } from '../../shared/api';
+import { DashboardActivityFeed } from './components/DashboardActivityFeed';
+import { PortfolioDiversificationMap } from './components/PortfolioDiversificationMap';
 
-const moduleIcons = {
-  profiles: UsersRound,
-  portfolios: Layers3,
-  analyses: FileSearch,
-  network: GitBranch,
-  scenarios: Compass,
-  evidence: ShieldCheck,
-};
-
-const actionItems = [
-  { title: 'Compléter votre profil', detail: 'Objectifs, horizon et préférences', href: '/app/profiles', label: 'Ouvrir les profils', Icon: UsersRound },
-  { title: 'Ajouter un portefeuille', detail: 'Connecter ou saisir vos positions', href: '/app/portfolios', label: 'Ouvrir les portefeuilles', Icon: Layers3 },
-  { title: 'Relier des sources', detail: 'Vérifier les données utilisées', href: '/app/evidence', label: 'Ouvrir les sources', Icon: ShieldCheck },
-];
+function linkedTickers(api: DemoApiConnection): string[] {
+  if (api.status !== 'connected') return [];
+  return [...new Set(api.overview.portfolio.positions.flatMap(({ ticker }) =>
+    typeof ticker === 'string' && /^[A-Z0-9.]{1,12}$/i.test(ticker.trim()) ? [ticker.trim().toUpperCase()] : [],
+  ))].slice(0, 5);
+}
 
 export function DashboardOverview({ api, onStartChat, children }: { api: DemoApiConnection; onStartChat: (question: string) => void; children: ReactNode }) {
   const modules = productModules.filter(({ id }) => id !== 'overview');
   const connected = api.status === 'connected';
+  const tickers = useMemo(() => linkedTickers(api), [api]);
+  const tickerKey = tickers.join(',');
+  const [marketNews, setMarketNews] = useState<Array<SimulationNewsArticle & { ticker: string }>>([]);
+  const [newsStatus, setNewsStatus] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
+
+  useEffect(() => {
+    if (!connected) {
+      setMarketNews([]);
+      setNewsStatus('idle');
+      return;
+    }
+    if (!tickerKey) {
+      setMarketNews([]);
+      setNewsStatus('ready');
+      return;
+    }
+
+    const controller = new AbortController();
+    const activeTickers = tickerKey.split(',');
+    setNewsStatus('loading');
+    Promise.all(activeTickers.map(async (ticker) => {
+      try {
+        return { ticker, result: await loadSimulationNews(ticker, controller.signal) };
+      } catch {
+        return { ticker, result: null };
+      }
+    })).then((results) => {
+      if (controller.signal.aborted) return;
+      const available = results.filter((item) => item.result?.available);
+      const articles = available.flatMap(({ ticker, result }) => (result?.articles ?? []).map((article) => ({ ...article, ticker })));
+      const unique = [...new Map(articles.map((article) => [article.url, article])).values()]
+        .sort((left, right) => Date.parse(right.indexedAt) - Date.parse(left.indexedAt));
+      setMarketNews(unique.slice(0, 8));
+      setNewsStatus(results.every((item) => item.result === null) ? 'unavailable' : 'ready');
+    });
+    return () => controller.abort();
+  }, [connected, tickerKey]);
+
   const currency = connected ? api.overview.portfolio.currency : 'CAD';
   const portfolioValue = connected
     ? new Intl.NumberFormat('fr-CA', { style: 'currency', currency, maximumFractionDigits: 0 }).format(api.overview.portfolio.total_value)
@@ -68,91 +98,33 @@ export function DashboardOverview({ api, onStartChat, children }: { api: DemoApi
         ))}
       </section>
 
+      <div className="dashboard-prompt-center">{children}</div>
+
       <div className="dashboard-overview-grid">
         <div className="dashboard-main-column">
-          <section className="dashboard-panel module-panel" aria-labelledby="dashboard-modules-title">
-            <div className="dashboard-panel-heading">
-              <div><h2 id="dashboard-modules-title">Modules</h2><p>Ouvrez un espace pour avancer dans votre analyse.</p></div>
-              <span className="module-count">{modules.length} espaces</span>
-            </div>
-            <div className="dashboard-module-grid">
-              {modules.map((module) => {
-                const Icon = moduleIcons[module.id as keyof typeof moduleIcons] ?? module.icon;
-                return (
-                  <Link className="dashboard-module-card" to={module.href} key={module.id}>
-                    <span className={`dashboard-module-icon module-tone-${module.id}`}><Icon size={18} aria-hidden="true" /></span>
-                    <span className="dashboard-module-copy"><strong>{module.shortLabel}</strong><small>{module.description}</small></span>
-                    <ArrowRight className="dashboard-module-arrow" size={15} aria-hidden="true" />
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="dashboard-panel analysis-empty-panel" aria-labelledby="analysis-empty-title">
-            <span className="analysis-empty-icon"><ChartNoAxesCombined size={19} /></span>
-            <div>
-              <h2 id="analysis-empty-title">
-                {connected && api.overview.analyses.length > 0
-                  ? `${api.overview.analyses.length} analyse${api.overview.analyses.length === 1 ? '' : 's'} enregistrée${api.overview.analyses.length === 1 ? '' : 's'}`
-                  : api.status === 'connected' ? 'Aucune analyse enregistrée' : 'Analyses indisponibles'}
-              </h2>
-              <p>{connected && api.overview.analyses.length > 0
-                ? 'Les enregistrements du compte de démonstration sont consultables.'
-                : api.status === 'connected' ? 'Formulez une question pour préparer votre première analyse.' : 'Vérifiez la connexion avant de consulter les analyses AWS.'}</p>
-            </div>
-            {connected && api.overview.analyses.length > 0
-              ? <Link className="text-action" to="/app/analyses">Consulter les analyses <ArrowRight size={15} /></Link>
-              : <button type="button" className="text-action" onClick={() => onStartChat('Aidez-moi à préparer une première analyse à partir des données réellement disponibles.')}>Préparer une analyse <ArrowRight size={15} /></button>}
-          </section>
-          {children}
+          <DashboardActivityFeed api={api} news={marketNews} newsStatus={newsStatus} hasLinkedTickers={tickers.length > 0} />
         </div>
 
         <div className="dashboard-side-column">
           <section className="dashboard-panel portfolio-state-panel" aria-labelledby="portfolio-state-title">
             <div className="dashboard-panel-heading">
-              <div><h2 id="portfolio-state-title">Portefeuille</h2><p>{connected ? 'Résumé AWS · données fictives' : 'Résumé et points d’attention'}</p></div>
+              <div><h2 id="portfolio-state-title">Diversification du portefeuille</h2><p>{connected ? `${api.overview.portfolio.display_name} · ${portfolioValue}` : 'Répartition des positions et poids relatifs'}</p></div>
               <span className="portfolio-state-icon"><Layers3 size={18} /></span>
             </div>
-            {connected ? (
-              <div className="portfolio-empty-content portfolio-connected-content">
-                <div className="portfolio-demo-value">{portfolioValue}</div>
-                <h3>{api.overview.portfolio.display_name}</h3>
-                <div className="portfolio-demo-positions">
-                  {api.overview.portfolio.positions.map((position) => (
-                    <div key={position.id}>
-                      <span>{position.label}</span><strong>{position.weight_pct}%</strong>
-                    </div>
-                  ))}
-                </div>
-                <Link className="dashboard-secondary-action" to="/app/portfolios">Ouvrir la simulation locale <ArrowRight size={14} /></Link>
-              </div>
-            ) : (
-              <div className="portfolio-empty-content">
-                <div className="empty-ring"><BriefcaseBusiness size={20} /></div>
-                <h3>{api.status === 'unavailable' || api.status === 'rate_limited' ? 'Données indisponibles' : 'Aucune donnée de portefeuille'}</h3>
-                <p>{api.status === 'unavailable' || api.status === 'rate_limited' ? 'Les données AWS ne sont pas accessibles pour le moment.' : 'Connectez vos positions pour afficher les expositions et calculer les risques.'}</p>
-                <Link className="dashboard-secondary-action" to="/app/portfolios">Ouvrir les portefeuilles <ArrowRight size={14} /></Link>
-              </div>
-            )}
-            <div className="portfolio-state-note"><CircleHelp size={14} /><span>{connected ? 'Données fictives lues depuis DynamoDB; aucun rendement historique ni risque n’est calculé ici.' : 'Aucune alerte n’est calculée tant que les positions ne sont pas disponibles.'}</span></div>
+            <PortfolioDiversificationMap portfolio={connected ? api.overview.portfolio : undefined} />
           </section>
 
-          <section className="dashboard-panel next-actions-panel" aria-labelledby="attention-title">
+          <section className="dashboard-panel platform-stats-panel" aria-labelledby="platform-stats-title">
             <div className="dashboard-panel-heading">
-              <div><h2 id="attention-title">À faire ensuite</h2><p>Trois étapes pour commencer</p></div>
-              <BadgeAlert size={18} className="next-actions-icon" aria-hidden="true" />
+              <div><h2 id="platform-stats-title">InvestorOS en bref</h2><p>Les ressources de cet environnement de démonstration.</p></div>
+              <ChartNoAxesCombined size={18} className="platform-stats-icon" aria-hidden="true" />
             </div>
-            <div className="next-action-list">
-              {actionItems.map(({ title, detail, href, label, Icon }, index) => (
-                <Link to={href} className="next-action-row" key={title} aria-label={`${label}: ${title}`}>
-                  <span className="next-action-number">0{index + 1}</span>
-                  <span className="next-action-icon"><Icon size={17} aria-hidden="true" /></span>
-                  <span className="next-action-copy"><strong>{title}</strong><small>{detail}</small></span>
-                  <ArrowRight className="next-action-arrow" size={15} aria-hidden="true" />
-                </Link>
-              ))}
+            <div className="platform-stats-grid">
+              <div><strong>{modules.length}</strong><span>espaces de travail</span></div>
+              <div><strong>{demoAccounts.length}</strong><span>profils démo</span></div>
+              <div><strong>{connected ? 'Connectée' : api.status === 'not_configured' ? 'À relier' : 'Indisponible'}</strong><span>API du compte</span></div>
             </div>
+            <p className="platform-stats-note">Les profils et portefeuilles affichés sont fictifs; les nouvelles de marché ne sont associées qu’aux tickers explicitement présents dans les positions.</p>
           </section>
         </div>
       </div>

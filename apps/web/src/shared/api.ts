@@ -17,7 +17,7 @@ export type DemoOverview = {
     is_demo: true;
     currency: string;
     total_value: number;
-    positions: Array<{ id: string; label: string; weight_pct: number; value: number }>;
+    positions: Array<{ id: string; label: string; weight_pct: number; value: number; ticker?: string }>;
   };
   analyses: Array<Record<string, unknown>>;
 };

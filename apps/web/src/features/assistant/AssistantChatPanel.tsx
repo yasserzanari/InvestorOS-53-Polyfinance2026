@@ -1,5 +1,8 @@
-import type { ReactNode } from 'react';
-import { RotateCcw, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown, Clock3, Plus, RotateCcw, Sparkles } from 'lucide-react';
+import type { ConversationHistoryItem } from '../profiles/useProfileWorkspace';
+
+function formatLastUsed(timestamp:number){return new Intl.DateTimeFormat('fr-CA',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Toronto'}).format(timestamp);}
 
 /** Shared conversation surface used by the Assistant and profile workspaces. */
 export function AssistantChatPanel({
@@ -13,6 +16,12 @@ export function AssistantChatPanel({
   composer,
   composerClassName = '',
   error,
+  conversations = [],
+  activeConversationId = '',
+  onSelectConversation,
+  assistantMode = false,
+  landing = false,
+  showStatus = true,
 }: {
   status: string;
   provider: string;
@@ -24,22 +33,46 @@ export function AssistantChatPanel({
   composer: ReactNode;
   composerClassName?: string;
   error?: ReactNode;
+  conversations?: ConversationHistoryItem[];
+  activeConversationId?: string;
+  onSelectConversation?: (id:string) => void;
+  assistantMode?: boolean;
+  landing?: boolean;
+  showStatus?: boolean;
 }) {
+  const [historyOpen,setHistoryOpen]=useState(false);
+  const historyRef=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(!historyOpen)return;
+    const onPointerDown=(event:PointerEvent)=>{if(!historyRef.current?.contains(event.target as Node))setHistoryOpen(false);};
+    const onKeyDown=(event:KeyboardEvent)=>{if(event.key==='Escape')setHistoryOpen(false);};
+    document.addEventListener('pointerdown',onPointerDown);document.addEventListener('keydown',onKeyDown);
+    return()=>{document.removeEventListener('pointerdown',onPointerDown);document.removeEventListener('keydown',onKeyDown);};
+  },[historyOpen]);
   return (
-    <section className="pw-chat" aria-label="Conversation avec l’assistant">
+    <section className={`pw-chat${landing?' is-landing':''}`} aria-label="Conversation avec l’assistant">
       <header className="pw-chat-header">
         <div className="pw-assistant-icon"><Sparkles size={18} /></div>
-        <div><strong>Assistant InvestorOS</strong><p>{status}</p></div>
+        <div><strong>Assistant InvestorOS</strong>{showStatus&&<p>{status}</p>}</div>
         <span title={model} className="pw-provider">{provider}</span>
-        <button type="button" className="pw-new-chat" onClick={onReset} disabled={resetDisabled} aria-label="Nouvelle conversation" title="Réinitialiser le profil et la conversation"><RotateCcw size={15} /></button>
+        {assistantMode&&<div className="pw-history-control" ref={historyRef}>
+          <button type="button" className="pw-history-trigger" onClick={()=>setHistoryOpen(open=>!open)} aria-expanded={historyOpen} aria-controls="pw-conversation-history">
+            <Clock3 size={15}/><span>Historique</span><ChevronDown size={13}/>
+          </button>
+          {historyOpen&&<section className="pw-history-popover" id="pw-conversation-history" aria-label="Historique des conversations">
+            <header><div><strong>Conversations</strong><span>{conversations.length} enregistrée{conversations.length===1?'':'s'}</span></div><button type="button" className="pw-history-new" onClick={()=>{onReset();setHistoryOpen(false);}} disabled={resetDisabled}><Plus size={14}/>Nouvelle</button></header>
+            {conversations.length?<ul>{conversations.map(item=><li key={item.id}><button type="button" className={item.id===activeConversationId?'is-current':''} onClick={()=>{onSelectConversation?.(item.id);setHistoryOpen(false);}}><span className="pw-history-title">{item.title}</span><time dateTime={new Date(item.lastUsedAt).toISOString()}>{formatLastUsed(item.lastUsedAt)}</time></button></li>)}</ul>:<p className="pw-history-empty">Vos conversations apparaîtront ici après votre premier message.</p>}
+          </section>}
+        </div>}
+        <button type="button" className="pw-new-chat" onClick={onReset} disabled={resetDisabled} aria-label={assistantMode?'Nouvelle conversation':'Réinitialiser le profil'} title={assistantMode?'Démarrer une nouvelle conversation':'Réinitialiser le profil et la conversation'}>{assistantMode?<Plus size={15}/>:<RotateCcw size={15}/>}</button>
       </header>
       {children}
       {activity && <div className="pw-current-activity">{activity}</div>}
-      <div className={`pw-composer ${composerClassName}`}>
+      {!landing&&<div className={`pw-composer ${composerClassName}`}>
         {composer}
         <span>Conversation et espace de travail enregistrés dans ce navigateur. Les messages sont envoyés à Amazon Bedrock.</span>
         {error && <p className="pw-error" role="alert">{error}</p>}
-      </div>
+      </div>}
     </section>
   );
 }
