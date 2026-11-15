@@ -101,7 +101,7 @@ function highTolerance(value: string): boolean {
   const text = normalize(value);
   if (text.length > 4_000 || UNCERTAIN.test(text) || NEGATIVE.test(text) || /\b(?:faible|modere)(?:e|s|es)?\b/.test(text)) return false;
   return /^(?:tres )?eleve(?:e)?[.!]?$/.test(text)
-    || /\b(?:tolerance|risque|fluctuations?|variations?|baisses?)\s+(?:tres\s+)?(?:eleve|fort)(?:e|s|es)?\b/.test(text)
+    || /\b(?:tolerance(?: emotionnelle| au risque| aux fluctuations)?|risque|fluctuations?|variations?|baisses?)\s*:?\s+(?:tres\s+)?(?:eleve|fort)(?:e|s|es)?\b/.test(text)
     || /\b(?:fortes|importantes)\s+(?:baisses|variations|fluctuations)\b/.test(text);
 }
 

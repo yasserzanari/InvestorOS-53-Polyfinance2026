@@ -14,6 +14,15 @@ const explicit = {
   liquidity: 'J’ai besoin de tout ce même capital dans 18 mois',
 };
 
+test('live agent phrasing of emotional tolerance produces clarification, never red', () => {
+  for (const riskTolerance of ['Tolérance émotionnelle élevée aux fluctuations', 'Tolérance au risque : élevée', 'Tolérance aux fluctuations élevée']) {
+    const issues = assessAlignment({ ...base, riskTolerance, lossCapacity: 'Je ne peux pas absorber une perte qui compromettrait ce projet' });
+    assert.ok(issues.some(issue => issue.id === 'tolerance-loss-capacity' && issue.kind === 'clarification'), riskTolerance);
+    assert.equal(issues.some(issue => issue.kind === 'conflict'), false);
+  }
+  assert.equal(assessAlignment({ ...base, riskTolerance: 'Tolérance émotionnelle non élevée', lossCapacity: 'Je ne peux pas absorber une perte' }).some(issue => issue.id === 'tolerance-loss-capacity'), false);
+});
+
 test('only explicit earlier need for all of the same locked capital is a conflict', () => {
   const issues = conflicts(explicit);
   assert.equal(issues.length, 1);
