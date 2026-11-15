@@ -1,6 +1,7 @@
 """HTTP adapter. NDJSON avoids buffering real text/tool/agent events in local development."""
 import hashlib
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -66,6 +67,9 @@ def voice_session():
         'media-encoding': 'pcm',
         'sample-rate': '16000',
     }
+    vocabulary_name = os.getenv('VOICE_TRANSCRIBE_VOCABULARY_NAME', '').strip()
+    if vocabulary_name:
+        params['vocabulary-name'] = vocabulary_name
     request = AWSRequest(method='GET', url=f'wss://{host}/stream-transcription-websocket', params=params)
     SigV4QueryAuth(credentials, 'transcribe', region, expires=60).add_auth(request)
     return {'url': request.url, 'language': 'fr-CA', 'sampleRate': 16000, 'expiresIn': 60}

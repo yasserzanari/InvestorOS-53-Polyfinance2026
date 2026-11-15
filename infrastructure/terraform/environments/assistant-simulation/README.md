@@ -34,6 +34,12 @@ La table utilise `job_id` comme clé et `expiresAt` comme TTL. Les identifiants 
 
 `profile-chat.tf` définit sept ressources : table, groupe de logs, rôle worker, politique worker, fonction worker, configuration d’invocation et politique de dispatch de l’API. Le dispatch possède `GetItem`, `PutItem`, `UpdateItem` sur la seule table de jobs et `InvokeFunction` sur le seul worker. Le worker possède les opérations de table nécessaires, Bedrock et les accès bornés aux données et à l’entrée IAM de recherche. La Lambda API conserve sa concurrence réservée de deux; le worker utilise la capacité non réservée du compte.
 
+## Dictée vocale en direct
+
+`POST /v1/profiles/voice/session` signe une URL WebSocket Amazon Transcribe en français canadien. Le navigateur envoie du PCM mono 16 kHz par blocs de 128 ms, assemble les segments AWS dans leur ordre temporel et détecte la fin de parole après 1,6 s de silence. Il envoie ensuite le bloc audio vide requis par Transcribe afin de recevoir la fin de la phrase avant de fermer le micro. La stabilisation partielle reste désactivée pour privilégier la précision.
+
+La ressource `aws_transcribe_vocabulary.finance_fr_ca` contient des noms d’entreprises et des termes financiers fréquents. Elle est déclarée dans Terraform et déployée `READY` en `us-east-1`; l’import bloc la rattache au state au prochain plan. Le 15 novembre 2026, l’API vocale active a généré une URL incluant ce vocabulaire; le WebSocket AWS a accepté des blocs PCM puis le bloc de fin sans exception. Le test a validé le chemin AWS, pas la qualité d’une phrase prononcée par un utilisateur.
+
 La mémoire durable du profil est distincte des jobs temporaires : `SOURCE_WORKSPACE_TABLE` ou `PROFILE_WORKSPACE_TABLE` désigne la table de comptes. Seul l’attribut `profile_workspace` est modifié par l’adaptateur de mémoire, avec révision optimiste et contrôle des clés via `DEMO_CONTEXTS`.
 
 ## Préparer et examiner

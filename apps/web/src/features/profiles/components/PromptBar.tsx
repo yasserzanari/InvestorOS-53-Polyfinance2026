@@ -25,7 +25,7 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
   const stopVoice = () => { setVoiceOpen(false); setRecording(false); };
   const send = () => { if (busy || disabled || !value.trim()) return; restoreFocus.current = Boolean(rootRef.current?.contains(document.activeElement)); stopVoice(); onSend(); setNotice(''); };
   return <div className="pw-prompt-root" ref={rootRef}>
-    {voiceOpen&&<VoiceOrb value={value} onChange={onChange} onRecordingChange={setRecording} onError={setNotice}/>}
+    {voiceOpen&&<VoiceOrb value={value} onChange={onChange} onRecordingChange={setRecording} onError={setNotice} onFinished={()=>{setVoiceOpen(false);setRecording(false);setNotice('Transcription terminée. Relisez le texte avant de l’envoyer.');}}/>}
     <AdvancedChatInput
       className="pw-shared-prompt"
       textareaProps={{
