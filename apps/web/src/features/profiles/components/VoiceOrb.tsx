@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../../../shared/auth';
 import { profileApiBase } from '../profile-api';
 
@@ -50,20 +50,30 @@ export function VoiceOrb({ value, onChange, onRecordingChange, onError }: Props)
   const [active, setActive] = useState(false); const [level, setLevel] = useState(0); const [label, setLabel] = useState('Connexion à la transcription AWS…');
   const alive = useRef(false); const resources = useRef<{stream?:MediaStream;context?:AudioContext;socket?:WebSocket;processor?:ScriptProcessorNode;source?:MediaStreamAudioSourceNode;mute?:GainNode}>({});
   const prefix = useRef(value); const finalText = useRef(''); const callbacks = useRef({onChange,onRecordingChange,onError}); callbacks.current={onChange,onRecordingChange,onError};
+  const startRef = useRef<() => Promise<void>>(async()=>undefined);
   const cleanup = () => { const r=resources.current; r.processor?.disconnect();r.source?.disconnect();r.mute?.disconnect();r.context?.close().catch(()=>{});r.stream?.getTracks().forEach(t=>t.stop());if(r.socket&&r.socket.readyState<2)r.socket.close();resources.current={}; };
   const stop = () => { alive.current=false; cleanup(); setActive(false); callbacks.current.onRecordingChange(false); };
-  useEffect(()=>()=>{alive.current=false;cleanup();},[]);
-  const start = async () => {
+  const start = useCallback(async () => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { onError('Le micro nécessite HTTPS et une permission du navigateur.'); return; }
-    prefix.current=value; finalText.current=''; alive.current=true; setLabel('Connexion à Amazon Transcribe…');
+    prefix.current=value; finalText.current=''; alive.current=true; setLabel('Demande d’accès au micro…');
     try {
       const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); resources.current.stream=stream;
       if(!alive.current){cleanup();return;}
-      const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/voice/session`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      if(!response.ok)throw new Error(response.status===403?'Votre session ne peut pas ouvrir la transcription AWS.':'Le service de transcription AWS est indisponible.');
+      setLabel('Connexion sécurisée à Amazon Transcribe…');
+      const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/voice/session`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(12000)});
+      if(!response.ok) {
+        const detail=await response.json().catch(()=>null) as {detail?:unknown}|null;
+        throw new Error(typeof detail?.detail==='string'?detail.detail:response.status===403?'Votre session ne peut pas ouvrir la transcription AWS.':'Le service de transcription AWS est indisponible.');
+      }
       const {url,sampleRate}=await response.json() as {url:string;sampleRate:number};
+      if(!url||!Number.isFinite(sampleRate))throw new Error('La session de transcription AWS est incomplète.');
       const socket=new WebSocket(url);socket.binaryType='arraybuffer';resources.current.socket=socket;
-      await new Promise<void>((resolve,reject)=>{socket.onopen=()=>resolve();socket.onerror=()=>reject(new Error('Connexion à Amazon Transcribe impossible.'));});
+      await new Promise<void>((resolve,reject)=>{
+        const timeout=window.setTimeout(()=>reject(new Error('Amazon Transcribe ne répond pas. Vérifiez le réseau puis relancez le micro.')),12000);
+        socket.onopen=()=>{window.clearTimeout(timeout);resolve();};
+        socket.onerror=()=>{window.clearTimeout(timeout);reject(new Error('Connexion à Amazon Transcribe refusée. Vérifiez la session et les autorisations AWS.'));};
+        socket.onclose=()=>{window.clearTimeout(timeout);reject(new Error('Amazon Transcribe a fermé la connexion avant le démarrage.'));};
+      });
       if(!alive.current){cleanup();return;}
       const context=new AudioContext({sampleRate}); await context.resume(); resources.current.context=context;
       const source=context.createMediaStreamSource(stream), processor=context.createScriptProcessor(4096,1,1), mute=context.createGain(); mute.gain.value=0; resources.current.source=source;resources.current.processor=processor;resources.current.mute=mute;
@@ -92,7 +102,9 @@ export function VoiceOrb({ value, onChange, onRecordingChange, onError }: Props)
       };
       socket.onclose=()=>{if(alive.current){callbacks.current.onError('Le flux Amazon Transcribe est fermé. Relancez le micro.');stop();}};
     }catch(error){stop();onError(error instanceof Error?error.message:'Impossible de démarrer le micro. Vérifiez sa permission.');}
-  };
+  },[value,onError]);
+  startRef.current=start;
+  useEffect(()=>{void startRef.current();return()=>{alive.current=false;cleanup();};},[]);
   return <div className="pw-voice-live" role="status" aria-live="polite">
     <button type="button" className="pw-voice-close" aria-label="Arrêter le micro" onClick={stop}>×</button>
     <div className={`pw-voice-orb${active?' is-listening':''}`} style={{'--voice-level':level} as React.CSSProperties}><span/><span/><span/></div>

@@ -62,6 +62,12 @@ resource "aws_iam_role_policy" "runtime" {
         Resource = "arn:aws:lambda:*:*:function:${var.name_prefix}-*"
       },
       {
+        Sid      = "StartFrenchLiveTranscription"
+        Effect   = "Allow"
+        Action   = ["transcribe:StartStreamTranscriptionWebSocket"]
+        Resource = "*"
+      },
+      {
         Sid      = "InvokeConfiguredBedrockModel"
         Effect   = "Allow"
         Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
