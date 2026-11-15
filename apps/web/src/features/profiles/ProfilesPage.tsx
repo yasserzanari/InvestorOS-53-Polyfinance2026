@@ -73,7 +73,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const location = useLocation();
   const navigate = useNavigate();
   const {activeAccount}=useDemoAccount();
-  const {attachResearch,refreshResearch,workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions,stop,update,reset,conversations,conversationId,startNewConversation,openConversation,historyReady,historyError}=useProfileWorkspace(activeAccount.id,assistantMode?'assistant':'profiles');
+  const {attachResearch,refreshResearch,workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions,stop,update,conversations,conversationId,startNewConversation,openConversation,historyReady,historyError}=useProfileWorkspace(activeAccount.id,assistantMode?'assistant':'profiles');
   const handledAssistantView=useRef(workspace.profileView??'');
   const memory=useProfileMemory(activeAccount.id,{profile:workspace.profile,tabs:workspace.tabs,sources:workspace.sources??[]},(profile,tabs,sources)=>update(w=>assistantMode?({...w,profile}):({...w,profile,tabs,sources})),assistantMode);
   const changeProfile=(key:import('./profile-model').FieldKey,value:string)=>update(w=>({...w,profile:{...w.profile,[key]:value,confirmed:false,version:(w.profile.version??1)+1,updatedAt:new Date().toISOString(),origins:{...w.profile.origins,[key]:'Modification directe'}}}));
@@ -168,12 +168,12 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
         status={busy?activity:pendingQuestion?'En attente de vos réponses':connected===null?'Vérification de la connexion…':connected?'Amazon Bedrock':'État du modèle indisponible'}
         provider={connected===null?'Connexion…':connected?'Bedrock':'Statut à vérifier'}
         model={model}
-        onReset={assistantMode?()=>{setTabsOpen(false);startNewConversation();}:reset}
+        onReset={()=>{setTabsOpen(false);startNewConversation();}}
         resetDisabled={busy||!memory.ready||!historyReady}
         conversations={conversations}
         historyStatus={!historyReady?historyError||'Synchronisation de l’historique avec le compte…':historyError||'Historique synchronisé avec le compte actif'}
         activeConversationId={conversationId}
-        onSelectConversation={openConversation}
+        onSelectConversation={id=>{openConversation(id);setMobilePane('chat');}}
         assistantMode={assistantMode}
         landing={landing}
         showStatus

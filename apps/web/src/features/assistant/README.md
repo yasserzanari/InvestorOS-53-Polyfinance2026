@@ -1,6 +1,6 @@
 # Assistant partagé
 
-`AssistantChatPanel` est la surface de conversation réutilisée par `/app/assistant` et `/app/profiles`. Les deux écrans s’appuient sur `useProfileWorkspace` : les conversations et leurs onglets sont synchronisés par l’API avec le compte de démonstration actif. L’onglet actif est lui aussi commun et conserve les anciennes sélections par écran lors de sa première lecture. Le panneau de travail partagé (Profil, Tâches, Agents, Sources et résultats Simulation) est visible depuis les deux routes; Assistant devient ainsi le poste central pour piloter les opérations disponibles et ouvrir les relais vers les autres modules.
+`AssistantChatPanel` est la surface de conversation réutilisée par `/app/assistant` et `/app/profiles`. Les deux écrans s’appuient sur `useProfileWorkspace` : les conversations et leurs onglets sont synchronisés par l’API avec le compte de démonstration actif. `/app/assistant` reprend la conversation la plus récente; chaque entrée dans `/app/profiles` ouvre une conversation vide et propose l’historique dans la barre supérieure. Le panneau de travail partagé (Profil, Tâches, Agents, Sources et résultats Simulation) est visible depuis les deux routes; la mémoire de profil reste séparée des conversations.
 
 ## Navigation et orchestration
 

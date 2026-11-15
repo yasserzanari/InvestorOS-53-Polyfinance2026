@@ -24,8 +24,8 @@ L’entrée **Assistant** du menu latéral ouvre `/app/assistant`. Cette route e
 `features/assistant/AssistantChatPanel.tsx`, le même workspace et le même transport Bedrock, les
 mêmes cartes de questions, activités, citations, tâches et onglets. Les messages,
 le profil et les onglets sont conservés par compte dans
-`investoros.workspace.v2.<accountId>`; l’onglet sélectionné est conservé à part
-pour que la navigation entre les deux routes garde le même contexte.
+`/v1/profiles/conversations/{persona}`; les déclarations et documents du profil
+restent dans la mémoire de profil, séparée des conversations.
 
 Le compositeur du tableau de bord transmet aussi sa demande initiale à l’Assistant
 partagé. Ainsi, il n’existe qu’un historique de conversation et un seul chemin
@@ -35,6 +35,13 @@ demande qui traverse plusieurs espaces, il peut construire un onglet Tâches ave
 des liens directs. Les opérations réelles restent bornées aux outils serveur
 disponibles; il ne doit pas annoncer comme faites les actions qu’aucun outil ne
 prend en charge.
+
+À chaque entrée dans `/app/profiles`, le chat commence sur une conversation vide;
+les précédentes restent accessibles via **Historique** dans la barre supérieure.
+Les sélectionner recharge leurs messages sans remplacer les déclarations et
+documents du profil affichés à droite. **Nouvelle conversation** archive le chat
+courant avant d’en créer un autre. `/app/assistant` conserve la reprise de la
+conversation la plus récente.
 
 ## Contrat HTTP
 
