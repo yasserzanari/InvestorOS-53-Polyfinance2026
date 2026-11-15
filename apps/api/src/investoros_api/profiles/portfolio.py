@@ -60,7 +60,7 @@ def _portfolio_payload(item: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def load_demo_portfolio(client=None, persona: PersonaId = "mateo") -> dict[str, Any]:
-    """Load a local fixture in dev or fetch the deployment's fixed DynamoDB portfolio."""
+    """Load the fictional portfolio selected by the server's persona mapping."""
     mode = os.getenv("DEMO_PORTFOLIO_MODE", "dynamodb")
     if mode == "local_fixture":
         if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
@@ -181,10 +181,6 @@ def summarize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
                 ),
                 "Positions and weights come from a fictional fixture, not a brokerage account.",
                 "Position labels are broad demo categories; no constituent look-through proves that a named asset is held.",
-                (
-                    "This is the single portfolio configured for the deployment and may not "
-                    "match the selected chat persona."
-                ),
             ],
             "moduleUrl": "/app/portfolios",
         },
