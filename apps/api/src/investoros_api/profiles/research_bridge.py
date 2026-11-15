@@ -32,6 +32,26 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
+def _http_error_message(status: int, body: bytes | str | None = None) -> str:
+    """Translate the research API's known quota response without exposing internals."""
+    if status == 429:
+        try:
+            payload = json.loads(body or b'{}')
+        except (json.JSONDecodeError, TypeError):
+            payload = {}
+        detail = payload.get('detail', '') if isinstance(payload, dict) else ''
+        if isinstance(detail, str) and 'limite quotidienne de recherches' in detail.lower():
+            return (
+                'La limite quotidienne de recherches est atteinte pour ce compte démo. '
+                'Aucun lancement n’a été fait.'
+            )
+        return (
+            'Le service de recherche est très sollicité. Aucun lancement n’a été confirmé; '
+            'réessayez dans un moment.'
+        )
+    return f'Le moteur de recherche a refusé la requête (HTTP {status}).'
+
+
 def research_configured() -> bool:
     return bool(os.getenv('RESEARCH_API_URL', '').strip() or os.getenv('RESEARCH_LAMBDA_FUNCTION', '').strip())
 
@@ -64,7 +84,8 @@ def _invoke_research(method: str, path: str, persona: str, body: dict | None) ->
             raise ValueError('Réponse du moteur de recherche indisponible ou trop volumineuse.')
         envelope = json.loads(raw)
         if int(envelope.get('statusCode', 502)) >= 400:
-            raise ValueError(f"Le moteur de recherche a refusé la requête (HTTP {envelope.get('statusCode', 502)}).")
+            status = int(envelope.get('statusCode', 502))
+            raise ValueError(_http_error_message(status, envelope.get('body', '{}')))
         data = json.loads(envelope.get('body', '{}'))
         if not isinstance(data, dict):
             raise ValueError('Réponse de recherche invalide.')
@@ -100,7 +121,7 @@ def _call(method: str, path: str, persona: str, body: dict | None = None) -> dic
             raise ValueError('Réponse de recherche invalide.')
         return result
     except HTTPError as error:
-        raise ValueError(f'Le moteur de recherche a refusé la requête (HTTP {error.code}).') from error
+        raise ValueError(_http_error_message(error.code, error.read(65536))) from error
     except (URLError, TimeoutError, json.JSONDecodeError) as error:
         raise ValueError('Le moteur de recherche ne répond pas. Aucun lancement ne doit être annoncé sans identifiant confirmé; vérifier avant de réessayer.') from error
 
