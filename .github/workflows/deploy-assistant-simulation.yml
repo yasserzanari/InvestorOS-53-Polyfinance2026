@@ -118,7 +118,7 @@ jobs:
                   action = item.get("change", {}).get("actions", [])
                   if "delete" in action:
                       paths = item.get("change", {}).get("replace_paths", [])
-                      print(f"- {item['address']}: {action}; attributs déclencheurs: {paths}")
+                      print("- {}: {}; attributs déclencheurs: {}".format(item.get("address"), action, paths))
               sys.exit(1)
           planned = [
               (item["address"], item["change"]["actions"])
@@ -126,8 +126,8 @@ jobs:
               if item.get("change", {}).get("actions") != ["no-op"]
           ]
           print("Plan sans suppression ni remplacement; application autorisée.")
-          for address, actions in planned:
-              print(f"- {address}: {actions}")
+          for item in planned:
+              print("- {}: {}".format(item[0], item[1]))
           '
           summary_status=$?
           set -e
