@@ -21,8 +21,17 @@ export function LoginPage() {
   const auth = useAuth();
   const returnTo = (location.state as { from?: string } | null)?.from ?? '/app';
 
-  const handleAuthError = (error: unknown) => {
+  const handleAuthError = (error: unknown, duringChallenge = false) => {
     const name = error instanceof Error ? error.name : '';
+    if (name === 'InvalidPasswordException') {
+      return 'Ce mot de passe ne respecte pas les règles Cognito : 14 caractères minimum, avec une majuscule, une minuscule, un chiffre et un symbole.';
+    }
+    if (name === 'PasswordHistoryPolicyViolationException') {
+      return 'Choisissez un mot de passe que vous n’avez pas déjà utilisé.';
+    }
+    if (duringChallenge && ['NotAuthorizedException', 'ExpiredCodeException', 'SessionExpiredException'].includes(name)) {
+      return 'Ce défi de première connexion a expiré. Recommencez avec votre nom d’utilisateur et votre mot de passe temporaire.';
+    }
     if (name === 'NotAuthorizedException' || name === 'UserNotFoundException') return 'Nom d’utilisateur ou mot de passe incorrect.';
     if (name === 'CodeMismatchException' || name === 'EnableSoftwareTokenMFAException') return 'Ce code de vérification est invalide ou expiré.';
     if (name === 'TooManyRequestsException' || name === 'LimitExceededException') return 'Trop de tentatives. Attendez quelques minutes avant de réessayer.';
@@ -85,7 +94,7 @@ export function LoginPage() {
       setVerificationCode('');
       await continueAuth(result);
     } catch (error) {
-      setMessage(handleAuthError(error));
+      setMessage(handleAuthError(error, true));
     } finally {
       setBusy(false);
     }
@@ -160,7 +169,7 @@ export function LoginPage() {
                 <div className="login-field">
                   <label htmlFor="aws-new-password">Nouveau mot de passe</label>
                   <input id="aws-new-password" type="password" autoComplete="new-password" minLength={14} required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="14 caractères ou plus" />
-                  <p className="login-field-note">Majuscule, minuscule, chiffre et symbole requis.</p>
+                  <p className="login-field-note">14 caractères minimum, avec une majuscule, une minuscule, un chiffre et un symbole.</p>
                 </div>
                 <button className="login-submit" type="submit" disabled={busy}>{busy ? 'Mise à jour…' : 'Continuer'} <ArrowRight size={16} aria-hidden="true" /></button>
               </form>
