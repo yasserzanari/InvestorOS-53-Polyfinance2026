@@ -30,6 +30,7 @@ Les personas Amira, Mateo et Robert restent des profils de démonstration sépar
 
 - `GET /v1/simulation/assets` : univers configuré.
 - `GET /v1/simulation/history/{ticker}` : prix, événements d’entreprise et rendement observé après événement.
+- `GET /v1/simulation/event-study/{ticker}?event_date=YYYY-MM-DD` : comparaison des rendements observés du titre et d’un indice proxy dans la même devise (SPY en USD, XIU.TO en CAD) sur 1, 5 et 20 séances. Les dates de début et de fin mesurées sont renvoyées avec les rendements et l’écart en points de pourcentage. Cette lecture descriptive ne mesure pas un effet causal; les jours fériés peuvent décaler l’alignement et les horizons incomplets restent absents.
 - `GET /v1/simulation/regulations?topic=...&page=1` : documents datés par thème dans une fenêtre de cinq ans par défaut; `start_date` et `end_date` limitent la période et `page` parcourt les résultats. La page Simulation lie ces dates à la période choisie pour son graphique.
 - `GET /v1/simulation/filings/{ticker}` : dépôts EDGAR; nécessite `SEC_USER_AGENT`.
 - `GET /v1/simulation/news/{ticker}` : couverture récente GDELT, avec cache et gestion des limitations.

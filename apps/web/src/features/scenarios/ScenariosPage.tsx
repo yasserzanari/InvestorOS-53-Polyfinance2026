@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Database, ExternalLink, GitBranch, LoaderCircle, MessageCircle, Newspaper, Plus, ShieldCheck, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { loadSimulationAssets, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ScenarioBranchInput, type SimulationAssetList, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
+import { loadSimulationAssets, loadSimulationEventStudy, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ScenarioBranchInput, type SimulationAssetList, type SimulationEventStudy, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
 import { safeSourceUrl } from '../profiles/profile-api';
 import './scenarios.css';
 
@@ -122,6 +122,25 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
   const selectedRegulation = regulations.find((event) => `reg:${event.id}` === selectedId);
   const selectedFiling = filings.find((event) => `sec:${event.id}` === selectedId);
   const selectedNews = news?.articles.find((article) => `news:${article.id}` === selectedId);
+  const selectedEventDate = selected?.date ?? selectedRegulation?.publishedAt ?? selectedFiling?.filedAt ?? selectedNews?.indexedAt.slice(0, 10);
+  const [eventStudy, setEventStudy] = useState<SimulationEventStudy>();
+  const [eventStudyError, setEventStudyError] = useState('');
+  useEffect(() => {
+    if (!selectedEventDate) {
+      setEventStudy(undefined);
+      setEventStudyError('');
+      return;
+    }
+    const controller = new AbortController();
+    setEventStudy(undefined);
+    setEventStudyError('');
+    loadSimulationEventStudy(data.asset.ticker, selectedEventDate, controller.signal)
+      .then(setEventStudy)
+      .catch((cause) => {
+        if (!controller.signal.aborted) setEventStudyError(cause instanceof Error ? cause.message : 'La comparaison au marché est indisponible.');
+      });
+    return () => controller.abort();
+  }, [data.asset.ticker, selectedEventDate]);
   const eventPosition = (eventDate: string) => {
     const index = xy.findIndex((point) => point.date >= eventDate);
     return index < 0 ? undefined : xy[index];
@@ -246,6 +265,27 @@ function HistoricalChart({ data, regulations = [], filings = [], filingsMessage,
           </article>
         ) : (
           <div className="simulation-event-empty"><CalendarDays size={20} /><strong>Sélectionnez un repère du graphique</strong><span>Rendements ajustés après la première clôture disponible à la date ex ou après.</span></div>
+        )}
+        {selectedEventDate && (
+          <section className="simulation-event-study" aria-label="Comparaison descriptive au marché">
+            <div><strong>Comparaison au marché</strong><span>{eventStudy?.benchmarkTicker ?? (eventStudy ? 'Aucun indice proxy défini' : 'Analyse en cours…')}</span></div>
+            {eventStudyError ? <p role="status">{eventStudyError}</p> : eventStudy ? (
+              <>
+                <div className="simulation-event-study-grid">
+                  <span>Fenêtre</span><span>{data.asset.ticker}</span><span>{eventStudy.benchmarkTicker ?? 'Marché'}</span><span>Écart</span>
+                  {eventStudy.points.map((point) => (
+                    <div className="simulation-event-study-row" key={point.horizonObservations}>
+                      <strong>{point.horizonObservations} séance{point.horizonObservations > 1 ? 's' : ''}</strong>
+                      <span>{pctLabel(point.stockReturnPct)}</span>
+                      <span>{pctLabel(point.benchmarkReturnPct)}</span>
+                      <span>{pctLabel(point.excessReturnPct)}</span>
+                    </div>
+                  ))}
+                </div>
+                <small>{eventStudy.method} {eventStudy.limitations[0]} Source arrêtée au {dateLabel(eventStudy.sourceAsOf)}.</small>
+              </>
+            ) : <p role="status">Calcul de la comparaison descriptive…</p>}
+          </section>
         )}
         <div className="simulation-event-list" aria-label="Événements historiques">
           {shownEvents.slice().reverse().map((event) => <button type="button" key={event.id} aria-pressed={selectedId === event.id} onClick={() => onSelect(event.id)}><span className="simulation-event-dot" /><span><strong>{eventNames[event.kind] ?? event.kind}</strong><small>{dateLabel(event.date)}</small></span><span className="simulation-event-return">{pctLabel(event.observedReturnsPct['5observations'])}</span></button>)}

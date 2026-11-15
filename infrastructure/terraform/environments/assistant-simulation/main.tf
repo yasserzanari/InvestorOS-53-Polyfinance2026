@@ -103,6 +103,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       BEDROCK_MODEL_ID              = var.bedrock_model_id
+      CORS_ALLOWED_ORIGINS          = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
       RESEARCH_API_URL              = data.aws_apigatewayv2_api.application.api_endpoint
       DEMO_CONTEXTS                 = jsonencode(local.demo_contexts)
       DEMO_PORTFOLIO_MODE           = "dynamodb"
