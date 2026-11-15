@@ -91,6 +91,12 @@ resource "aws_iam_role_policy" "api" {
         Effect   = "Allow"
         Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
         Resource = [local.profile_arn, local.model_arn]
+      },
+      {
+        Sid      = "StartFrenchLiveTranscription"
+        Effect   = "Allow"
+        Action   = ["transcribe:StartStreamTranscriptionWebSocket"]
+        Resource = "*"
       }
     ]
   })
