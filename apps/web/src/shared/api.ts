@@ -70,6 +70,25 @@ export type SimulationHistory = {
   method: string;
   limitations: string[];
 };
+export type SimulationEventStudy = {
+  ticker: string;
+  benchmarkTicker: string | null;
+  eventDate: string;
+  sourceAsOf: string;
+  source: string;
+  method: string;
+  limitations: string[];
+  points: Array<{
+    horizonObservations: 1 | 5 | 20;
+    stockStartDate: string | null;
+    stockEndDate: string | null;
+    stockReturnPct: number | null;
+    benchmarkStartDate: string | null;
+    benchmarkEndDate: string | null;
+    benchmarkReturnPct: number | null;
+    excessReturnPct: number | null;
+  }>;
+};
 export type SimulationRegulation = {
   id: string;
   title: string;
@@ -254,6 +273,8 @@ async function getSimulation<T>(path: string, signal?: AbortSignal): Promise<T> 
 export const loadSimulationAssets = (signal?: AbortSignal) => getSimulation<SimulationAssetList>('assets', signal);
 export const loadSimulationHistory = (ticker: string, signal?: AbortSignal) =>
   getSimulation<SimulationHistory>(`history/${encodeURIComponent(ticker)}`, signal);
+export const loadSimulationEventStudy = (ticker: string, eventDate: string, signal?: AbortSignal) =>
+  getSimulation<SimulationEventStudy>(`event-study/${encodeURIComponent(ticker)}?event_date=${encodeURIComponent(eventDate)}`, signal);
 export const loadSimulationRegulations = (topic: string, page = 1, startDate?: string, endDate?: string, signal?: AbortSignal) => {
   const params = new URLSearchParams({ topic, page: String(page) });
   if (startDate) params.set('start_date', startDate);

@@ -22,7 +22,7 @@ Le contrôle de vie est `http://localhost:8000/health`. Le mode normal `npm run 
 
 Le script `scripts/dev-profile-api.sh` active explicitement `DEMO_PORTFOLIO_MODE=local_fixture` pour les parcours de chat locaux. Ces portefeuilles fictifs partagent la source JSON que Terraform utilise pour initialiser DynamoDB. L’environnement Lambda force `DEMO_PORTFOLIO_MODE=dynamodb`; le mode local est refusé dans Lambda.
 
-Sur AWS, `GET /health` reste public pour le contrôle de vie. Les autres routes HTTP API exigent le JWT Cognito. Les routes Assistant/Simulation vérifient également que le JWT validé par API Gateway contient le groupe `administrators`. Les jetons du navigateur sont limités à l’onglet (sessionStorage), les jetons d’accès expirent après 15 minutes et Cognito force la configuration du mot de passe puis TOTP lors de la première connexion.
+Sur AWS, `GET /health` reste public pour le contrôle de vie. Les routes HTTP API exigent le JWT Cognito et les routes applicatives protégées vérifient aussi que le jeton validé par API Gateway contient le groupe `administrators`. Les inscriptions publiques sont désactivées, MFA TOTP est obligatoire, le client web utilise Authorization Code + PKCE sans secret client, les jetons du navigateur restent dans `sessionStorage` et les jetons d’accès expirent après 15 minutes. Cognito force le changement du mot de passe temporaire puis l’enrôlement TOTP à la première connexion. Le fichier local `AWS_ADMIN_CREDENTIALS.txt` est ignoré par Git, a des permissions privées et ne contient qu’un mot de passe temporaire; ne le copier ni dans une issue ni dans un commit. Le serveur local laisse `REQUIRE_ADMIN_AUTH` désactivé par défaut; l’authentification est activée par configuration Terraform AWS.
 
 ## Paquet Lambda
 
@@ -45,6 +45,7 @@ Le script produit `apps/api/build/investoros-api.zip`, ciblé Python 3.12. Terra
 | GET | `/v1/demo/overview` | Lecture du contexte fictif DynamoDB |
 | GET | `/v1/simulation/assets` | Univers historique configuré et ses limites |
 | GET | `/v1/simulation/history/{ticker}` | Cours ajustés et réactions observées autour de distributions/fractionnements |
+| GET | `/v1/simulation/event-study/{ticker}?event_date=YYYY-MM-DD` | Rendements descriptifs du titre et d’un indice proxy de même devise après une date; sans attribution causale |
 | GET | `/v1/simulation/regulations?topic=...&page=1` | Documents Federal Register dans une période datée, paginés par date de publication, avec liens officiels associés |
 | GET | `/v1/simulation/filings/{ticker}?start_date=YYYY-MM-DD` | Déclarations EDGAR récentes et historiques depuis le début de la série visible; nécessite `SEC_USER_AGENT` côté serveur |
 | GET | `/v1/simulation/news/{ticker}` | Couverture secondaire récente indexée par GDELT; cache positif et pause après erreur ou limitation |

@@ -91,6 +91,8 @@ resource "aws_lambda_function" "api" {
       DEMO_PORTFOLIO_ID             = var.demo_portfolio_id
       DEMO_CONTEXTS                 = jsonencode(var.demo_contexts)
       DEMO_PORTFOLIO_MODE           = "dynamodb"
+      REQUIRE_ADMIN_AUTH            = "true"
+      CORS_ALLOWED_ORIGINS          = join(",", local.allowed_origins)
       POWERTOOLS_SERVICE_NAME       = "investoros-api"
       ENVIRONMENT                   = var.environment
       BEDROCK_MODEL_ID              = var.bedrock_model_id
@@ -102,16 +104,20 @@ resource "aws_lambda_function" "api" {
   depends_on = [aws_iam_role_policy.runtime]
 
   # The live API Lambda also serves the separately maintained research stack.
-  # Leave its package and runtime configuration untouched from this module.
+  # Keep its research-owned environment values while Terraform manages this
+  # module's demo/auth configuration.
   lifecycle {
     ignore_changes = [
       description,
-      environment,
-      filename,
+      environment[0].variables["RESEARCH_ADMIN_TOKEN_SECRET_ARN"],
+      environment[0].variables["RESEARCH_API_URL"],
+      environment[0].variables["RESEARCH_EVENTS_TABLE_NAME"],
+      environment[0].variables["RESEARCH_EVIDENCE_TABLE_NAME"],
+      environment[0].variables["RESEARCH_QUOTAS_TABLE_NAME"],
+      environment[0].variables["RESEARCH_RUNS_TABLE_NAME"],
+      environment[0].variables["RESEARCH_SOURCES_TABLE_NAME"],
+      environment[0].variables["RESEARCH_STATE_MACHINE_ARN"],
       memory_size,
-      s3_bucket,
-      s3_key,
-      source_code_hash,
       timeout,
     ]
   }

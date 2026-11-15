@@ -207,6 +207,99 @@ def history(
     }
 
 
+@router.get("/event-study/{ticker}")
+def event_study(ticker: str, event_date: date = Query(...)) -> dict[str, Any]:
+    """Describe post-date returns against a same-currency equity benchmark.
+
+    This is a date-aligned comparison, not an event attribution or a causal study.
+    The benchmark is deliberately fixed by the configured asset currency.
+    """
+    normalized_ticker = ticker.upper()
+    asset = _assets().get(normalized_ticker)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
+
+    asset_class = asset.get("asset_class", "")
+    currency = asset.get("currency", "")
+    benchmark_ticker = (
+        "SPY" if currency == "USD" else "XIU.TO" if currency == "CAD" else None
+    ) if asset_class in {"equity", "etf_equity"} else None
+
+    def load_prices(symbol: str) -> list[dict[str, Any]]:
+        points: list[dict[str, Any]] = []
+        for row in _read_csv("prices_daily.csv"):
+            if row.get("ticker") != symbol:
+                continue
+            try:
+                observed = date.fromisoformat(row["date"])
+                adjusted = float(row["adj_close"])
+            except (KeyError, ValueError):
+                continue
+            if adjusted > 0:
+                points.append({"date": observed, "adjustedClose": adjusted})
+        return sorted(points, key=lambda point: point["date"])
+
+    stock = load_prices(normalized_ticker)
+    if not stock:
+        raise HTTPException(status_code=404, detail="Aucun prix disponible pour ce titre.")
+    stock_base_index = next(
+        (index for index, point in enumerate(stock) if point["date"] >= event_date), None
+    )
+    benchmark = load_prices(benchmark_ticker) if benchmark_ticker else []
+    benchmark_base_index = next(
+        (index for index, point in enumerate(benchmark) if point["date"] >= event_date), None
+    )
+
+    points = []
+    for horizon in (1, 5, 20):
+        stock_end_index = stock_base_index + horizon if stock_base_index is not None else None
+        stock_end = stock[stock_end_index] if stock_end_index is not None and stock_end_index < len(stock) else None
+        stock_base = stock[stock_base_index] if stock_base_index is not None else None
+        stock_return = (
+            (stock_end["adjustedClose"] / stock_base["adjustedClose"] - 1) * 100
+            if stock_end and stock_base else None
+        )
+
+        benchmark_base = benchmark[benchmark_base_index] if benchmark_base_index is not None else None
+        benchmark_end = None
+        if benchmark_base and stock_end:
+            benchmark_end = next(
+                (point for point in benchmark[benchmark_base_index + 1:] if point["date"] >= stock_end["date"]),
+                None,
+            )
+        benchmark_return = (
+            (benchmark_end["adjustedClose"] / benchmark_base["adjustedClose"] - 1) * 100
+            if benchmark_base and benchmark_end else None
+        )
+        points.append({
+            "horizonObservations": horizon,
+            "stockStartDate": stock_base["date"].isoformat() if stock_base else None,
+            "stockEndDate": stock_end["date"].isoformat() if stock_end else None,
+            "stockReturnPct": round(stock_return, 4) if stock_return is not None else None,
+            "benchmarkStartDate": benchmark_base["date"].isoformat() if benchmark_base else None,
+            "benchmarkEndDate": benchmark_end["date"].isoformat() if benchmark_end else None,
+            "benchmarkReturnPct": round(benchmark_return, 4) if benchmark_return is not None else None,
+            "excessReturnPct": round(stock_return - benchmark_return, 4)
+            if stock_return is not None and benchmark_return is not None else None,
+        })
+
+    return {
+        "ticker": normalized_ticker,
+        "benchmarkTicker": benchmark_ticker,
+        "eventDate": event_date.isoformat(),
+        "sourceAsOf": stock[-1]["date"].isoformat(),
+        "points": points,
+        "source": "prices_daily.csv · adj_close",
+        "method": "Pour chaque horizon, rendement ajusté du titre entre la première clôture à la date indiquée ou après et la clôture après N observations. Le benchmark de même devise est mesuré entre sa première clôture à cette date ou après et la première clôture à la date de fin du titre ou après; l’excédent est la différence en points de pourcentage.",
+        "limitations": [
+            "Une fenêtre descriptive autour d’une date ne démontre ni causalité, ni exposition de l’émetteur, ni réaction à l’événement.",
+            "Les rendements peuvent intégrer d’autres nouvelles; les jours fériés et calendriers boursiers peuvent décaler les dates du benchmark.",
+            "Le benchmark est un indice proxy à devise identique (SPY en USD, XIU.TO en CAD) et non un portefeuille apparié au titre.",
+            "Le jeu historique de démonstration s’arrête au dernier cours empaqueté; les horizons incomplets restent indisponibles.",
+        ],
+    }
+
+
 def _quantile(values: list[float], fraction: float) -> float:
     ordered = sorted(values)
     position = (len(ordered) - 1) * fraction

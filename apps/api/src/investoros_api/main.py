@@ -13,10 +13,20 @@ from investoros_api.profiles.portfolio import analyze_configured_scenario
 from investoros_api.profiles.router import router as profiles_router
 from investoros_api.simulation import router as simulation_router
 
+def _cors_allowed_origins() -> list[str]:
+    configured = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    origins = [origin.strip().rstrip("/") for origin in configured.split(",") if origin.strip()]
+    if not origins:
+        origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    if "*" in origins:
+        raise RuntimeError("CORS_ALLOWED_ORIGINS must list explicit origins")
+    return list(dict.fromkeys(origins))
+
+
 app = FastAPI(title="InvestorOS API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_allowed_origins(),
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["accept", "authorization", "content-type"],
 )
@@ -144,6 +154,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     narrows access to app administrators. Local FastAPI development bypasses
     the wrapper because REQUIRE_ADMIN_AUTH is unset.
     """
+    if event.get('source') == 'investoros.research-iam' and 'requestContext' not in event:
+        from investoros_api.research.iam_handler import handle
+        return handle(event, context)
     if os.getenv("REQUIRE_ADMIN_AUTH", "false").lower() == "true":
         request_context = event.get("requestContext", {})
         route_key = request_context.get("routeKey", "")

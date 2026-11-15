@@ -21,9 +21,17 @@ class SimulationHistoryTests(unittest.TestCase):
         self.directory = self.temp.name
         self.write_csv("assets_universe.csv", [
             {"asset_id": "A1", "ticker": "ABC", "name": "Example Corp", "asset_class": "equity", "market": "NYSE", "currency": "USD", "sector": "Technology"},
+            {"asset_id": "A2", "ticker": "BTC-USD", "name": "Bitcoin", "asset_class": "crypto", "market": "Crypto", "currency": "USD", "sector": "Digital assets"},
+            {"asset_id": "A3", "ticker": "XIU.TO", "name": "Canada index ETF", "asset_class": "etf_equity", "market": "TSX", "currency": "CAD", "sector": "Broad market"},
         ])
         self.write_csv("prices_daily.csv", [
             {"date": f"2025-01-0{day}", "ticker": "ABC", "adj_close": str(price), "volume": "100", "currency": "USD"}
+            for day, price in enumerate((100, 110, 99, 121), 1)
+        ] + [
+            {"date": f"2025-01-0{day}", "ticker": "SPY", "adj_close": str(price), "volume": "100", "currency": "USD"}
+            for day, price in enumerate((200, 220, 220, 242), 1)
+        ] + [
+            {"date": f"2025-01-0{day}", "ticker": "BTC-USD", "adj_close": str(price), "volume": "100", "currency": "USD"}
             for day, price in enumerate((100, 110, 99, 121), 1)
         ])
         self.write_csv("corporate_actions.csv", [
@@ -75,6 +83,25 @@ class SimulationHistoryTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as raised:
             simulation.history("unknown")
         self.assertEqual(raised.exception.status_code, 404)
+
+    def test_event_study_compares_stock_and_same_currency_benchmark_without_claiming_causality(self):
+        result = simulation.event_study("abc", event_date=date(2025, 1, 2))
+
+        self.assertEqual(result["benchmarkTicker"], "SPY")
+        self.assertEqual(result["points"][0]["stockStartDate"], "2025-01-02")
+        self.assertEqual(result["points"][0]["stockEndDate"], "2025-01-03")
+        self.assertEqual(result["points"][0]["stockReturnPct"], -10.0)
+        self.assertEqual(result["points"][0]["benchmarkReturnPct"], 0.0)
+        self.assertEqual(result["points"][0]["excessReturnPct"], -10.0)
+        self.assertIsNone(result["points"][1]["stockReturnPct"])
+        self.assertIn("ne démontre ni causalité", result["limitations"][0])
+
+    def test_event_study_does_not_assign_an_equity_benchmark_to_crypto(self):
+        result = simulation.event_study("BTC-USD", event_date=date(2025, 1, 2))
+
+        self.assertIsNone(result["benchmarkTicker"])
+        self.assertEqual(result["points"][0]["stockReturnPct"], -10.0)
+        self.assertIsNone(result["points"][0]["benchmarkReturnPct"])
 
     def test_invalid_date_order_is_rejected(self):
         from datetime import date
