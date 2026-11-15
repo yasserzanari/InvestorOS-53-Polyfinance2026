@@ -179,6 +179,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
       >
         {workspace.messages.length===0?<div className={`pw-empty${assistantMode?' pw-assistant-landing':''}`}>
           {assistantMode?<>
+            <div className="pw-voice-orb pw-landing-orb" aria-hidden="true"><span/><span/><span/></div>
             <div className="pw-landing-heading"><h2>Par où commencer&nbsp;?</h2><p>Posez une question sur un profil, un portefeuille ou une analyse.</p></div>
             <div className="pw-landing-composer">{promptComposer}</div>
             <div className="pw-landing-ideas" aria-label="Idées pour commencer">{demoPrompts(activeAccount.id).map(t=><button type="button" key={t} disabled={busy||!memory.ready} onClick={()=>submit(t)}><span>{t}</span><Plus size={15}/></button>)}</div>
