@@ -65,6 +65,7 @@ resource "aws_iam_role_policy" "portfolio_monitor" {
       { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem"], Resource = aws_dynamodb_table.portfolio_monitor.arn },
       { Effect = "Allow", Action = ["dynamodb:GetItem"], Resource = local.portfolio_table_arn },
       { Effect = "Allow", Action = ["bedrock:InvokeModel"], Resource = [local.profile_arn, local.model_arn] },
+      { Effect = "Allow", Action = ["logs:CreateLogGroup"], Resource = aws_cloudwatch_log_group.portfolio_monitor.arn },
       { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = "${aws_cloudwatch_log_group.portfolio_monitor.arn}:*" }
     ]
   })
