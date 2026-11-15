@@ -6,8 +6,10 @@ InvestorOS est le projet du Datathon Polyfinance 2026 : une expérience d’aide
 
 ```bash
 npm ci
-npm run dev
+npm run dev:local
 ```
+
+Cette commande démarre le frontend et l’API locale. L’interface reste sans login; les intégrations AWS locales utilisent le profil IAM/SSO du serveur, jamais des credentials dans le navigateur. Pour les étapes de configuration et le chemin de lecture des analyses, événements et preuves AWS, voir [le guide de développement local](apps/web/README-local-development.md). `npm run dev` seul lance Vite sans l’API. `npm run dev:aws` teste les routes HTTP AWS avec Cognito.
 
 Le frontend Vite/React est dans `apps/web`. L’API Python est dans `apps/api`. Terraform et les workflows AWS se trouvent dans `infrastructure/terraform` et `services/workflows`.
 

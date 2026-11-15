@@ -1,53 +1,71 @@
-# Développement local avec API AWS
+# Développement local et accès AWS
 
-## État actuel
+## Démarrage habituel
 
-Le frontend peut tourner localement avec `npm run dev`. Le mode `npm run dev:aws` proxifie `/api/*` vers un endpoint API Gateway configuré dans `.env.aws`.
-
-Le code Terraform décrit maintenant API Gateway HTTP API, Lambda FastAPI/Mangum et des tables DynamoDB de démonstration en `us-east-1`. Ces ressources sont **préparées mais non déployées**. `dev:aws` devient réellement utilisable après leur création et la configuration de l’URL de base API. Il échoue volontairement au démarrage si `VITE_API_TARGET` manque.
-
-## Première configuration
-
-Depuis la racine du monorepo :
+Depuis la racine du dépôt :
 
 ```sh
-cp apps/web/.env.aws.example apps/web/.env.aws
-```
-
-Remplacer `VITE_API_TARGET` par l’URL de base API Gateway fournie par Terraform. `.env.aws` est ignoré par Git. Ne pas mettre de credentials, API keys ou secrets dans ce fichier; les valeurs `VITE_*` sont visibles dans le navigateur.
-
-## Démarrer
-
-```sh
+npm ci
 npm run dev
 ```
 
-Lance seulement Vite en mode local.
+Cela démarre seulement Vite. Les vues UI et les fixtures locales fonctionnent sans Cognito. Pour le chat, la recherche AWS, les événements et les preuves, démarrez aussi l’API locale :
+
+```sh
+npm run dev:local
+```
+
+Cette commande lance FastAPI sur `127.0.0.1:8010` (ou le premier port libre jusqu’à `8020`) puis Vite sur `http://localhost:5173`. L’adresse réelle de l’API est affichée au démarrage. Vite relaie `/profile-api/*` vers FastAPI; le navigateur ne reçoit jamais de credentials AWS. Arrêter Vite arrête aussi l’API.
+
+## Accès IAM local au moteur de recherche
+
+Le navigateur AWS réserve les routes HTTP à une session Cognito administrateur. En développement, FastAPI peut utiliser l’entrée Lambda IAM `investoros.research-iam`, limitée aux routes de lecture, lancement et annulation d’analyses. L’interface locale appelle uniquement FastAPI; celui-ci utilise la chaîne d’identifiants AWS standard avec `lambda:InvokeFunction`.
+
+Créer le fichier local ignoré `apps/api/.env.profile-api` :
+
+```dotenv
+AWS_PROFILE=mon-profil-sso
+AWS_REGION=us-east-1
+RESEARCH_LAMBDA_FUNCTION=investoros-dev-api
+```
+
+Adapter le nom du profil et celui de la Lambda à l’environnement fourni par l’équipe AWS. Puis ouvrir une session SSO avant le démarrage :
+
+```sh
+aws sso login --profile mon-profil-sso
+npm run dev:local
+```
+
+Le rôle AWS local doit pouvoir invoquer **uniquement** la Lambda de recherche prévue pour InvestorOS. Le handler IAM refuse les chemins, méthodes et formats d’événements hors contrat. Ne placez jamais des clés AWS, jetons Cognito ou secrets dans `apps/web/.env*`, dans une variable `VITE_*` ou dans Git. `AWS_PROFILE` et la fonction Lambda ne sont pas des secrets; les credentials restent dans la configuration SSO locale.
+
+Dans **Analyses**, le mode Vite local charge l’historique durable via `GET /v1/profiles/research/analyses`. Ouvrir une entrée passe son identifiant à Assistant, qui charge le résultat, les événements et les preuves avec `GET /v1/profiles/research/{analysis_id}`. Aucun résultat fictif de remplacement n’est ajouté en cas d’échec.
+
+Sans configuration IAM, les autres éléments du frontend restent utilisables; le panneau Analyses affiche une erreur explicite et aucune connexion AWS n’est prétendue. Vérifications utiles :
+
+```sh
+curl http://127.0.0.1:8010/health
+aws sts get-caller-identity --profile mon-profil-sso
+```
+
+Un `502` dans Analyses signifie généralement que l’entrée IAM n’est pas configurée ou que Lambda a refusé l’invocation. Vérifier le profil, la région, le nom de la fonction et l’action IAM, sans élargir les permissions HTTP de production.
+
+## Développement contre l’API AWS HTTP
+
+Pour tester le parcours de l’application déployée depuis le navigateur local, copier `apps/web/.env.aws.example` vers `apps/web/.env.aws`, puis renseigner l’URL API et les paramètres Cognito publics fournis par Terraform. Ensuite :
 
 ```sh
 npm run dev:aws
 ```
 
-Lance Vite en mode `aws` et configure le proxy local :
+Vite relaie `/api/*` vers API Gateway. Cette voie garde les autorisations JWT et nécessite une session administrateur Cognito. Les valeurs `VITE_*` sont visibles par le navigateur; elles ne doivent contenir aucun secret. Le profil IAM utilisé par le serveur local n’est pas transmis à cette voie.
+
+## Architecture des deux voies
 
 ```text
-Navigateur → http://localhost:5173/api/... → proxy Vite → API Gateway AWS
+Mode local : navigateur → proxy Vite /profile-api → FastAPI local
+             FastAPI → AWS Lambda Invoke (IAM restreint) → analyses / événements / preuves
+
+Mode AWS :   navigateur → CloudFront → API Gateway (JWT Cognito) → Lambda
 ```
 
-Le frontend appelle les routes disponibles via un chemin relatif. Pour cette tranche, le client demande `GET /api/v1/demo/overview`; Vite retire `/api` et relaie vers `GET /v1/demo/overview`. Ce endpoint ne lit qu’une fixture fictive fixée dans la Lambda. Les autres modules métier ne doivent pas être présentés comme connectés à AWS tant qu’ils n’ont pas leur propre contrat/API.
-
-## Ressources AWS et responsabilités
-
-- Les assets de l’interface restent servis par Vite localement; chaque modification UI apparaît immédiatement.
-- Les requêtes métier passent vers l’API AWS configurée.
-- Les permissions et secrets restent côté serveur/API; aucun credential AWS dans le navigateur ou le dépôt.
-- Le bucket et CloudFront ne servent pas l’API et ne doivent pas être traités comme un backend.
-- L’interface affiche l’état de connexion API et identifie la réponse comme une source DynamoDB fictive. Les métriques et modules qui ne lisent pas ce contrat restent en mode démonstration.
-- Cette API publique ne possède pas encore d’authentification utilisateur. N’y placer aucune donnée financière réelle.
-
-## Workflow conseillé
-
-1. Développer et ajuster l’interface avec `npm run dev`.
-2. Pour le parcours API, une fois les ressources appliquées avec un plan approuvé, basculer sur `npm run dev:aws` et vérifier que `/api/v1/demo/overview` identifie clairement sa fixture comme fictive.
-3. Afficher les erreurs réseau, permissions et quotas telles quelles dans les modules.
-4. Publier via CI après validation et revue des changements Terraform.
+Le mode local utilise les comptes et portefeuilles fictifs du dépôt. N’y branchez pas de données financières réelles. Consultez `apps/api/README.md` et `apps/api/src/investoros_api/profiles/README.md` pour le contrat du chat et du backend.

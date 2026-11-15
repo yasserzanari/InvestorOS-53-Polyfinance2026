@@ -143,3 +143,10 @@ def research_snapshot(analysis_id: str, persona: str) -> dict:
         cursor = page.get('next_after')
     evidence = _call('GET', '/analyses/' + identifier + '/evidence', persona) if result.get('result') else {}
     return {**result, 'events': items, 'events_truncated': bool(cursor), 'evidence': evidence.get('evidence', [])}
+
+
+def research_history(persona: str, limit: int = 30) -> dict:
+    """List existing research runs through the configured IAM or HTTPS bridge."""
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 60:
+        raise ValueError('La limite d’historique doit être comprise entre 1 et 60.')
+    return _call('GET', '/analyses?' + urlencode({'limit': limit}), persona)

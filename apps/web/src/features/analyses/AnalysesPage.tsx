@@ -2,10 +2,23 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, BookOpenCheck, ChartNoAxesCombined, CircleHelp, FileSearch, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useDemoAccount } from '../../shared/DemoAccountContext';
-import { loadDemoOverview, type DemoApiConnection, type DemoOverview } from '../../shared/api';
+import { loadDemoOverview, loadResearchHistory, type DemoApiConnection, type DemoOverview, type ResearchHistoryItem } from '../../shared/api';
 import './analyses.css';
 
 type LoadState = { kind: 'loading' } | { kind: 'ready'; result: DemoApiConnection };
+
+function LocalResearchHistory({ analyses, persona, error }: { analyses: ResearchHistoryItem[] | null; persona: ResearchHistoryItem['persona']; error?: string }) {
+  if (error) return <div className="analyses-empty is-unavailable" role="alert"><span><CircleHelp size={19}/></span><h2>Recherche locale indisponible</h2><p>{error} Démarrez le serveur local avec <code>npm run dev:local</code> et configurez son profil AWS IAM si vous voulez lire les analyses AWS.</p></div>;
+  if (analyses === null) return <p className="analyses-loading" role="status">Lecture des recherches enregistrées…</p>;
+  return <>
+    <div className="analyses-source-status is-connected" role="status"><span className="analyses-source-icon"><BookOpenCheck size={16}/></span><div><strong>Historique du moteur de recherche</strong><p>Lecture par le serveur local via l’entrée IAM limitée aux analyses · {analyses.length} résultat{analyses.length === 1 ? '' : 's'} · compte fictif {persona}</p></div><span className="analyses-status-badge">AWS IAM</span></div>
+    {analyses.length ? <div className="analyses-record-list">{analyses.map((item,index)=>{
+      const status = ({queued:'En attente',running:'En cours',complete:'Terminée',completed:'Terminée',partial:'Partielle',failed:'Échec',cancelled:'Annulée'} as Record<string,string>)[item.status.toLowerCase()] ?? item.status;
+      const date = item.created_at && !Number.isNaN(Date.parse(item.created_at)) ? new Intl.DateTimeFormat('fr-CA',{dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created_at)) : item.created_at;
+      return <article className="analyses-record" key={item.analysis_id}><div className="analyses-record-icon"><ChartNoAxesCombined size={16}/></div><div className="analyses-record-content"><div className="analyses-record-meta"><span>{status}</span>{date&&<time>{date}</time>}</div><h2>{item.question}</h2>{item.error&&<p>{item.error}</p>}<Link to={`/app/assistant?analysis_id=${encodeURIComponent(item.analysis_id)}`} className="analyses-assistant-link">Ouvrir le suivi, les événements et les preuves <ArrowRight size={14}/></Link></div></article>;
+    })}</div> : <div className="analyses-empty"><span><CircleHelp size={19}/></span><h2>Aucune recherche enregistrée</h2><p>Les recherches réellement lancées depuis l’Assistant apparaîtront ici.</p><Link to="/app/assistant">Ouvrir l’Assistant <ArrowRight size={14}/></Link></div>}
+  </>;
+}
 
 function firstText(record: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
@@ -85,9 +98,19 @@ function ConnectionState({ result, persona }: { result: DemoApiConnection; perso
 export function AnalysesPage() {
   const { activeAccount } = useDemoAccount();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
+  const [research, setResearch] = useState<{analyses:ResearchHistoryItem[]|null;error?:string}>({analyses:null});
 
   useEffect(() => {
     const controller = new AbortController();
+    if (import.meta.env.DEV) {
+      setResearch({analyses:null});
+      loadResearchHistory(activeAccount.id, controller.signal).then(analyses=>{
+        if(!controller.signal.aborted)setResearch({analyses});
+      }).catch(error=>{
+        if(!controller.signal.aborted)setResearch({analyses:null,error:error instanceof Error?error.message:'Connexion au serveur local impossible.'});
+      });
+      return () => controller.abort();
+    }
     setState({ kind: 'loading' });
     loadDemoOverview(activeAccount.id, controller.signal).then((result) => {
       if (!controller.signal.aborted) setState({ kind: 'ready', result });
@@ -107,7 +130,7 @@ export function AnalysesPage() {
         </div>
         <Link to="/app/assistant" className="analyses-assistant-link">Ouvrir l’Assistant <ArrowRight size={14} /></Link>
       </header>
-      {state.kind === 'loading' ? <p className="analyses-loading" role="status">Lecture des analyses du compte…</p> : <ConnectionState result={state.result} persona={activeAccount.id} />}
+      {import.meta.env.DEV ? <LocalResearchHistory analyses={research.analyses} persona={activeAccount.id} error={research.error}/> : state.kind === 'loading' ? <p className="analyses-loading" role="status">Lecture des analyses du compte…</p> : <ConnectionState result={state.result} persona={activeAccount.id} />}
     </section>
   );
 }

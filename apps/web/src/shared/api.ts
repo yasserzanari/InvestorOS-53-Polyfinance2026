@@ -30,6 +30,36 @@ export type DemoApiConnection =
   | { status: 'rate_limited' }
   | { status: 'unavailable' };
 
+export type ResearchHistoryItem = {
+  analysis_id: string;
+  persona: 'amira' | 'mateo' | 'robert';
+  question: string;
+  status: string;
+  created_at?: string;
+  completed_at?: string;
+  error?: string;
+};
+
+export async function loadResearchHistory(persona: ResearchHistoryItem['persona'], signal?: AbortSignal): Promise<ResearchHistoryItem[]> {
+  const base = getApiBase() ?? (import.meta.env.DEV ? '/profile-api' : null);
+  if (!base) throw new Error('La connexion au moteur de recherche n’est pas configurée.');
+  const response = await authenticatedFetch(`${base}/v1/profiles/research/analyses?accountId=${encodeURIComponent(persona)}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+  if (!response.ok) {
+    let message = 'L’historique de recherche est indisponible.';
+    try {
+      const body = await response.json() as { detail?: string };
+      if (typeof body.detail === 'string') message = body.detail;
+    } catch { /* Keep the stable local error. */ }
+    throw new Error(message);
+  }
+  const payload = await response.json() as { analyses?: ResearchHistoryItem[] };
+  if (!Array.isArray(payload.analyses)) throw new Error('Le moteur a renvoyé un historique invalide.');
+  return payload.analyses;
+}
+
 export type PortfolioScenarioShock = { positionId: string; shockPct: number };
 export type PortfolioScenarioImpact = {
   name: string;
