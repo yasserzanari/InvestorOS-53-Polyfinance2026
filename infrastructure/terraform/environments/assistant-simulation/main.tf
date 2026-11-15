@@ -107,6 +107,12 @@ resource "aws_iam_role_policy" "api" {
         Effect   = "Allow"
         Action   = ["transcribe:StartStreamTranscriptionWebSocket"]
         Resource = "*"
+      },
+      {
+        Sid      = "ManageFinanceFrenchVocabulary"
+        Effect   = "Allow"
+        Action   = ["transcribe:GetVocabulary", "transcribe:UpdateVocabulary"]
+        Resource = "arn:${data.aws_partition.current.partition}:transcribe:${var.aws_region}:${data.aws_caller_identity.current.account_id}:vocabulary/${local.name_prefix}-finance-fr-ca"
       }
     ]
   })
@@ -118,9 +124,21 @@ resource "aws_transcribe_vocabulary" "finance_fr_ca" {
   phrases = [
     "NVIDIA", "NVDA", "TSMC", "ASML", "Micron", "Broadcom", "AMD", "Intel",
     "Samsung", "Hynix", "Nasdaq", "ETF", "FNB", "PER", "dividende",
-    "capitalisation", "rendement", "volatilite", "portefeuille", "semiconducteurs"
+    "capitalisation", "rendement", "volatilite", "portefeuille", "semiconducteurs",
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "AVGO", "MU", "QCOM",
+    "actions", "obligations", "options", "indice", "bourse", "cotation", "liquidite",
+    "croissance", "allocation", "diversification", "risque", "spread", "volume",
+    "cours", "plus-value", "moins-value", "benefice", "revenus", "marge", "EBITDA",
+    "consensus", "guidance", "analyste", "surperformance", "sousperformance", "coupon",
+    "duration", "taux", "inflation", "recession", "BPA", "PBR", "ROE", "ROIC",
+    "capital", "rendements", "volatilites", "materiaux", "semi-conducteurs"
   ]
   tags = local.common_tags
+
+  # The Admin console is the runtime editor for phrases; Terraform owns the resource and language.
+  lifecycle {
+    ignore_changes = [phrases]
+  }
 }
 
 import {

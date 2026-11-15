@@ -1,4 +1,4 @@
-"""Read-only, admin-token protected platform telemetry and architecture inventory."""
+"""Admin-token protected telemetry, architecture inventory, and voice vocabulary management."""
 
 from __future__ import annotations
 
@@ -14,11 +14,46 @@ from typing import Any
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 from investoros_api.admin_terraform import terraform_architecture
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 _token_cache: tuple[str, float] | None = None
+
+RECOMMENDED_FINANCE_VOCABULARY = [
+    "NVIDIA", "NVDA", "TSMC", "ASML", "Micron", "Broadcom", "AMD", "Intel",
+    "Samsung", "Hynix", "Nasdaq", "ETF", "FNB", "PER", "dividende",
+    "capitalisation", "rendement", "volatilite", "portefeuille", "semiconducteurs",
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "AVGO", "MU", "QCOM",
+    "actions", "obligations", "options", "indice", "bourse", "cotation", "liquidite",
+    "croissance", "allocation", "diversification", "risque", "spread", "volume",
+    "cours", "plus-value", "moins-value", "benefice", "revenus", "marge", "EBITDA",
+    "consensus", "guidance", "analyste", "surperformance", "sousperformance", "coupon",
+    "duration", "taux", "inflation", "recession", "BPA", "PBR", "ROE", "ROIC",
+    "capital", "rendements", "volatilites", "materiaux", "semi-conducteurs",
+]
+
+
+class VocabularyUpdate(BaseModel):
+    phrases: list[str] = Field(min_length=1, max_length=256)
+
+    @field_validator("phrases")
+    @classmethod
+    def normalize_phrases(cls, phrases: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for phrase in phrases:
+            value = phrase.strip()
+            if not value or len(value) > 256 or any(ord(char) < 32 for char in value):
+                raise ValueError("Chaque terme doit contenir entre 1 et 256 caractères valides.")
+            key = value.casefold()
+            if key not in seen:
+                seen.add(key)
+                normalized.append(value)
+        if not normalized:
+            raise ValueError("Ajoute au moins un terme au vocabulaire.")
+        return normalized
 
 
 def _region() -> str:
@@ -551,4 +586,65 @@ def admin_security(_: None = __import__("fastapi").Depends(require_admin)) -> di
         ],
         "errors": errors,
     }
+
+
+def _vocabulary_name() -> str:
+    name = os.getenv("VOICE_TRANSCRIBE_VOCABULARY_NAME", "").strip()
+    if not name:
+        raise HTTPException(status_code=503, detail="Le vocabulaire vocal AWS n’est pas configuré sur ce serveur.")
+    return name
+
+
+def _vocabulary_payload(response: dict[str, Any], phrases: list[str] | None = None) -> dict[str, Any]:
+    modified = response.get("LastModifiedTime")
+    return {
+        "name": response.get("VocabularyName", _vocabulary_name()),
+        "languageCode": response.get("LanguageCode", "fr-CA"),
+        "state": response.get("VocabularyState", "UNKNOWN"),
+        "phrases": phrases if phrases is not None else response.get("Phrases", []),
+        "recommendedPhrases": RECOMMENDED_FINANCE_VOCABULARY,
+        "lastModifiedAt": modified.isoformat() if modified else None,
+        "failureReason": response.get("FailureReason"),
+    }
+
+
+@router.get("/voice-vocabulary")
+def admin_voice_vocabulary(_: None = __import__("fastapi").Depends(require_admin)) -> dict[str, Any]:
+    try:
+        response = _client("transcribe").get_vocabulary(VocabularyName=_vocabulary_name())
+    except ClientError as error:
+        code = str(error.response.get("Error", {}).get("Code", "AWSUnavailable"))
+        status = 403 if code in {"AccessDeniedException", "AccessDenied"} else 502
+        raise HTTPException(status_code=status, detail=f"Lecture du vocabulaire AWS impossible ({code}).") from error
+    except BotoCoreError as error:
+        raise HTTPException(status_code=502, detail="Connexion à Amazon Transcribe impossible.") from error
+    return _vocabulary_payload(response)
+
+
+@router.put("/voice-vocabulary")
+def update_admin_voice_vocabulary(
+    request: VocabularyUpdate,
+    _: None = __import__("fastapi").Depends(require_admin),
+) -> dict[str, Any]:
+    name = _vocabulary_name()
+    client = _client("transcribe")
+    try:
+        current = client.get_vocabulary(VocabularyName=name)
+        if current.get("VocabularyState") not in {"READY", "FAILED"}:
+            raise HTTPException(status_code=409, detail="AWS traite déjà ce vocabulaire. Réessaie quand son état sera READY ou FAILED.")
+        response = client.update_vocabulary(
+            VocabularyName=name,
+            LanguageCode="fr-CA",
+            Phrases=request.phrases,
+        )
+    except HTTPException:
+        raise
+    except ClientError as error:
+        code = str(error.response.get("Error", {}).get("Code", "AWSUnavailable"))
+        status = 403 if code in {"AccessDeniedException", "AccessDenied"} else 422 if code == "BadRequestException" else 502
+        detail = "AWS a rejeté un ou plusieurs termes. Vérifie leur orthographe et les caractères autorisés." if status == 422 else f"Mise à jour du vocabulaire AWS impossible ({code})."
+        raise HTTPException(status_code=status, detail=detail) from error
+    except BotoCoreError as error:
+        raise HTTPException(status_code=502, detail="Connexion à Amazon Transcribe impossible.") from error
+    return _vocabulary_payload(response, request.phrases)
 

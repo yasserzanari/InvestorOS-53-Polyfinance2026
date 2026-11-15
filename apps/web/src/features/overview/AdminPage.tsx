@@ -1,6 +1,7 @@
 import { authenticatedFetch } from '../../shared/auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertTriangle, ArrowUpRight, Boxes, Check, ChevronRight, CircleHelp, Cloud, DollarSign, ExternalLink, Gauge, KeyRound, LockKeyhole, LogOut, Maximize, Minus, Plus, RefreshCw, Search, ShieldCheck, Workflow, X } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowUpRight, BookOpen, Boxes, Check, ChevronRight, CircleHelp, Cloud, DollarSign, ExternalLink, Gauge, KeyRound, LockKeyhole, LogOut, Maximize, Minus, Plus, RefreshCw, Search, ShieldCheck, Workflow, X } from 'lucide-react';
+import { VoiceVocabularyPanel, type VoiceVocabulary } from './VoiceVocabularyPanel';
 import './admin.css';
 
 type Metric = { points?: Array<{ at: string; value: number }>; total: number | null; latest: number | null; peak: number | null; available: boolean };
@@ -13,10 +14,10 @@ type ActivityData = { runs: Array<{ id: string; name: string; workflow: string; 
 type Costs = { available: boolean; total?: number; currency?: string; attribution?: string; services?: Array<{ name: string; amount: number; unit: string }>; daily?: Array<{ start: string; amount: number }> ; message?: string };
 type Quotas = { available: boolean; region?: string; quotas: Array<{ name: string; value: number; unit?: string; adjustable: boolean }> };
 type Security = { adminConsole: { tokenConfigured: boolean; tokenValuesExposed: boolean; browserStorage: string; apiGate: string }; apis: Array<{ name: string; endpoint: string; gatewayAuthentication: { protected: boolean; unprotectedRoutes: number; totalRoutes: number }; corsOrigins: string[] }>; notes: string[] };
-type Tab = 'Vue d’ensemble' | 'Architecture' | 'Activité' | 'Services' | 'Coûts & quotas' | 'Sécurité';
+type Tab = 'Vue d’ensemble' | 'Architecture' | 'Activité' | 'Services' | 'Coûts & quotas' | 'Sécurité' | 'Vocabulaire vocal';
 const tabs: Array<{ name: Tab; icon: typeof Activity }> = [
   { name: 'Vue d’ensemble', icon: Gauge }, { name: 'Architecture', icon: Workflow }, { name: 'Activité', icon: Activity },
-  { name: 'Services', icon: Boxes }, { name: 'Coûts & quotas', icon: DollarSign }, { name: 'Sécurité', icon: ShieldCheck },
+  { name: 'Services', icon: Boxes }, { name: 'Coûts & quotas', icon: DollarSign }, { name: 'Sécurité', icon: ShieldCheck }, { name: 'Vocabulaire vocal', icon: BookOpen },
 ];
 const awsIcons: Record<string, string> = { 'api-gateway': 'Arch_Amazon-API-Gateway_48.svg', lambda: 'Arch_AWS-Lambda_48.svg', dynamodb: 'Arch_Amazon-DynamoDB_48.svg', s3: 'Arch_Amazon-Simple-Storage-Service_48.svg', 'step-functions': 'Arch_AWS-Step-Functions_48.svg', cloudwatch: 'Arch_Amazon-CloudWatch_48.svg', bedrock: 'Arch_Amazon-Bedrock_48.svg', cloudfront: 'Arch_Amazon-CloudFront_48.svg', 'secrets-manager': 'Arch_AWS-Secrets-Manager_48.svg', ecs: 'Arch_Amazon-Elastic-Container-Service_48.svg', elb: 'Arch_Elastic-Load-Balancing_48.svg' };
 const base = import.meta.env.DEV && import.meta.env.VITE_API_TARGET
@@ -37,6 +38,7 @@ export function AdminPage() {
   const [costs, setCosts] = useState<Costs | null>(null);
   const [quotas, setQuotas] = useState<Quotas | null>(null);
   const [security, setSecurity] = useState<Security | null>(null);
+  const [vocabulary, setVocabulary] = useState<VoiceVocabulary | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -62,17 +64,30 @@ export function AdminPage() {
   useEffect(() => { if (!connected) return; const controller = new AbortController(); void refresh(controller.signal); const timer = window.setInterval(() => void refresh(), 30_000); return () => { controller.abort(); window.clearInterval(timer); }; }, [connected, refresh]);
   useEffect(() => { document.title = `${tab} · Admin · InvestorOS`; }, [tab]);
   useEffect(() => {
-    if (!connected || (tab !== 'Activité' && tab !== 'Coûts & quotas' && tab !== 'Sécurité')) return;
+    if (!connected || (tab !== 'Activité' && tab !== 'Coûts & quotas' && tab !== 'Sécurité' && tab !== 'Vocabulaire vocal')) return;
     const controller = new AbortController();
     if (tab === 'Activité') void request<ActivityData>('activity', controller.signal).then(setActivity).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); });
     if (tab === 'Coûts & quotas') { void request<Costs>('costs', controller.signal).then(setCosts).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); }); void request<Quotas>('quotas', controller.signal).then(setQuotas).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); }); }
     if (tab === 'Sécurité') void request<Security>('security', controller.signal).then(setSecurity).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); });
+    if (tab === 'Vocabulaire vocal') {
+      const loadVocabulary = () => void request<VoiceVocabulary>('voice-vocabulary', controller.signal).then(setVocabulary).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); });
+      loadVocabulary();
+      const timer = vocabulary?.state === 'PENDING' ? window.setInterval(loadVocabulary, 2500) : undefined;
+      return () => { controller.abort(); if (timer) window.clearInterval(timer); };
+    }
     return () => controller.abort();
-  }, [connected, request, tab]);
+  }, [connected, request, tab, vocabulary?.state]);
 
   const connect = async (event: React.FormEvent) => { event.preventDefault(); if (!draft.trim()) return; setToken(draft.trim()); setConnected(true); setError(''); setSummary(null); };
   const logout = () => { setConnected(false); setToken(''); setDraft(''); setSummary(null); setActivity(null); setCosts(null); setQuotas(null); setSecurity(null); setError(''); };
   const moveTab = (event: React.KeyboardEvent, index: number) => { if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return; event.preventDefault(); const next = (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; setTab(tabs[next].name); tabRefs.current[next]?.focus(); };
+  const saveVocabulary = async (phrases: string[]) => {
+    const response = await authenticatedFetch(`${base}/v1/admin/voice-vocabulary`, { method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-admin-token': token }, body: JSON.stringify({ phrases }) });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 401) { setConnected(false); setToken(''); throw new Error('Jeton Admin invalide. Saisis-le de nouveau.'); }
+    if (!response.ok) throw new Error(payload.detail || 'La mise à jour du vocabulaire AWS a échoué.');
+    setVocabulary(payload as VoiceVocabulary);
+  };
 
   if (!connected) return <main className="admin-gate"><div className="admin-gate-card"><span className="admin-gate-icon"><LockKeyhole size={22} /></span><div className="admin-eyebrow">CONSOLE PRIVÉE</div><h1>Administration InvestorOS</h1><p>Connecte-toi avec le jeton Admin configuré côté serveur pour consulter les ressources et les métriques AWS.</p><form onSubmit={connect}><label htmlFor="admin-token">Jeton d’administration</label><input id="admin-token" type="password" autoComplete="off" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Saisir le jeton Admin" required /><button type="submit"><KeyRound size={16} /> Ouvrir la console</button></form>{error && <div className="admin-inline-error" role="alert">{error}</div>}<small>Le jeton reste en mémoire dans cette page et est vérifié par l’API.</small></div></main>;
 
@@ -87,6 +102,7 @@ export function AdminPage() {
       {tab === 'Services' && <Services services={summary?.services ?? []} />}
       {tab === 'Coûts & quotas' && <CostsPanel costs={costs} quotas={quotas} />}
       {tab === 'Sécurité' && <SecurityPanel data={security} />}
+      {tab === 'Vocabulaire vocal' && <VoiceVocabularyPanel vocabulary={vocabulary} onSave={saveVocabulary} onError={setError} />}
     </section>
   </div>;
 }
