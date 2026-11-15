@@ -25,8 +25,11 @@ export function useProfileMemory(accountId:string, state:State, restore:(profile
       const data=await response.json();if(controller.signal.aborted||owner.current!==account)return;
       revision.current=data.revision;
       sharedWorkspace.current={tabs:data.tabs??[],sources:data.sources??[]};
-      const next={profile:data.profile??latest.current.profile,tabs:conversationScoped?latest.current.tabs:(data.profile?(data.tabs??[]):latest.current.tabs),sources:conversationScoped?latest.current.sources:(data.profile?(data.sources??[]):latest.current.sources)};
-      lastSaved.current=data.profile?serializedMemory(next,conversationScoped):'';
+      const restoredProfile=data.profile?{...latest.current.profile,...data.profile,origins:{...latest.current.profile.origins,...(data.profile.origins??{})},situation:data.profile.situation??latest.current.profile.situation}:latest.current.profile;
+      const next={profile:restoredProfile,tabs:conversationScoped?latest.current.tabs:(data.profile?(data.tabs??[]):latest.current.tabs),sources:conversationScoped?latest.current.sources:(data.profile?(data.sources??[]):latest.current.sources)};
+      // Keep the server's actual payload as the baseline. New demo-only sections are then
+      // written once through the regular revision-checked memory endpoint.
+      lastSaved.current=data.profile?serializedMemory({...next,profile:data.profile},conversationScoped):'';
       if(data.profile)restoreRef.current(next.profile,next.tabs,next.sources);
       setStatus(data.profile?'Mémoire restaurée':'Mémoire prête');setReady(account);
     }).catch(error=>{if(!controller.signal.aborted){setStatus(error.message+' · copie locale conservée');setReady('');}});

@@ -30,7 +30,7 @@ class MemoryWrite(BaseModel):
 
     @model_validator(mode='after')
     def validate_profile(self):
-        if not set(self.profile)<=PROFILE_FIELDS|{'origins','confirmed','version','updatedAt'}:
+        if not set(self.profile)<=PROFILE_FIELDS|{'origins','confirmed','version','updatedAt','situation'}:
             raise ValueError('Champ de mémoire inconnu.')
         for k in PROFILE_FIELDS:
             if k in self.profile and (not isinstance(self.profile[k],str) or len(self.profile[k])>2000):
@@ -42,6 +42,9 @@ class MemoryWrite(BaseModel):
             raise ValueError('Confirmation de profil invalide.')
         if 'version' in self.profile and (type(self.profile['version']) is not int or self.profile['version']<1):
             raise ValueError('Version de profil invalide.')
+        situation=self.profile.get('situation')
+        if situation is not None and (not isinstance(situation,dict) or not set(situation)<={'incomeRange','liquidities','financialAssets','obligations','personalContext'} or any(not isinstance(value,str) or len(value)>500 for value in situation.values())):
+            raise ValueError('Situation de démonstration invalide.')
         if len(json.dumps(self.profile,ensure_ascii=False))>24000:
             raise ValueError('Mémoire de profil trop volumineuse.')
         return self

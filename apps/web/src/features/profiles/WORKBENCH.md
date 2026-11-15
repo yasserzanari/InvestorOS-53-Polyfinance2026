@@ -1,5 +1,13 @@
 # Espace Profile interactif
 
+## Nouvelle fiche investisseur (local, 15 novembre 2026)
+
+Le panneau Profil présente maintenant exactement six onglets : **Aperçu, Objectifs, Situation, Risque, Préférences et Mémoire**. Les anciens onglets Comparer, Scénarios et Preuves ne sont plus dans la fiche; ils restent des capacités d’analyse accessibles par leurs espaces/outils distincts. L’onglet Objectifs propose une chronologie à jalons calculés depuis l’horizon de chaque projet. Les repères sont explicitement marqués comme exemples de démonstration et ne sont ni des échéances déclarées ni des prévisions.
+
+Les trois personas ont des objectifs fictifs spécifiques. La mémoire contient aussi des plages financières synthétiques étiquetées comme exemples; la validation du schéma de mémoire les sépare des huit réponses envoyées au modèle. Les exemples se synchronisent via la mémoire existante DynamoDB/SQLite sous les clés de démonstration déjà configurées. Aucun profil de client réel n’est introduit. La situation financière affiche en clair **facultatif** et peut être passée. La formulation juridique précise que les renseignements requis dépendent de l’activité réglementée; le prototype ne prétend pas réaliser une évaluation de convenance.
+
+Les compteurs de complétude couvrent les huit déclarations du profil et n’incluent pas la situation facultative. La fiche n’affiche pas la date de mise à jour ni la version interne. Cette implémentation est locale sur `codex/profile-investor-tabs`; elle n’est pas encore publiée sur AWS.
+
 ## Alignement modifiable et explications sourcées
 
 Assistant et Profils partagent maintenant la vue structurée `components/decision-panels/InsightPanel.tsx`. Chaque réponse du profil peut être modifiée sur place ou précisée dans le chat. Les explications au survol/clic/clavier montrent les déclarations exactes et les fondements AMF/OCRI. Le rouge est réservé à une incompatibilité explicitement reconnue d’échéances pour la totalité du même capital; la différence tolérance/capacité reste une clarification en ambre. La méthode, ses limites lexicales et les sources sont dans `profile-consistency.md`. Aucun seuil automatique de trois/huit ans ne suffit à qualifier une incohérence.

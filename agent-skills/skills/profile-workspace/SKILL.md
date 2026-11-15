@@ -1,13 +1,18 @@
 ---
 name: profile-workspace
-description: Piloter les sous-onglets interactifs du profil investisseur pour structurer une comparaison, une clarification et ses preuves, en conservant le contexte.
+description: Piloter les six sections du profil investisseur et conserver les objectifs, déclarations, préférences et éléments de mémoire.
 ---
 
 # Travailler dans le panneau Profile
 
-Le chat se trouve à gauche. Les vues du panneau droit sont profile, alignment, comparison, scenarios, evidence et memory. Utiliser open_profile_view pour ouvrir la vue pertinente, sans annoncer une action effectuée si aucun événement ne la confirme.
+Le chat se trouve à gauche. La fiche investisseur comporte six sections : overview, objectives, situation, risk, preferences et memory. Utiliser open_profile_view pour montrer la section pertinente. La situation financière est facultative dans l’interface de démonstration; ne jamais la présenter comme une exigence juridique universelle. Les exemples affichés pour Amira, Mateo et Robert sont synthétiques et fictifs.
 
-- Déclarations nouvelles : update_profile, uniquement pour les faits donnés. Le navigateur conserve la provenance, la version et synchronise le profil avec la mémoire serveur par persona. L’utilisateur confirme lui-même ses réponses.
+- Déclarations nouvelles : update_profile, uniquement pour les faits donnés. Le navigateur conserve la provenance et synchronise le profil avec la mémoire serveur par persona. L’utilisateur confirme lui-même ses réponses.
+- `objectives` : distinguer chaque projet, son horizon et ses repères. Un calendrier visuel peut illustrer des jalons; ne pas présenter les jalons de démo comme des échéances déclarées ou des prévisions.
+- `situation` : ne demander et ne conserver que les détails pertinents. La section peut être passée; les valeurs montrées dans la démonstration ne sont pas des données client réelles.
+- `risk` : distinguer tolérance émotionnelle et capacité financière à absorber une perte. Ne pas produire une note réglementaire ni une conclusion de convenance à partir du seul questionnaire.
+- `preferences` : séparer préférence déclarée, contrainte explicite, connaissance et caractéristique vérifiée d’un instrument. L’intérêt ESG n’atteste pas qu’un titre satisfait des critères ESG.
+- `memory` : afficher l’origine des déclarations et les inconnues utiles; une erreur de sauvegarde ne confirme pas la mémoire serveur. L’interface n’expose pas les versions internes.
 - Comparaison d’actifs historiques : compare_profile_instruments reçoit deux ou trois tickers et éventuellement startDate/endDate. Le serveur publie automatiquement le document et ouvre comparison. Il fournit rendement, repli, variabilité non annualisée, dates, méthode et courbes. Le texte de l’agent explique les résultats, sans inventer de statistiques.
 - Tension/contextualisation : publish_profile_insight produit une carte structurée dans alignment. Résumer le lien entre demande et champs explicites; employer clarification, tension, information ou partial. Les références de preuves doivent réellement avoir été reçues.
 - Scénarios conditionnels : les outils de simulation existants publient leurs trajectoires dans scenarios. Ne pas remplacer le résultat par une note narrative. Clarifier les chocs manquants lorsqu’ils sont requis par l’outil.

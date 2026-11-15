@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .models import PROFILE_FIELDS
 from ..simulation import history
 
-View = Literal['profile', 'alignment', 'comparison', 'scenarios', 'evidence', 'memory', 'documents']
+View = Literal['profile', 'overview', 'objectives', 'situation', 'risk', 'preferences', 'alignment', 'comparison', 'scenarios', 'evidence', 'memory', 'documents']
 
 class CompareInput(BaseModel):
     model_config = ConfigDict(extra='forbid')

@@ -1,107 +1,24 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, Database, GitCompareArrows, History, Layers, Maximize2, Minimize2, Pencil, RefreshCw, Scale, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { authenticatedFetch } from '../../shared/auth';
-import { fieldLabels, fieldOrder, type FieldKey, type Profile } from './profile-model';
-import { assessProfile, isProfileFieldMissing } from './profile-consistency';
-import { profileApiBase, safeSourceUrl, type Citation, type WorkspaceTab } from './profile-api';
-import { ProfileScenario } from './ProfileScenario';
-import { NoteDocument } from './components/NoteDocument';
-import { InsightPanel } from './components/decision-panels/InsightPanel';
-import { AlignmentProfile } from './components/decision-panels/AlignmentProfile';
-import { assessAlignment } from './components/decision-panels/alignment-review';
-import { parseDecisionContent } from './components/decision-panels/decision-data';
+import { useEffect } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
+import type { FieldKey, Profile } from './profile-model';
+import type { WorkspaceTab } from './profile-api';
+import { demoGoalsTab } from './profile-demo-data';
+import { ProfileDetailTabs } from './ProfileDetailTabs';
 import './profile-workbench.css';
-import './comparison-ui.css';
-type Metric={ticker:string;name:string;returnPct:number;periodVolatilityPct:number;drawdownPct:number;source:string;sourceUrl:string;sourceAsOf?:string;sourceDescription?:string;classification:string;excludedObservations:number};
-type Comparison={type:'comparison';title:string;currency:string;period:{from:string;to:string};observations:number;metrics:Metric[];series:Record<string,string|number>[];dataSha256:string;methodDetails:string;limits:string[];createdAt:string};
-const views=[{id:'profile',label:'Profil',icon:Pencil},{id:'alignment',label:'Alignement',icon:Scale},{id:'comparison',label:'Comparer',icon:GitCompareArrows},{id:'scenarios',label:'Scénarios',icon:Layers},{id:'evidence',label:'Preuves',icon:BookOpen},{id:'memory',label:'Mémoire',icon:History}];
-const groups=[{label:'Vos projets',keys:['objective','horizon']},{label:'Votre risque',keys:['riskTolerance','lossCapacity']},{label:'Vos besoins',keys:['liquidity','constraints']},{label:'Vos préférences',keys:['preferences','knowledge']}] as {label:string;keys:FieldKey[]}[];
-function parse(tab:WorkspaceTab|undefined){try{return tab?JSON.parse(tab.content):null;}catch{return null;}}
-const pct=(n:number)=>`${n.toLocaleString('fr-CA',{maximumFractionDigits:2})} %`;
-export function ProfileWorkbench({accountId,profile,onChange,onConfirm,onDiscuss,tabs,onTab,sources,busy,requestedView,memory,expanded,onExpand,renderDocument,onRemove}:{accountId:string;profile:Profile;onChange:(key:FieldKey,value:string)=>void;onConfirm:()=>void;onDiscuss:(s:string)=>void;tabs:WorkspaceTab[];onTab:(t:WorkspaceTab)=>void;sources:Citation[];busy:boolean;requestedView?:string;memory:{status:string;ready:boolean;reload:()=>void};expanded:boolean;onExpand:()=>void;renderDocument?:(tab:WorkspaceTab)=>ReactNode;onRemove:(id:string)=>void}){
- const [evidenceFocus,setEvidenceFocus]=useState(false);
- const currentAccount=useRef(accountId);currentAccount.current=accountId;
- const [view,setView]=useState('profile'),[group,setGroup]=useState(0),[tickers,setTickers]=useState('AAPL, MSFT'),[from,setFrom]=useState('2025-01-01'),[to,setTo]=useState(''),[working,setWorking]=useState(false),[error,setError]=useState(''),[details,setDetails]=useState(false),[scenarioId,setScenarioId]=useState('');
- useEffect(()=>{setView('profile');setError('');setWorking(false);setScenarioId('');},[accountId]);
- const assessment=assessProfile(profile),warnings=assessment.issues.filter(i=>i.severity==='warning'),missing=assessment.issues.filter(i=>i.severity==='missing');
- const comparisonTab=tabs.find(t=>t.id==='profile-comparison');
- const comparison=parse(comparisonTab) as Comparison|null;
- useEffect(()=>{setTickers(comparison?.metrics?.map(metric=>metric.ticker).join(', ')||'AAPL, MSFT');setFrom(comparison?.period?.from||'2025-01-01');setTo(comparison?.period?.to||'');},[accountId,comparisonTab?.content]);
- const insightData=parseDecisionContent(tabs.find(t=>t.id==='profile-alignment')?.content??'', 'profile-alignment');
- const insight=insightData?.type==='insight'?insightData:null;
- const visibleSources=evidenceFocus&&insight?sources.filter(s=>insight.evidenceIds.includes(s.id)):sources;
- const scenarios=tabs.filter(t=>t.kind==='simulation');
- const matchedScenario=scenarios.findIndex(t=>t.id===scenarioId);
- const scenarioIndex=matchedScenario<0?scenarios.length-1:matchedScenario;
- const scenario=scenarios[scenarioIndex];
- const documents=tabs.filter(t=>!['decision','simulation','profile'].includes(t.kind));
- const [documentId,setDocumentId]=useState('');
- const lastNavigation=useRef<string|undefined>(undefined);
- const document=documents.find(t=>t.id===documentId)??documents[0];
+import './profile-detail-tabs.css';
+
+export function ProfileWorkbench({accountId,profile,onChange,onConfirm,onDiscuss,tabs,onTab,busy,memory,expanded,onExpand,requestedView}:{
+ accountId:string;profile:Profile;onChange:(key:FieldKey,value:string)=>void;onConfirm:()=>void;onDiscuss:(s:string)=>void;
+ tabs:WorkspaceTab[];onTab:(tab:WorkspaceTab)=>void;busy:boolean;memory:{status:string;ready:boolean;reload:()=>void};expanded:boolean;onExpand:()=>void;requestedView?:string;
+}) {
  useEffect(()=>{
-   if(!requestedView||lastNavigation.current===requestedView)return;
-   const [next,,requestedDocument]=requestedView.split(':');
-   if(views.some(v=>v.id===next)){setView(next);if(next==='scenarios'&&requestedDocument&&scenarios.some(t=>t.id===requestedDocument))setScenarioId(requestedDocument);lastNavigation.current=requestedView;}
-   if(next==='documents'&&documents.length&&(!requestedDocument||documents.some(t=>t.id===requestedDocument))){setView('documents');if(requestedDocument)setDocumentId(requestedDocument);lastNavigation.current=requestedView;}
- },[requestedView,documents.length,scenarios.length]);
- useEffect(()=>{if(view==='documents'&&!documents.length)setView('profile');},[view,documents.length]);
- async function compare(){
-  if(!memory.ready||busy||working)return;
-   const owner=accountId;setWorking(true);setError('');
-   try{if(tabs.length>=12&&!tabs.some(t=>t.id==='profile-comparison'))throw Error('Fermez un document pour créer une comparaison.');const response=await authenticatedFetch(`${profileApiBase}/v1/profiles/compare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tickers:tickers.split(/[,;\s]+/).filter(Boolean),...(from?{startDate:from}:{}),...(to?{endDate:to}:{})})});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Vérifiez les symboles et les dates.');if(owner!==currentAccount.current)return;onTab({id:'profile-comparison',title:'Comparaison',kind:'decision',content:JSON.stringify(data)});setDetails(false);
-   }catch(e){if(owner===currentAccount.current)setError(e instanceof Error?e.message:'Comparaison indisponible.');}finally{if(owner===currentAccount.current)setWorking(false);}
- }
+  if(!memory.ready||tabs.length>=12||tabs.some(tab=>tab.id==='profile-objectives'))return;
+  onTab(demoGoalsTab(accountId));
+ },[accountId,memory.ready,tabs,onTab]);
+
  return <div className="pb-workbench" data-profile-workbench>
   <header className="pb-heading"><div><span className="pb-eyebrow">ESPACE INVESTISSEUR · DÉMO</span><h2>{accountId[0].toUpperCase()+accountId.slice(1)}<span>Votre contexte, vos décisions</span></h2></div><button type="button" onClick={onExpand} title={expanded?'Afficher le chat':'Agrandir le panneau'} aria-label={expanded?'Afficher le chat':'Agrandir le panneau'}>{expanded?<Minimize2 size={17}/>:<Maximize2 size={17}/>}</button></header>
-  <nav className="pb-tabs" role="tablist" aria-label="Sous-onglets du profil">{views.map(v=><button key={v.id} type="button" id={`pb-tab-${v.id}`} role="tab" aria-selected={view===v.id} aria-controls="pb-panel" onClick={()=>{setView(v.id);setDetails(false);if(v.id==='evidence')setEvidenceFocus(false);}}><v.icon size={16}/><span>{v.label}</span>{v.id==='alignment'&&(warnings.length>0||insight)&&<i className="pb-dot"/>}</button>)}{documents.length>0&&<button type="button" role="tab" id="pb-tab-documents" aria-controls="pb-panel" aria-selected={view==='documents'} onClick={()=>setView('documents')}><Layers size={16}/><span>Documents</span></button>}</nav>
-  <div className="pb-body" data-view={view} id="pb-panel" role="tabpanel" aria-labelledby={`pb-tab-${view}`} inert={!memory.ready&&view!=='memory'} aria-busy={!memory.ready}>
-   {view==='profile'&&<>
-    <div className="pb-summary"><div className="pb-ring" style={{'--progress':`${assessment.completed/8*100}%`} as React.CSSProperties}><strong>{assessment.completed}<small>/8</small></strong></div><div><h3>{assessment.completed===8?'Votre contexte est renseigné':'Construisons votre profil'}</h3><p>{missing.length?`${missing.length} rubrique${missing.length>1?'s':''} à préciser`:'Les réponses restent modifiables.'} · {profile.confirmed?'Confirmé par vous':'À confirmer par vous'}</p></div><button className="pb-icon-button" title="Examiner la cohérence" onClick={()=>setView('alignment')}><Scale size={18}/></button></div>
-    <div className="pb-group-nav" role="group" aria-label="Rubriques du profil">{groups.map((g,i)=><button type="button" key={g.label} aria-pressed={group===i} onClick={()=>setGroup(i)}>{g.label}<span>{g.keys.filter(k=>!isProfileFieldMissing(profile[k])).length}/2</span></button>)}</div>
-    <div className="pb-field-grid">{groups[group].keys.map(key=><label className={`pb-field ${isProfileFieldMissing(profile[key])?'is-missing':''}`} key={key}><span>{fieldLabels[key]}{isProfileFieldMissing(profile[key])?<small>À préciser</small>:<Check size={15}/>}</span><textarea aria-label={fieldLabels[key]} value={profile[key]} disabled={!memory.ready} onChange={e=>onChange(key,e.target.value)}/><footer>{profile.origins[key]||'Non renseigné'}</footer></label>)}</div>
-    <div className="pb-help"><Sparkles size={18}/><div><strong>Un échange pour préciser l’essentiel</strong><p>L’assistant mémorise vos réponses et distingue vos envies des pertes supportables.</p></div></div>
-    <div className="pb-actions"><button className="pb-primary" disabled={busy||!memory.ready} onClick={()=>onDiscuss(`Aide-moi à compléter mon profil, en commençant par ${groups[group].keys.map(k=>fieldLabels[k]).join(' et ')}. Réutilise mes réponses connues, enregistre les nouvelles informations et pose seulement les précisions utiles.`)}><Sparkles size={15}/>Préciser avec l’IA</button><button disabled={!memory.ready||profile.confirmed} onClick={onConfirm}><Check size={15}/>{profile.confirmed?'Profil confirmé':'Confirmer mes réponses'}</button></div>
-   </>}
-   {view==='alignment'&&<>
-    {insight ? <InsightPanel key={accountId} data={insight} profile={profile} sources={sources} onChange={onChange} onDiscuss={onDiscuss} disabled={busy||!memory.ready} saveStatus={memory.status}/> : <div className="decision-insight"><header className="di-heading"><span className="di-symbol"><Scale size={20}/></span><h2>Votre profil face au projet</h2></header><p className="pw-muted">Précisez vos réponses ou demandez une synthèse à l’assistant. Les alertes portent sur vos déclarations, sans mesurer le risque d’un placement.</p><AlignmentProfile key={accountId} profile={profile} fields={fieldOrder} issues={assessAlignment(profile)} onChange={onChange} onDiscuss={onDiscuss} disabled={busy||!memory.ready} saveStatus={memory.status}/></div>}
-    <div className="pb-actions"><button disabled={busy||!memory.ready} className="pb-primary" onClick={()=>onDiscuss('Examine la cohérence de mon profil et ma demande actuelle. Publie une carte dans Alignement en conservant les inconnues. Distingue une contradiction explicite, une différence entre tolérance et capacité, et une information manquante. Ne traite pas une simple demande d’information comme une intention d’achat.')}><Scale size={15}/>{insight?'Actualiser la synthèse':'Analyser avec l’assistant'}</button><button onClick={()=>{setEvidenceFocus(true);setView('evidence');}}><BookOpen size={15}/>Voir les preuves</button></div>
-   </>}
-   {view==='comparison'&&<>
-    <div className="pb-section-title"><div><h3>Comparer avec les mêmes repères</h3><p>Dates communes · même devise · historique ajusté</p></div><GitCompareArrows size={24}/></div>
-    <form className="pb-compare-form" onSubmit={e=>{e.preventDefault();void compare();}}><label>Symboles<input value={tickers} onChange={e=>setTickers(e.target.value)} placeholder="AAPL, MSFT" aria-label="Symboles à comparer"/></label><label>Du<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>Au<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><button className="pb-primary" disabled={working||busy}>{working?'Calcul…':'Comparer'}</button></form>
-    {error&&<p role="alert" className="pb-error">{error}</p>}
-    {comparison?.type==='comparison'?<>
-     <div className="pb-context-chips"><span>{comparison.period.from} → {comparison.period.to}</span><span>{comparison.currency}</span><span>{comparison.observations} dates communes</span></div>
-     <div className="pb-data-note"><Database size={15}/><span>{comparison.metrics[0]?.sourceDescription??'Origine historique déclarée par le jeu de données.'} Dernière date commune : <strong>{comparison.period.to}</strong>. Aucun cours en direct.</span></div>
-     <div className="pb-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={comparison.series} margin={{top:8,right:18,left:-25,bottom:0}}><XAxis dataKey="date" minTickGap={90} tick={{fontSize:10}}/><YAxis domain={['auto','auto']} tick={{fontSize:10}}/><Tooltip/>{comparison.metrics.map((m,i)=><Line key={m.ticker} name={m.ticker} dataKey={m.ticker} stroke={['#3768dd','#159d99','#b88742'][i]} strokeWidth={2.3} dot={false} activeDot={false} isAnimationActive={false}/>)}</LineChart></ResponsiveContainer><small>Base 100 · données historiques, sans prévision</small></div>
-     <section className="pb-metrics" aria-label="Mesures sur la période commune"><header><div><h3>Mesures sur la période commune</h3><p>Rendement, variabilité et repli maximal observés.</p></div><span>{comparison.observations} observations</span></header><div className="pb-metric-grid">{comparison.metrics.map((m,i)=><article className="pb-metric-card" key={m.ticker} style={{'--metric-color':['#3768dd','#159d99','#b88742'][i%3]} as React.CSSProperties}><div className="pb-metric-title"><span><strong>{m.ticker}</strong><small>{m.name}</small></span><small>{m.sourceAsOf?`Données au ${m.sourceAsOf}`:comparison.currency}</small></div><div className="pb-metric-values"><div><span>Rendement total</span><strong>{pct(m.returnPct)}</strong></div><div><span>Variabilité*</span><strong>{pct(m.periodVolatilityPct)}</strong></div><div><span>Repli maximal</span><strong>{pct(m.drawdownPct)}</strong></div></div>{m.excludedObservations>0&&<footer>{m.excludedObservations} observation(s) hors dates communes</footer>}</article>)}</div></section>
-     <button className="pb-text-button" onClick={()=>setDetails(!details)}>* Variabilité non annualisée · Méthode et limites<ChevronRight size={13}/></button>
-     {details&&<div className="pb-method"><p>{comparison.methodDetails}</p><p>Empreinte des entrées : {comparison.dataSha256.slice(0,16)}… · Calcul du {new Date(comparison.createdAt).toLocaleString('fr-CA')}</p>{comparison.limits.map(l=><p key={l}>{l}</p>)}{comparison.metrics.map(m=><a href={safeSourceUrl(m.sourceUrl)} target="_blank" rel="noreferrer" key={m.ticker}>{m.ticker} · {m.source} · {m.classification} · {m.excludedObservations} observation(s) exclue(s)</a>)}</div>}
-     <div className="pb-actions"><button className="pb-primary" disabled={busy} onClick={()=>onDiscuss(`Explique la comparaison ${comparison.title} du ${comparison.period.from} au ${comparison.period.to}, déjà présente à droite. Relie ses observations à mon objectif sans prédire le futur. Publie les tensions ou inconnues dans Alignement.`)}><Sparkles size={15}/>Interpréter avec mon profil</button></div>
-    </>:<div className="pb-empty"><GitCompareArrows size={32}/><h3>Deux actifs, une comparaison vérifiable</h3><p>Le serveur calcule les mêmes mesures sur les dates communes. Une devise différente appelle une autre comparaison.</p><button disabled={busy} onClick={()=>onDiscuss('Aide-moi à choisir deux actifs à comparer pour éclairer mon objectif. Utilise ensuite l’outil de comparaison et ouvre la vue Comparer.')}>Choisir avec l’IA<ArrowRight size={15}/></button></div>}
-   </>}
-   {view==='scenarios'&&<>
-    <div className="pb-section-title"><div><h3>Éprouver une hypothèse</h3><p>Un scénario n’est pas une prévision.</p></div><Layers size={23}/></div>
-    {scenarios.length?<><div className="pb-scenario-nav"><button aria-label="Scénario précédent" disabled={!scenarioIndex} onClick={()=>setScenarioId(scenarios[scenarioIndex-1].id)}><ChevronLeft size={16}/></button><span>{scenario?.title}</span><button aria-label="Fermer ce scénario" title="Fermer ce scénario" onClick={()=>onRemove(scenario.id)}><Trash2 size={14}/></button><button aria-label="Scénario suivant" disabled={scenarioIndex>=scenarios.length-1} onClick={()=>setScenarioId(scenarios[scenarioIndex+1].id)}><ChevronRight size={16}/></button></div><div className="pb-scenario-content"><ProfileScenario key={scenario.id} content={scenario.content} onChange={content=>onTab({...scenario,content})}/></div></>:<div className="pb-empty"><Layers size={34}/><h3>Changez une hypothèse, voyez l’effet</h3><p>Précisez un actif, un horizon et les chocs à comparer. L’IA prépare le calcul et ses limites.</p><button disabled={busy} className="pb-primary" onClick={()=>onDiscuss('Aide-moi à construire un scénario conditionnel lié à mon objectif. Réutilise mes précisions connues et demande uniquement les hypothèses manquantes avant le calcul.')}>Construire avec l’IA<ArrowRight size={15}/></button></div>}
-   </>}
-   {view==='evidence'&&<>
-    <div className="pb-section-title"><div><h3>Ce qui soutient l’analyse</h3><p>Une source ouverte n’est pas une conclusion validée.</p></div><BookOpen size={23}/></div>
-    {insight&&<div className="pb-group-nav" role="group" aria-label="Périmètre des preuves"><button aria-pressed={evidenceFocus} onClick={()=>setEvidenceFocus(true)}>Liées au constat ({insight.evidenceIds.length})</button><button aria-pressed={!evidenceFocus} onClick={()=>setEvidenceFocus(false)}>Toutes les références</button></div>}
-    <div className="pb-evidence-list">{visibleSources.map(s=><a key={s.id} href={safeSourceUrl(s.url)} target="_blank" rel="noreferrer"><BookOpen size={18}/><div><strong>{s.title}</strong><p>{s.snippet?.slice(0,220)||'Référence renvoyée par un outil.'}</p></div><ArrowRight size={15}/></a>)}{!evidenceFocus&&comparison?.metrics.map(m=><a href={safeSourceUrl(m.sourceUrl)} key={m.ticker} target="_blank" rel="noreferrer"><GitCompareArrows size={18}/><div><strong>{m.ticker} · Série historique</strong><p>{comparison.period.from} → {comparison.period.to} · {comparison.currency} · {m.classification}</p></div><ArrowRight size={15}/></a>)}{!visibleSources.length&&(!comparison||evidenceFocus)&&<div className="pb-empty"><BookOpen size={30}/><h3>{evidenceFocus?'Aucune preuve externe liée à ce constat':'Aucune source reçue pour le moment'}</h3><p>{evidenceFocus?'Ce point repose sur les déclarations du profil ou reste à étayer.':'Les preuves des outils et les données des comparaisons apparaîtront ici.'}</p><button onClick={()=>setView('comparison')}>Comparer des historiques<ArrowRight size={15}/></button></div>}</div>
-   </>}
-   {view==='documents'&&<>
-    <div className="pb-section-title"><div><h3>Votre espace de travail</h3><p>Notes, tâches et résultats préparés dans la conversation.</p></div>{document&&<button onClick={()=>onRemove(document.id)}>Fermer ce document</button>}</div>
-    <div className="pb-context-chips">{documents.map(t=><button key={t.id} aria-pressed={document?.id===t.id} onClick={()=>setDocumentId(t.id)}>{t.title}</button>)}</div>
-    {document&&<div className="pb-document-content">{renderDocument?.(document)??(document.kind==='note'?<NoteDocument title={document.title} content={document.content} onTitleChange={title=>onTab({...document,title})} onContentChange={content=>onTab({...document,content})} persistenceLabel={memory.status}/>:<><h3>{document.title}</h3><textarea aria-label="Contenu du document" value={document.content} onChange={e=>onTab({...document,content:e.target.value})}/>{document.items?.map(item=><label className="pb-document-task" key={item.id}><input type="checkbox" checked={item.status==='done'} onChange={e=>onTab({...document,items:document.items?.map(i=>i.id===item.id?{...i,status:e.target.checked?'done':'pending'}:i)})}/><span>{item.title}</span>{item.url&&<a href={safeSourceUrl(item.url)} target="_blank" rel="noreferrer">Ouvrir</a>}</label>)}</>)}</div>}
-   </>}
-   {view==='memory'&&<>
-    <div className="pb-callout"><Database size={25}/><div><h3>Un contexte qui vous suit</h3><p>{memory.status}</p></div><button aria-label="Recharger la mémoire serveur" onClick={memory.reload}><RefreshCw size={16}/></button></div>
-    <div className="pb-memory-stats"><div><strong>v{profile.version}</strong><small>Version du profil</small></div><div><strong>{profile.confirmed?'Confirmé':'À confirmer'}</strong><small>Par vous</small></div><div><strong>{tabs.length}</strong><small>Documents mémorisés</small></div></div>
-    <div className="pb-memory-fields">{fieldOrder.map(key=><div key={key}><span>{fieldLabels[key]}</span><strong>{isProfileFieldMissing(profile[key])?'À préciser':profile.origins[key]||'Déclaration'}</strong></div>)}</div>
-    <div className="pb-help"><ShieldCheck size={20}/><div><strong>Mémoire séparée par compte de démonstration</strong><p>Le profil, les documents et les conversations sont synchronisés avec le compte actif.</p></div></div>
-    <div className="pb-actions"><button onClick={()=>{const blob=new Blob([JSON.stringify({accountId,profile,tabs},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=globalThis.document.createElement('a');a.href=url;a.download=`investoros-${accountId}.json`;a.click();URL.revokeObjectURL(url);}}>Exporter mon contexte<ArrowRight size={15}/></button></div>
-   </>}
-  </div><footer className="pb-footer"><span><i/>{memory.status}</span><span>Profil fictif · {profile.updatedAt?new Date(profile.updatedAt).toLocaleDateString('fr-CA'):'Contexte de départ'}</span></footer>
+  <div className="pb-body pdt-workbench-body"><ProfileDetailTabs accountId={accountId} profile={profile} onChange={onChange} onConfirm={onConfirm} onDiscuss={onDiscuss} busy={busy} tabs={tabs} onTab={onTab} requestedView={requestedView}/></div>
+  <footer className="pb-footer"><span><i/>{memory.status}</span><span>Persona fictive · situation financière facultative</span></footer>
  </div>;
 }
