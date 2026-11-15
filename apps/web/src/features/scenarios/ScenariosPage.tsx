@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Database, ExternalLink, GitBranch, LoaderCircle, MessageCircle, Newspaper, Plus, ShieldCheck, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarDays, Check, CheckCircle2, CircleDollarSign, Clock3, Database, ExternalLink, GitBranch, LoaderCircle, MessageCircle, Newspaper, Play, Plus, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { loadSourceWorkspace, loadSimulationAssets, loadSimulationEventStudy, loadSimulationFilings, loadSimulationHistory, loadSimulationNews, loadSimulationRegulations, loadSimulationSocialPosts, runSimulationProjection, type ObservationBranchInput as ScenarioBranchInput, type SimulationAssetList, type SimulationEventStudy, type SimulationFiling, type SimulationFilings, type SimulationHistory, type SimulationNews, type SimulationProjection as SharedSimulationProjection, type SimulationRegulation, type SimulationRegulations, type SimulationSocialPosts } from '../../shared/api';
 import { safeSourceUrl } from '../profiles/profile-api';
@@ -12,7 +12,12 @@ type Range = 1 | 3 | 5;
 const RANGE_OPTIONS: Range[] = [1, 3, 5];
 type Horizon = 5 | 20 | 60 | 120;
 type ScenarioDraft = Omit<ScenarioBranchInput, 'shockPct'> & { shockPct: string };
+type ScenarioCase = { id: string; name: string; ticker: string; horizon: Horizon; investedAmount: string; branches: ScenarioDraft[]; selected: boolean; status: 'draft'|'running'|'complete'|'error'; projection?: SimulationProjection; error?: string };
+type TimelineItem = { id: string; date: string; title: string; source: 'corporate'|'regulation'|'sec'|'news'; url?: string };
 const HORIZONS: Horizon[] = [5, 20, 60, 120];
+const branchColors = ['#4779d0', '#3c897b', '#a77a45', '#8e6ca7'];
+const emptyBranch = (index: number): ScenarioDraft => ({ id: globalThis.crypto?.randomUUID?.() ?? `branch-${Date.now()}-${index}`, title: ['Baisse','Central','Hausse','Sensibilité'][index] ?? `Branche ${index + 1}`, event: '', shockPct: '', eventAfterObservations: 10 });
+const createScenarioCase = (ticker: string, index: number, name?: string): ScenarioCase => ({ id: globalThis.crypto?.randomUUID?.() ?? `case-${Date.now()}-${index}`, name: name ?? `Cas ${index + 1}`, ticker, horizon: 20, investedAmount: '10000', branches: [emptyBranch(0), emptyBranch(1), emptyBranch(2)], selected: true, status: 'draft' });
 const eventNames: Record<string, string> = { dividend: 'Dividende', split: 'Fractionnement', stock_split: 'Fractionnement' };
 const dateLabel = (value: string) => new Intl.DateTimeFormat('fr-CA', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
 const dateWindow = (years: number) => {
@@ -371,16 +376,13 @@ export function ScenariosPage() {
   const [news, setNews] = useState<SimulationNews>();
   const [socialPosts, setSocialPosts] = useState<SimulationSocialPosts>();
   const [socialAccounts, setSocialAccounts] = useState<string[]>([]);
-  const [horizon, setHorizon] = useState<Horizon>(60);
-  const [branches, setBranches] = useState<ScenarioDraft[]>([
-    { id: 'branch-down', title: 'Hypothèse basse', event: '', shockPct: '', eventAfterObservations: 10 },
-    { id: 'branch-mid', title: 'Hypothèse intermédiaire', event: '', shockPct: '', eventAfterObservations: 10 },
-    { id: 'branch-up', title: 'Hypothèse haute', event: '', shockPct: '', eventAfterObservations: 10 },
-  ]);
-  const [projection, setProjection] = useState<SimulationProjection>();
+  const [scenarioCases, setScenarioCases] = useState<ScenarioCase[]>([createScenarioCase('', 0, 'Cas de référence')]);
+  const [activeCaseId, setActiveCaseId] = useState('');
+  const [selectedTimelineIds, setSelectedTimelineIds] = useState<string[]>([]);
+  const [timelineLimit, setTimelineLimit] = useState(12);
+  const [timelineFilters, setTimelineFilters] = useState<TimelineItem['source'][]>(['corporate','regulation','sec','news']);
+  const [batchBusy, setBatchBusy] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string>();
-  const [projectionBusy, setProjectionBusy] = useState(false);
-  const [projectionError, setProjectionError] = useState('');
   const [regulationTopic, setRegulationTopic] = useState('tariff');
   const [chartRange, setChartRange] = useState<Range>(3);
   const regulationWindow = useMemo(() => dateWindow(chartRange), [chartRange]);
@@ -388,6 +390,21 @@ export function ScenariosPage() {
   const [selectedId, setSelectedId] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const caseRuns = useRef(new Map<string, AbortController>());
+
+  useEffect(() => () => {
+    caseRuns.current.forEach((controller) => controller.abort());
+    caseRuns.current.clear();
+  }, [ticker]);
+
+  useEffect(() => {
+    setScenarioCases((current) => current.map((item) => item.ticker === ticker ? item : { ...item, ticker, status: 'draft', projection: undefined, error: undefined }));
+    setSelectedTimelineIds([]);
+    setTimelineLimit(12);
+  }, [ticker]);
+  useEffect(() => {
+    if (!scenarioCases.some((item) => item.id === activeCaseId)) setActiveCaseId(scenarioCases[0]?.id ?? '');
+  }, [scenarioCases, activeCaseId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -466,7 +483,6 @@ export function ScenariosPage() {
     const controller = new AbortController();
     setHistory(undefined);
     setSelectedId(undefined);
-    setProjection(undefined);
     setSelectedBranchId(undefined);
     setError('');
     setLoading(true);
@@ -480,8 +496,20 @@ export function ScenariosPage() {
   const selectedRegulation = useMemo(() => regulations?.documents.find((event) => `reg:${event.id}` === selectedId), [regulations, selectedId]);
   const selectedFiling = useMemo(() => filings?.filings.find((event) => `sec:${event.id}` === selectedId), [filings, selectedId]);
   const selectedNews = news?.articles.find((article) => `news:${article.id}` === selectedId);
+  const activeScenarioCase = scenarioCases.find((item) => item.id === activeCaseId);
+  const projection = activeScenarioCase?.ticker === ticker ? activeScenarioCase.projection : undefined;
   const selectedEventSource = selectedRegulation?.url ?? selectedFiling?.url ?? selectedNews?.url ?? (selected ? `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}/history/` : undefined);
-  const selectedEventLabel = selected ? `${eventNames[selected.kind] ?? selected.kind} du ${dateLabel(selected.date)}` : selectedRegulation ? `${selectedRegulation.type} du ${dateLabel(selectedRegulation.publishedAt)}` : selectedFiling ? `${selectedFiling.form} déposé le ${dateLabel(selectedFiling.filedAt)}` : selectedNews ? `Couverture : ${selectedNews.title.slice(0, 100)} (indexée le ${dateLabel(selectedNews.indexedAt.slice(0, 10))})` : '';
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [
+      ...(history?.events ?? []).map((event) => ({ id: event.id, date: event.date, title: `${eventNames[event.kind] ?? event.kind}${event.value === null ? '' : ` · ${event.value.toLocaleString('fr-CA')} ${event.unit ?? ''}`}`, source: 'corporate' as const, url: `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}/history/` })),
+      ...(regulations?.documents ?? []).map((event) => ({ id: `reg:${event.id}`, date: event.publishedAt, title: event.title, source: 'regulation' as const, url: event.url })),
+      ...(filings?.filings ?? []).map((event) => ({ id: `sec:${event.id}`, date: event.filedAt, title: `${event.form} · ${event.title}`, source: 'sec' as const, url: event.url })),
+      ...(news?.articles ?? []).map((event) => ({ id: `news:${event.id}`, date: event.indexedAt.slice(0, 10), title: event.title, source: 'news' as const, url: event.url })),
+    ];
+    return items.sort((a, b) => b.date.localeCompare(a.date));
+  }, [history, regulations, filings, news, ticker]);
+  const visibleTimelineItems = timelineItems.filter((item) => timelineFilters.includes(item.source));
+  const selectedTimelineItems = timelineItems.filter((item) => selectedTimelineIds.includes(item.id));
   const assistantPrompt = selected
     ? `Analyse l’événement ${selected.kind} du ${selected.date} sur ${history?.asset.name} (${ticker}). Source consultable : ${selectedEventSource}. Les rendements historiques calculés sont : une séance ${pctLabel(selected.observedReturnsPct['1observations'])}, cinq séances ${pctLabel(selected.observedReturnsPct['5observations'])}, vingt séances ${pctLabel(selected.observedReturnsPct['20observations'])}. Explique ce qu’ils mesurent, distingue corrélation et causalité, et indique ce qu’il faudrait comme sources supplémentaires avant d’en déduire une réaction à un événement futur.`
     : selectedRegulation
@@ -494,26 +522,58 @@ export function ScenariosPage() {
             ? `Explique ces trajectoires conditionnelles calculées pour ${history?.asset.name} (${ticker}), au cours de départ ${projection.startingPrice} ${projection.currency} au ${projection.asOf}: ${projection.branches.map((branch) => `${branch.title}: ${branch.event}, choc ${branch.shockPct} %, médiane de fin ${branch.path.at(-1)?.medianPrice}`).join('; ')}. Méthode : ${projection.method} Limites : ${projection.limitations.join(' ')}`
             : `Explique les limites de l’analyse historique de ${history?.asset.name} (${ticker}) et les sources nécessaires pour étudier un événement de marché.`;
 
-  const calculateScenarios = async () => {
-    if (!ticker || branches.some((branch) => !branch.event.trim() || branch.shockPct.trim() === '' || !Number.isFinite(Number(branch.shockPct)) || branch.eventAfterObservations > horizon)) {
-      setProjectionError('Ajoutez un événement, un choc explicite et un jalon valide pour chaque hypothèse.');
+  const updateCase = (id: string, patch: Partial<ScenarioCase>) => setScenarioCases((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
+  const addScenarioCase = () => {
+    if (scenarioCases.length >= 6) return;
+    const next = createScenarioCase(ticker, scenarioCases.length);
+    setScenarioCases((current) => [...current, next]);
+    setActiveCaseId(next.id);
+  };
+  const runScenarioCase = async (id: string) => {
+    const item = scenarioCases.find((candidate) => candidate.id === id);
+    if (!item || item.status === 'running') return;
+    const capital = Number(item.investedAmount);
+    if (!item.ticker || !Number.isFinite(capital) || capital <= 0 || capital > 100_000_000 || item.branches.length < 1 || item.branches.some((branch) => !branch.title.trim() || !branch.event.trim() || branch.shockPct.trim() === '' || !Number.isFinite(Number(branch.shockPct)) || Number(branch.shockPct) < -80 || Number(branch.shockPct) > 100 || !Number.isInteger(branch.eventAfterObservations) || branch.eventAfterObservations < 0 || branch.eventAfterObservations > item.horizon)) {
+      updateCase(id, { status: 'error', projection: undefined, error: 'Vérifiez le montant, chaque événement, le choc de −80 à +100 % et un jalon entier dans l’horizon.' });
       return;
     }
-    const input: ScenarioBranchInput[] = branches.map((branch) => ({ ...branch, sourceUrl: branch.sourceUrl?.trim() || undefined, shockPct: Number(branch.shockPct) }));
-    setProjectionBusy(true);
-    setProjectionError('');
+    const controller = new AbortController();
+    caseRuns.current.set(id, controller);
+    updateCase(id, { status: 'running', projection: undefined, error: undefined });
     try {
-      const result = await runSimulationProjection({ ticker, horizonObservations: horizon, branches: input });
-      if(result.timeUnit==='calendar_days')throw new Error('Une projection en séances était attendue.');
-      setProjection(result);
+      const input: ScenarioBranchInput[] = item.branches.map((branch) => ({ ...branch, sourceUrl: branch.sourceUrl?.trim() || undefined, shockPct: Number(branch.shockPct) }));
+      const result = await runSimulationProjection({ ticker: item.ticker, horizonObservations: item.horizon, branches: input }, controller.signal);
+      if (controller.signal.aborted) return;
+      if (result.timeUnit === 'calendar_days') throw new Error('Une projection en séances était attendue.');
+      setScenarioCases((current) => current.map((candidate) => candidate.id === id ? { ...candidate, status: 'complete', projection: result, error: undefined } : candidate));
+      setActiveCaseId(id);
       setSelectedBranchId(result.branches[0]?.id);
     } catch (cause) {
-      setProjectionError(cause instanceof Error ? cause.message : 'Le calcul conditionnel est indisponible.');
-      setProjection(undefined);
-      setSelectedBranchId(undefined);
+      if (!controller.signal.aborted) updateCase(id, { status: 'error', projection: undefined, error: cause instanceof Error ? cause.message : 'Le calcul conditionnel est indisponible.' });
     } finally {
-      setProjectionBusy(false);
+      if (caseRuns.current.get(id) === controller) caseRuns.current.delete(id);
     }
+  };
+  const runSelectedCases = async () => {
+    if (batchBusy) return;
+    const ids = scenarioCases.filter((item) => item.selected && item.status !== 'running').map((item) => item.id);
+    if (!ids.length) return;
+    setBatchBusy(true);
+    await Promise.all(ids.map((id) => runScenarioCase(id)));
+    setBatchBusy(false);
+  };
+  const applyTimelineSelection = () => {
+    if (!selectedTimelineItems.length) return;
+    if (selectedTimelineItems.length > 4) {
+      updateCase(activeCaseId, { status: 'error', error: 'Un cas compare au maximum quatre événements comme branches alternatives. Réduisez la sélection.' });
+      return;
+    }
+    const target = activeScenarioCase ?? createScenarioCase(ticker, scenarioCases.length);
+    const branches = selectedTimelineItems.map((event, index) => ({ ...emptyBranch(index), title: event.title.slice(0, 80) || `Événement ${index + 1}`, event: event.title.slice(0, 160), sourceUrl: event.url, eventAfterObservations: Math.min(10, target.horizon), shockPct: target.branches[index]?.shockPct ?? '' }));
+    const next = { ...target, ticker, branches, status: 'draft' as const, projection: undefined, error: undefined };
+    if (activeScenarioCase) updateCase(activeCaseId, next);
+    else { setScenarioCases((current) => [...current, next]); setActiveCaseId(next.id); }
+    setSelectedBranchId(undefined);
   };
 
   const showMoreRegulations = () => {
@@ -547,13 +607,33 @@ export function ScenariosPage() {
           <div className="simulation-source-note"><ShieldCheck size={16} /><span><strong>{history.source}</strong> · cours jusqu’au {dateLabel(history.sourceAsOf)} · {history.prices.length.toLocaleString('fr-CA')} observations · devise {history.currency}</span><a className="simulation-source-link" href={`https://finance.yahoo.com/quote/${encodeURIComponent(history.asset.ticker)}/history/`} target="_blank" rel="noopener noreferrer">Source Yahoo Finance <ExternalLink size={11}/></a><span className="simulation-source-badge"><Database size={13} /> Données historiques</span></div>
           <div className="simulation-regulation-toolbar"><span><CalendarDays size={14} /> Actes réglementaires · {chartRange} ans</span><div role="group" aria-label="Thème de recherche réglementaire">{[['tariff','Tarifs'],['supply-chain','Chaîne logistique'],['export-controls','Contrôles export'],['energy','Énergie']].map(([id,label])=><button type="button" key={id} aria-pressed={regulationTopic===id} onClick={()=>{setRegulationTopic(id);setRegulationPage(1);setVisibleRegulationCount(8);}}>{label}</button>)}</div>{regulationsLoading&&<small role="status">Chargement des documents datés…</small>}{regulationError&&<small role="status">{regulationError}</small>}</div>
           <div className="simulation-workspace"><HistoricalChart data={history} regulations={regulations?.documents} filings={filings?.filings} filingsMessage={filingsMessage} filingsLimitations={filings?.limitations} news={news} socialPosts={socialPosts} projection={projection} selectedId={selectedId} onSelect={setSelectedId} selectedBranchId={selectedBranchId} onSelectBranch={setSelectedBranchId} onSearchAccounts={setSocialAccounts} range={chartRange} onRangeChange={changeChartRange} visibleRegulationCount={visibleRegulationCount} onShowMoreRegulations={showMoreRegulations} hasMoreRegulations={regulationPage<Math.min(regulations?.totalPages??0,regulations?.pageLimit??500)} regulationTotalDocuments={regulations?.totalDocuments} regulationPagesCapped={(regulations?.totalPages??0)>(regulations?.pageLimit??500)} regulationsLoading={regulationsLoading} visibleFilingCount={visibleFilingCount} onShowMoreFilings={showMoreFilings} /></div>
-          <section className="simulation-scenario-builder" aria-labelledby="scenario-builder-title">
-            <div className="simulation-scenario-heading"><span className="simulation-panel-icon"><GitBranch size={16} /></span><div><span className="simulation-eyebrow">HYPOTHÈSES EXPLICITES</span><h2 id="scenario-builder-title">Construire des trajectoires conditionnelles</h2><p>Choisissez les événements et les chocs à comparer. Aucun choc n’est estimé par le modèle.</p></div><label><span>Horizon</span><select value={horizon} onChange={(event) => setHorizon(Number(event.target.value) as Horizon)}>{HORIZONS.map((value) => <option key={value} value={value}>{value} séances</option>)}</select></label><button type="button" className="simulation-add-branch" disabled={branches.length >= 4} onClick={() => setBranches((current) => [...current, { id: globalThis.crypto?.randomUUID?.() ?? `branch-${Date.now()}`, title: `Hypothèse ${current.length + 1}`, event: '', shockPct: '', eventAfterObservations: 10 }])}><Plus size={13}/>Ajouter</button></div>
-            {selectedEventLabel && <div className="simulation-use-event"><span>Événement sélectionné : <strong>{selectedEventLabel}</strong>{selectedEventSource && <> · <a href={safeSourceUrl(selectedEventSource)} target="_blank" rel="noopener noreferrer">Ouvrir la source <ExternalLink size={10}/></a></>}</span><button type="button" onClick={() => setBranches((current) => current.map((branch) => ({ ...branch, event: selectedEventLabel, sourceUrl: selectedEventSource ?? branch.sourceUrl })))}>Utiliser dans les hypothèses</button></div>}
-            <div className="simulation-branch-grid">{branches.map((branch, index) => <div className="simulation-branch" key={branch.id}><div className="simulation-branch-title"><i style={{ background: ['#4779d0', '#3c897b', '#a77a45', '#8e6ca7'][index] }} /><input aria-label={`Nom de l’hypothèse ${index + 1}`} value={branch.title} maxLength={80} onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, title: event.target.value } : item))}/>{branches.length > 2 && <button type="button" aria-label={`Supprimer ${branch.title}`} onClick={() => { setBranches((current) => current.filter((item) => item.id !== branch.id)); setProjection(undefined); }}><X size={12}/></button>}</div><label><span>Événement ou condition</span><input value={branch.event} maxLength={160} placeholder="Ex. hausse des taux de 1 point" onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, event: event.target.value } : item))} /></label><label><span>Source HTTPS (facultative)</span><input type="url" value={branch.sourceUrl ?? ''} maxLength={1000} placeholder="https://…" onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, sourceUrl: event.target.value } : item))} /></label><div className="simulation-branch-inputs"><label><span>Choc (%)</span><input type="number" min={-80} max={100} step="0.1" value={branch.shockPct} placeholder="ex. −10" onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, shockPct: event.target.value } : item))} /></label><label><span>Après (séances)</span><input type="number" min={0} max={horizon} step={1} value={branch.eventAfterObservations} onChange={(event) => setBranches((current) => current.map((item) => item.id === branch.id ? { ...item, eventAfterObservations: Number(event.target.value) } : item))} /></label></div></div>)}</div>
-            <div className="simulation-scenario-actions"><p>Comparaison aux fenêtres de rendements historiques de {ticker}, au {dateLabel(history.sourceAsOf)}. Les branches ne sont ni une prévision ni des probabilités.</p><button type="button" disabled={projectionBusy} onClick={() => void calculateScenarios()}>{projectionBusy ? <LoaderCircle size={14} className="simulation-spinner" /> : <GitBranch size={14} />}{projectionBusy ? 'Calcul en cours…' : 'Calculer les trajectoires'}</button></div>
-            {projectionError && <p className="simulation-form-error" role="alert">{projectionError}</p>}
-            {projection && <div className="simulation-projection-results"><div className="simulation-projection-heading"><strong>Trajectoires calculées</strong><span>Point de départ : {projection.startingPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency} · {dateLabel(projection.asOf)}</span></div><div className="simulation-projection-grid">{projection.branches.map((branch, index) => { const end = branch.path.at(-1); return <article key={branch.id} className={selectedBranchId === branch.id ? 'is-selected' : undefined} style={{ borderTopColor: ['#4779d0', '#3c897b', '#a77a45', '#8e6ca7'][index % 4] }}><strong>{branch.title}</strong><p>{branch.event} · choc {pctLabel(branch.shockPct)} après {branch.eventAfterObservations} séances</p>{branch.sourceUrl && <a className="simulation-branch-source" href={safeSourceUrl(branch.sourceUrl)} target="_blank" rel="noopener noreferrer"><ExternalLink size={10}/>Source déclarée</a>}<div><span>Bas historique <b>{end?.lowerPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span><span>Médiane <b>{end?.medianPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span><span>Haut historique <b>{end?.upperPrice.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} {projection.currency}</b></span></div><button type="button" aria-pressed={selectedBranchId === branch.id} onClick={() => setSelectedBranchId(branch.id)}>Afficher cette trajectoire dans le graphique</button></article>; })}</div><p className="simulation-projection-method">{projection.method} {projection.limitations.join(' ')}</p><p className="simulation-projection-method">Source historique : {projection.source}. Données arrêtées au {dateLabel(projection.asOf)}.</p></div>}
+          <section className="simulation-scenario-builder simulation-case-studio" aria-labelledby="scenario-builder-title">
+            <div className="simulation-studio-heading">
+              <span className="simulation-panel-icon"><SlidersHorizontal size={16}/></span>
+              <div><span className="simulation-eyebrow">LABORATOIRE DE SCÉNARIOS</span><h2 id="scenario-builder-title">Cas d’investissement conditionnels</h2><p>Composez plusieurs cas, choisissez les hypothèses et comparez leurs trajectoires sur la même série historique.</p></div>
+              <button type="button" className="simulation-add-branch" disabled={scenarioCases.length>=6} onClick={addScenarioCase}><Plus size={14}/>Nouveau cas</button>
+              <button type="button" className="simulation-run-batch" disabled={batchBusy||!scenarioCases.some(item=>item.selected&&item.status!=='running')} onClick={()=>void runSelectedCases()}>{batchBusy?<LoaderCircle size={14} className="simulation-spinner"/>:<Play size={14}/>}Lancer {scenarioCases.filter(item=>item.selected).length} cas en parallèle</button>
+            </div>
+            <div className="simulation-engine-note"><ShieldCheck size={14}/><span>Compte actif : <strong>{activeAccount.name}</strong>. Le moteur calcule chaque cas séparément sur le titre historique <strong>{ticker}</strong>. Le montant saisi est votre exposition hypothétique, pas la valeur du compte. Dans un cas, les branches sont alternatives, pas une séquence. Aucun choc, rendement ou lien causal n’est inféré.</span></div>
+            <section className="simulation-timeline" aria-labelledby="simulation-timeline-title">
+              <div className="simulation-timeline-heading"><div><span className="simulation-eyebrow"><Clock3 size={13}/> DONNÉES DATÉES</span><h3 id="simulation-timeline-title">Timeline des événements</h3><p>{visibleTimelineItems.length} repères datés · données d’entreprise, dépôts, réglementation et presse · période {chartRange} ans</p></div><span className="simulation-timeline-selection">{selectedTimelineIds.length}/4 sélectionnés</span></div>
+              <div className="simulation-timeline-filters" aria-label="Filtrer les événements de la timeline">{([['corporate','Événements d’entreprise'],['sec','Dépôts SEC'],['regulation','Réglementation'],['news','Presse indexée']] as const).map(([source,label])=><label key={source}><input type="checkbox" checked={timelineFilters.includes(source)} onChange={event=>{setTimelineFilters(current=>event.target.checked?[...current,source]:current.filter(item=>item!==source));if(!event.target.checked)setSelectedTimelineIds(current=>current.filter(id=>!timelineItems.some(item=>item.id===id&&item.source===source)));}}/>{label}</label>)}</div>
+              <div className="simulation-timeline-list" role="group" aria-label="Événements disponibles, du plus récent au plus ancien">{visibleTimelineItems.slice(0,timelineLimit).map(item=><div className={`simulation-timeline-item is-${item.source}${selectedId===item.id?' is-focused':''}`} key={item.id}><button type="button" className="simulation-timeline-event" onClick={()=>setSelectedId(item.id)} aria-pressed={selectedId===item.id}><i/><time dateTime={item.date}>{dateLabel(item.date)}</time><span>{item.title}</span><small>{({corporate:'Entreprise',sec:'SEC',regulation:'Réglementation',news:'Presse'})[item.source]}</small></button><label className="simulation-timeline-check"><input type="checkbox" checked={selectedTimelineIds.includes(item.id)} disabled={!selectedTimelineIds.includes(item.id)&&selectedTimelineIds.length>=4} onChange={event=>setSelectedTimelineIds(current=>event.target.checked?[...current,item.id]:current.filter(id=>id!==item.id))}/><span>Hypothèse</span></label></div>)}{!visibleTimelineItems.length&&<p className="simulation-timeline-empty">Aucun événement pour ces filtres et cette période. Les sources indisponibles ne sont pas remplacées par des événements fictifs.</p>}</div>
+              {visibleTimelineItems.length>timelineLimit&&<button type="button" className="simulation-timeline-more" onClick={()=>setTimelineLimit(value=>value+12)}>Afficher 12 repères de plus</button>}
+              <div className="simulation-timeline-actions"><span>{selectedTimelineIds.length?`${selectedTimelineIds.length} événement${selectedTimelineIds.length>1?'s':''} ajouté${selectedTimelineIds.length>1?'s':''} comme branche${selectedTimelineIds.length>1?'s alternatives':''} au cas actif.`:'Cochez jusqu’à quatre événements pour les utiliser comme hypothèses.'}</span><button type="button" disabled={!selectedTimelineIds.length||activeScenarioCase?.status==='running'} onClick={applyTimelineSelection}><Check size={13}/>Ajouter au cas actif</button></div>
+            </section>
+            <div className="simulation-case-grid">{scenarioCases.map((item,index)=>{
+              const result=item.projection;const amount=Number(item.investedAmount);const currency=result?.currency??history.currency;
+              return <article key={item.id} className={`simulation-case${activeCaseId===item.id?' is-active':''}${item.status==='running'?' is-running':''}`}>
+                <header className="simulation-case-header"><label className="simulation-case-batch"><input type="checkbox" checked={item.selected} onChange={event=>updateCase(item.id,{selected:event.target.checked})} aria-label={`Inclure ${item.name} dans le lancement parallèle`}/></label><i style={{background:branchColors[index%branchColors.length]}}/><input className="simulation-case-name" aria-label={`Nom du cas ${index+1}`} value={item.name} maxLength={80} onChange={event=>updateCase(item.id,{name:event.target.value})}/><span className={`simulation-case-status is-${item.status}`}>{item.status==='complete'?<><CheckCircle2 size={12}/>Calculé</>:item.status==='running'?<><LoaderCircle size={12} className="simulation-spinner"/>Calcul</>:item.status==='error'?<><AlertTriangle size={12}/>À corriger</>:<>Brouillon</>}</span><button type="button" className="simulation-case-focus" onClick={()=>{setActiveCaseId(item.id);setSelectedBranchId(item.projection?.branches[0]?.id);}} aria-pressed={activeCaseId===item.id}>{activeCaseId===item.id?'Affiché':'Afficher'}</button>{scenarioCases.length>1&&<button type="button" className="simulation-case-remove" aria-label={`Supprimer ${item.name}`} disabled={item.status==='running'} onClick={()=>{setScenarioCases(current=>current.filter(candidate=>candidate.id!==item.id));if(activeCaseId===item.id)setActiveCaseId(scenarioCases.find(candidate=>candidate.id!==item.id)?.id??'');}}><X size={14}/></button>}</header>
+                <div className="simulation-case-inputs"><label><span>Horizon de marché</span><select value={item.horizon} disabled={item.status==='running'} onChange={event=>updateCase(item.id,{horizon:Number(event.target.value) as Horizon,status:'draft',projection:undefined})}>{HORIZONS.map(value=><option key={value} value={value}>{value} séances</option>)}</select></label><label><span>Montant exposé · {currency}</span><div className="simulation-amount-field"><CircleDollarSign size={14}/><input type="number" min="1" max="100000000" step="100" value={item.investedAmount} disabled={item.status==='running'} onChange={event=>updateCase(item.id,{investedAmount:event.target.value,status:'draft',projection:undefined,error:undefined})}/></div></label><span className="simulation-case-asset">{item.ticker||ticker} · cours observés jusqu’au {dateLabel(history.sourceAsOf)}</span></div>
+                <div className="simulation-case-branches">{item.branches.map((branch,branchIndex)=><div className="simulation-case-branch" key={branch.id}><div className="simulation-case-branch-heading"><i style={{background:branchColors[branchIndex%branchColors.length]}}/><label><span>Libellé de la branche</span><input className="simulation-case-branch-name" aria-label={`Nom de la branche ${branchIndex+1} dans ${item.name}`} value={branch.title} maxLength={80} disabled={item.status==='running'} onChange={event=>updateCase(item.id,{branches:item.branches.map(candidate=>candidate.id===branch.id?{...candidate,title:event.target.value}:candidate),status:'draft',projection:undefined})}/></label>{branch.sourceUrl&&<a href={safeSourceUrl(branch.sourceUrl)} target="_blank" rel="noreferrer" aria-label={`Ouvrir la source de ${branch.title}`}><ExternalLink size={12}/></a>}{item.branches.length>1&&<button type="button" aria-label={`Retirer la branche ${branchIndex+1} de ${item.name}`} disabled={item.status==='running'} onClick={()=>updateCase(item.id,{branches:item.branches.filter(candidate=>candidate.id!==branch.id),status:'draft',projection:undefined})}><X size={12}/></button>}</div><label><span>Événement ou condition</span><input value={branch.event} maxLength={160} disabled={item.status==='running'} placeholder="Ex. baisse de taux de 0,5 point" onChange={event=>updateCase(item.id,{branches:item.branches.map(candidate=>candidate.id===branch.id?{...candidate,event:event.target.value}:candidate),status:'draft',projection:undefined})}/></label><div className="simulation-case-branch-fields"><label><span>Choc explicite (%)</span><input type="number" min={-80} max={100} step="0.1" value={branch.shockPct} disabled={item.status==='running'} placeholder="−10" onChange={event=>updateCase(item.id,{branches:item.branches.map(candidate=>candidate.id===branch.id?{...candidate,shockPct:event.target.value}:candidate),status:'draft',projection:undefined})}/></label><label><span>Après (séances)</span><input type="number" min={0} max={item.horizon} step="1" value={branch.eventAfterObservations} disabled={item.status==='running'} onChange={event=>updateCase(item.id,{branches:item.branches.map(candidate=>candidate.id===branch.id?{...candidate,eventAfterObservations:Number(event.target.value)}:candidate),status:'draft',projection:undefined})}/></label></div><label><span>Source de l’hypothèse · HTTPS</span><input type="url" value={branch.sourceUrl??''} maxLength={1000} disabled={item.status==='running'} placeholder="https://…" onChange={event=>updateCase(item.id,{branches:item.branches.map(candidate=>candidate.id===branch.id?{...candidate,sourceUrl:event.target.value}:candidate),status:'draft',projection:undefined})}/></label></div>)}</div>
+                <div className="simulation-case-actions"><button type="button" className="simulation-add-branch" disabled={item.branches.length>=4||item.status==='running'} onClick={()=>updateCase(item.id,{branches:[...item.branches,emptyBranch(item.branches.length)],status:'draft',projection:undefined})}><Plus size={12}/>Ajouter une branche</button><button type="button" className="simulation-run-case" disabled={item.status==='running'||batchBusy} onClick={()=>void runScenarioCase(item.id)}>{item.status==='running'?<LoaderCircle size={13} className="simulation-spinner"/>:<Play size={13}/>}Lancer ce cas</button></div>
+                {item.error&&<p className="simulation-form-error" role="alert">{item.error}</p>}
+                {result&&<div className="simulation-case-results"><div className="simulation-case-results-heading"><strong>Résultat conditionnel · {item.horizon} séances</strong><span>Montant choisi : {Number.isFinite(amount)&&amount>0?amount.toLocaleString('fr-CA',{style:'currency',currency:result.currency}):'—'}</span></div><div className="simulation-projection-grid">{result.branches.map((branch,branchIndex)=>{const end=branch.path.at(-1);const scale=Number.isFinite(amount)&&amount>0?amount/result.startingPrice:NaN;return <article key={branch.id} className={selectedBranchId===branch.id?'is-selected':undefined} style={{borderTopColor:branchColors[branchIndex%branchColors.length]}}><strong>{branch.title}</strong><p>{branch.event} · choc {pctLabel(branch.shockPct)} après {branch.eventAfterObservations} séances</p><div><span>Bande basse <b>{end?(end.lowerPrice*scale).toLocaleString('fr-CA',{style:'currency',currency:result.currency}):'—'}</b></span><span>Médiane historique <b>{end?(end.medianPrice*scale).toLocaleString('fr-CA',{style:'currency',currency:result.currency}):'—'}</b></span><span>Bande haute <b>{end?(end.upperPrice*scale).toLocaleString('fr-CA',{style:'currency',currency:result.currency}):'—'}</b></span></div><button type="button" aria-pressed={activeCaseId===item.id&&selectedBranchId===branch.id} onClick={()=>{setActiveCaseId(item.id);setSelectedBranchId(branch.id);}}>Tracer cette branche</button></article>;})}</div><p className="simulation-projection-method">{result.method} Les bandes historiques ne sont ni des probabilités ni une prévision. Montant projeté = montant saisi × prix conditionnel / prix de départ.</p></div>}
+              </article>;
+            })}</div>
+            <p className="simulation-projection-method">Les hypothèses sont éditables et le lancement parallèle ne modifie ni le portefeuille ni le marché. Le montant est une mise en échelle illustrative sur le titre choisi, sans frais, fiscalité, liquidité ni allocation de portefeuille.</p>
           </section>
           <div className="simulation-method-note"><ShieldCheck size={15} /><span><strong>Méthode et limites.</strong> {history.method} {history.limitations.join(' ')} {regulations?.legalStatus}</span>{regulations?.sourceUrl && <a href={regulations.sourceUrl} target="_blank" rel="noreferrer">Documentation de l’API réglementaire ↗</a>}<Link to="/app/evidence">Sources et méthode</Link></div>
           <Link className="simulation-assistant-link" to="/app/assistant" state={{ initialPrompt: assistantPrompt }}>Discuter de cette analyse avec l’Assistant →</Link>
