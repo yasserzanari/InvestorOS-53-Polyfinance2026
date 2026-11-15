@@ -26,7 +26,7 @@ function getCognitoAuth() {
           userPoolId,
           userPoolClientId: clientId,
           loginWith: { username: true },
-          mfa: { status: 'on', totpEnabled: true, smsEnabled: false },
+          mfa: { status: 'optional', totpEnabled: true, smsEnabled: false },
         },
       },
     });
@@ -51,6 +51,10 @@ type AuthState = {
   confirmSignIn: (challengeResponse: string) => Promise<SignInOutput>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<boolean>;
+  fetchMFAPreference: () => Promise<{ enabled?: string[]; preferred?: string }>;
+  beginTOTPSetup: () => Promise<{ sharedSecret: string; setupUri: string }>;
+  confirmTOTPSetup: (code: string) => Promise<void>;
+  disableTOTP: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -114,6 +118,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(!enabled);
   }, []);
 
+  const fetchMFAPreference = useCallback(async () => {
+    const auth = await getCognitoAuth();
+    return auth.fetchMFAPreference();
+  }, []);
+
+  const beginTOTPSetup = useCallback(async () => {
+    const auth = await getCognitoAuth();
+    const setup = await auth.setUpTOTP();
+    return {
+      sharedSecret: setup.sharedSecret,
+      setupUri: setup.getSetupUri('InvestorOS', user?.username ?? 'admin').toString(),
+    };
+  }, [user?.username]);
+
+  const confirmTOTPSetup = useCallback(async (code: string) => {
+    const auth = await getCognitoAuth();
+    await auth.verifyTOTPSetup({ code });
+    await auth.updateMFAPreference({ totp: 'PREFERRED' });
+  }, []);
+
+  const disableTOTP = useCallback(async () => {
+    const auth = await getCognitoAuth();
+    await auth.updateMFAPreference({ totp: 'DISABLED' });
+  }, []);
+
   const value = useMemo<AuthState>(() => ({
     enabled,
     loading,
@@ -123,7 +152,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     confirmSignIn,
     signOut,
     refreshUser,
-  }), [loading, user, isAdmin, signIn, confirmSignIn, signOut, refreshUser]);
+    fetchMFAPreference,
+    beginTOTPSetup,
+    confirmTOTPSetup,
+    disableTOTP,
+  }), [loading, user, isAdmin, signIn, confirmSignIn, signOut, refreshUser, fetchMFAPreference, beginTOTPSetup, confirmTOTPSetup, disableTOTP]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, Settings2, X } from 'lucide-react';
 import { productModules } from '../app/modules';
 import { demoAccounts, useDemoAccount } from './DemoAccountContext';
 import { useAuth } from './auth';
@@ -63,6 +63,10 @@ export function AppShell() {
           ))}
         </nav>
         <div className="sidebar-bottom">
+          <NavLink to="/app/settings" className={({ isActive }) => `sidebar-link${isActive ? ' is-active' : ''}`} title="Paramètres">
+            <Settings2 size={18} strokeWidth={1.8} aria-hidden="true" />
+            <span className="sidebar-link-label">Paramètres</span>
+          </NavLink>
           <div className="sidebar-demo-note">Données fictives de démonstration</div>
           <Link className="sidebar-profile" to="/app/profiles">
             <span className="profile-avatar">Y</span>
@@ -72,7 +76,7 @@ export function AppShell() {
       </aside>
       <div className="workspace-main">
         <header className="workspace-topbar">
-          <div className="topbar-context"><span>InvestorOS</span><span className="context-slash">/</span><strong>{location.pathname === '/app/profiles' ? 'Profil investisseur' : productModules.find((module) => module.href === location.pathname)?.shortLabel ?? 'Espace'}</strong></div>
+          <div className="topbar-context"><span>InvestorOS</span><span className="context-slash">/</span><strong>{location.pathname === '/app/profiles' ? 'Profil investisseur' : location.pathname === '/app/settings' ? 'Paramètres' : productModules.find((module) => module.href === location.pathname)?.shortLabel ?? 'Espace'}</strong></div>
           <div className="topbar-actions">
             <label className="account-switcher-label" htmlFor="active-demo-account">Compte</label>
             <select id="active-demo-account" className="account-switcher" value={activeAccount.id} onChange={(event) => setActiveAccountId(event.target.value)} aria-label="Compte de démonstration actif">

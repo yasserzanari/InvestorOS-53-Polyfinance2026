@@ -4,6 +4,7 @@ import { AppShell } from '../shared/AppShell';
 import { DemoAccountProvider } from '../shared/DemoAccountContext';
 import { DashboardPage, ModuleLanding } from '../features/overview/DashboardPage';
 import { AssistantPage, ProfilesPage } from '../features/profiles/ProfilesPage';
+import { SettingsPage } from '../features/settings/SettingsPage';
 import { productModules } from './modules';
 import { AuthCallback, AuthProvider, RequireAdmin } from '../shared/auth';
 
@@ -35,6 +36,7 @@ export function App() {
                   <Route path="evidence" element={<EvidencePage />} />
                   <Route path="analyses" element={<AnalysesPage />} />
                   <Route path="network" element={<NetworkPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
                   {productModules.filter(({ id }) => !['overview', 'assistant', 'profiles', 'portfolios', 'scenarios', 'evidence', 'analyses', 'network'].includes(id)).map((module) => (
                     <Route
                       key={module.id}

@@ -142,7 +142,7 @@ resource "aws_apigatewayv2_api" "http" {
 
 resource "aws_cognito_user_pool" "application" {
   name                = "${var.name_prefix}-users"
-  mfa_configuration   = "ON"
+  mfa_configuration   = "OPTIONAL"
   deletion_protection = "ACTIVE"
 
   software_token_mfa_configuration {
@@ -162,7 +162,7 @@ resource "aws_cognito_user_pool" "application" {
     allow_admin_create_user_only = true
     invite_message_template {
       email_subject = "InvestorOS account"
-      email_message = "Hello {username}, your temporary InvestorOS password is {####}. Sign in to set a new password and enroll an authenticator app."
+      email_message = "Hello {username}, your temporary InvestorOS password is {####}. Sign in to set a new password. You can enable an authenticator app in account settings."
       sms_message   = "Hello {username}, your temporary InvestorOS password is {####}."
     }
   }
