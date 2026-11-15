@@ -2,49 +2,39 @@
 
 ## Démarrage habituel
 
-Depuis la racine du dépôt :
+Depuis la racine du dépôt, une seule commande lance l’interface **et** son API :
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Cela démarre seulement Vite. Les vues UI et les fixtures locales fonctionnent sans Cognito. Pour le chat, la recherche AWS, les événements et les preuves, démarrez aussi l’API locale :
+L’API se lie à `127.0.0.1` sur le port `8010` (ou le premier port libre jusqu’à `8020`); Vite s’y connecte automatiquement. Le serveur choisit les valeurs AWS de développement connues : région `us-east-1`, Lambda `investoros-dev-api` et profil Bedrock US Nova Lite. Les portefeuilles de démonstration restent fictifs et locaux. Arrêter Vite arrête aussi l’API.
 
-```sh
-npm run dev:local
-```
-
-Cette commande lance FastAPI sur `127.0.0.1:8010` (ou le premier port libre jusqu’à `8020`) puis Vite sur `http://localhost:5173`. L’adresse réelle de l’API est affichée au démarrage. Vite relaie `/profile-api/*` vers FastAPI; le navigateur ne reçoit jamais de credentials AWS. Arrêter Vite arrête aussi l’API.
+`npm run dev:local` reste un alias de cette commande. `npm run dev:web` démarre seulement Vite pour le travail d’interface isolé. Le proxy `/profile-api/*` garde les appels serveur hors du navigateur.
 
 ## Accès IAM local au moteur de recherche
 
-Le navigateur AWS réserve les routes HTTP à une session Cognito administrateur. En développement, FastAPI peut utiliser l’entrée Lambda IAM `investoros.research-iam`, limitée aux routes de lecture, lancement et annulation d’analyses. L’interface locale appelle uniquement FastAPI; celui-ci utilise la chaîne d’identifiants AWS standard avec `lambda:InvokeFunction`.
+Le navigateur AWS réserve les routes HTTP à une session Cognito administrateur. En développement, FastAPI utilise par défaut l’entrée Lambda IAM `investoros.research-iam`, limitée aux routes de lecture, lancement et annulation d’analyses. Il prend les identifiants de la chaîne AWS standard (credentials d’environnement, rôle de machine ou profil AWS/SSO); le navigateur ne reçoit jamais ces credentials.
 
-Créer le fichier local ignoré `apps/api/.env.profile-api` :
-
-```dotenv
-AWS_PROFILE=mon-profil-sso
-AWS_REGION=us-east-1
-RESEARCH_LAMBDA_FUNCTION=investoros-dev-api
-```
-
-Adapter le nom du profil et celui de la Lambda à l’environnement fourni par l’équipe AWS. Puis ouvrir une session SSO avant le démarrage :
+La configuration habituelle ne demande aucun fichier. Si un profil SSO spécifique est nécessaire, ouvrez une session avant le démarrage :
 
 ```sh
 aws sso login --profile mon-profil-sso
-npm run dev:local
+AWS_PROFILE=mon-profil-sso npm run dev
 ```
 
-Le rôle AWS local doit pouvoir invoquer **uniquement** la Lambda de recherche prévue pour InvestorOS. Le handler IAM refuse les chemins, méthodes et formats d’événements hors contrat. Ne placez jamais des clés AWS, jetons Cognito ou secrets dans `apps/web/.env*`, dans une variable `VITE_*` ou dans Git. `AWS_PROFILE` et la fonction Lambda ne sont pas des secrets; les credentials restent dans la configuration SSO locale.
+Le rôle AWS local doit pouvoir invoquer **uniquement** la Lambda de recherche prévue pour InvestorOS. Le handler IAM refuse les chemins, méthodes et formats d’événements hors contrat. Ne placez jamais de clés AWS, jetons Cognito ou secrets dans `apps/web/.env*`, dans une variable `VITE_*` ou dans Git.
+
+Pour remplacer les paramètres par défaut, fournir `AWS_REGION`, `BEDROCK_MODEL_ID`, `RESEARCH_LAMBDA_FUNCTION` ou `RESEARCH_API_URL` dans l’environnement avant `npm run dev`. Le fichier ignoré `apps/api/.env.profile-api` reste disponible pour les valeurs non secrètes propres à un poste. Une valeur explicite de `RESEARCH_API_URL` ou `RESEARCH_LAMBDA_FUNCTION` est conservée.
 
 Dans **Analyses**, le mode Vite local charge l’historique durable via `GET /v1/profiles/research/analyses`. Ouvrir une entrée passe son identifiant à Assistant, qui charge le résultat, les événements et les preuves avec `GET /v1/profiles/research/{analysis_id}`. Aucun résultat fictif de remplacement n’est ajouté en cas d’échec.
 
-Sans configuration IAM, les autres éléments du frontend restent utilisables; le panneau Analyses affiche une erreur explicite et aucune connexion AWS n’est prétendue. Vérifications utiles :
+Sans identité AWS locale valide ou sans droit `lambda:InvokeFunction`, l’interface démarre tout de même et l’opération concernée affiche une erreur explicite. Vérifications utiles :
 
 ```sh
 curl http://127.0.0.1:8010/health
-aws sts get-caller-identity --profile mon-profil-sso
+aws sts get-caller-identity
 ```
 
 Un `502` dans Analyses signifie généralement que l’entrée IAM n’est pas configurée ou que Lambda a refusé l’invocation. Vérifier le profil, la région, le nom de la fonction et l’action IAM, sans élargir les permissions HTTP de production.

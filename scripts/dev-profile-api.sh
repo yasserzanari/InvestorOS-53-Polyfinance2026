@@ -35,9 +35,20 @@ if [[ -f "$admin_settings" ]]; then
 fi
 
 export AWS_REGION="${AWS_REGION:-us-east-1}"
-export BEDROCK_MODEL_ID="${BEDROCK_MODEL_ID:-amazon.nova-pro-v1:0}"
+export BEDROCK_MODEL_ID="${BEDROCK_MODEL_ID:-us.amazon.nova-lite-v1:0}"
+# Use the existing, least-privilege IAM entry for research by default. An explicit
+# API URL or function name from the environment/local settings always wins.
+if [[ -z "${RESEARCH_LAMBDA_FUNCTION:-}" && -z "${RESEARCH_API_URL:-}" ]]; then
+  export RESEARCH_LAMBDA_FUNCTION="investoros-dev-api"
+fi
 export DEMO_PORTFOLIO_MODE="${DEMO_PORTFOLIO_MODE:-local_fixture}"
 export PYTHONPATH="$PROJECT_ROOT/apps/api/src${PYTHONPATH:+:$PYTHONPATH}"
+if [[ -n "${RESEARCH_LAMBDA_FUNCTION:-}" ]]; then
+  echo "Recherche locale : Lambda IAM ${RESEARCH_LAMBDA_FUNCTION} (${AWS_REGION})"
+else
+  echo "Recherche locale : API HTTPS configurée"
+fi
+echo "Bedrock local : ${BEDROCK_MODEL_ID} (${AWS_REGION}); credentials depuis la chaîne AWS standard"
 exec "$PROFILE_API_PYTHON" -m uvicorn investoros_api.main:app \
   --host 127.0.0.1 --port "${PROFILE_API_PORT:-8010}" --reload \
   --reload-dir "$PROJECT_ROOT/apps/api/src"
