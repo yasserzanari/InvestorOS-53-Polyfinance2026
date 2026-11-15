@@ -85,7 +85,10 @@ export function DashboardActivityFeed({
           setCleared(false);
           setDismissed(new Set());
           setReadAll(false);
-          setScanMessage(`Recherche terminée · ${scan.result?.newCases ?? 0} nouveau(x) dossier(s).`);
+          const unavailable = scan.result?.unavailableTickers ?? [];
+          setScanMessage(unavailable.length
+            ? `Couverture temporairement indisponible pour ${unavailable.join(', ')}. Aucun résultat ne peut être confirmé pour ces titres.`
+            : `Recherche terminée · ${scan.result?.newCases ?? 0} nouveau(x) dossier(s).`);
           setScanId(null);
         } else if (scan.status === 'failed') {
           setScanMessage(scan.message ?? 'La recherche a échoué. Réessaie dans un instant.');

@@ -48,7 +48,7 @@ class PortfolioMonitorTests(unittest.TestCase):
     def test_category_only_portfolio_does_not_infer_tickers(self, news, portfolio, _query, _context):
         portfolio.return_value = {"positions": [{"id": "line-1", "label": "Actions mondiales (fixture)"}]}
         result = scan_persona("mateo", datetime(2026, 11, 15, tzinfo=timezone.utc))
-        self.assertEqual(result, {"persona": "mateo", "checkedArticles": 0, "newCases": 0})
+        self.assertEqual(result, {"persona": "mateo", "checkedArticles": 0, "newCases": 0, "unavailableTickers": []})
         news.assert_not_called()
 
     @patch("investoros_api.portfolio_monitor.context_for", return_value={"account_id": "demo-account-001", "profile_id": "profile", "portfolio_id": "portfolio"})
@@ -76,7 +76,7 @@ class PortfolioMonitorTests(unittest.TestCase):
 
         result = scan_persona("mateo", now)
 
-        self.assertEqual(result, {"persona": "mateo", "checkedArticles": 1, "newCases": 1})
+        self.assertEqual(result, {"persona": "mateo", "checkedArticles": 1, "newCases": 1, "unavailableTickers": []})
         validate.assert_called_once()
         case = save.call_args.args[1]
         self.assertEqual(case["status"], "new")
@@ -97,4 +97,16 @@ class PortfolioMonitorTests(unittest.TestCase):
             "indexedAt": "2026-11-13T11:00:00+00:00",
         }]}
         result = scan_persona("mateo", datetime(2026, 11, 15, 12, tzinfo=timezone.utc))
-        self.assertEqual(result, {"persona": "mateo", "checkedArticles": 0, "newCases": 0})
+        self.assertEqual(result, {"persona": "mateo", "checkedArticles": 0, "newCases": 0, "unavailableTickers": []})
+
+    @patch("investoros_api.portfolio_monitor.context_for", return_value={"account_id": "demo-account-001", "profile_id": "profile", "portfolio_id": "portfolio"})
+    @patch("investoros_api.portfolio_monitor._query", return_value=[{"ticker": "AAPL", "positionId": "line-1", "positionLabel": "Actions mondiales"}])
+    @patch("investoros_api.portfolio_monitor.load_demo_portfolio", return_value={"positions": []})
+    @patch("investoros_api.portfolio_monitor._assets", return_value={"AAPL": {"name": "Apple Inc."}})
+    @patch("investoros_api.portfolio_monitor.issuer_news", return_value={"available": False, "articles": []})
+    def test_provider_outage_is_reported_in_scan_result(self, _news, _assets, _portfolio, _query, _context):
+        result = scan_persona("mateo", datetime(2026, 11, 15, 12, tzinfo=timezone.utc))
+        self.assertEqual(result, {
+            "persona": "mateo", "checkedArticles": 0, "newCases": 0,
+            "unavailableTickers": ["AAPL"],
+        })
