@@ -110,6 +110,8 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
+      PROFILE_CHAT_JOBS_TABLE       = aws_dynamodb_table.profile_chat_jobs.name
+      PROFILE_CHAT_WORKER_FUNCTION  = aws_lambda_function.profile_chat_worker.function_name
       BEDROCK_MODEL_ID              = var.bedrock_model_id
       CORS_ALLOWED_ORIGINS          = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
       RESEARCH_API_URL              = data.aws_apigatewayv2_api.application.api_endpoint

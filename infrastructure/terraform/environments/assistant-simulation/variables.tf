@@ -18,7 +18,7 @@ variable "environment" {
 variable "bedrock_model_id" {
   description = "Profil d’inférence Bedrock actif pour l’Assistant."
   type        = string
-  default     = "us.amazon.nova-lite-v1:0"
+  default     = "us.anthropic.claude-sonnet-4-6"
 
   validation {
     condition     = can(regex("^us\\.[A-Za-z0-9._:-]+$", var.bedrock_model_id))

@@ -1,70 +1,104 @@
 # Espace Profile interactif
 
-## Fonctionnement
+## Périmètre et parcours
 
-La route `/app/profiles` conserve le chat partagé à gauche. `ProfileWorkbench.tsx` affiche à droite six vues permanentes : Profil, Alignement, Comparer, Scénarios, Preuves et Mémoire. Une vue Documents apparaît lorsqu’un agent crée des notes, tâches, activités ou résultats de recherche. Sur mobile, Conversation et Profil et analyses se présentent dans deux panneaux alternatifs; le chat ne s’empile plus au-dessus d’un long formulaire. Le panneau est redimensionnable et agrandissable.
+La route `/app/profiles` conserve le chat à gauche et six vues à droite : Profil, Alignement, Comparer, Scénarios, Preuves et Mémoire. Documents apparaît lorsqu’une note, une tâche ou un résultat de recherche est créé. Le panneau se redimensionne et s’agrandit; la mise en page garde le cadre dans la fenêtre, avec défilement interne pour les contenus longs. Sur petit écran, Conversation et Profil et analyses alternent dans le même espace.
 
-Profil regroupe les huit rubriques en quatre pages courtes; chaque changement conserve sa provenance, date et version et retire la confirmation. Seule une action de la personne confirme les réponses. Un profil textuellement complet n’est pas une certification de convenance.
+- **Profil** : huit rubriques en quatre pages courtes. Les modifications conservent origine, date et version, et retirent la confirmation. Seule la personne confirme ses réponses; cette confirmation ne certifie pas la convenance d’un investissement.
+- **Alignement** : le constat de l’IA est distinct des règles de champs et des inconnues. Chaque piste reprend la discussion; les champs concernés sont accessibles directement. Une modification du profil rend la carte périmée et désactive ses anciennes pistes jusqu’à actualisation. Les règles reconnaissent les horizons en mois, dont 18 mois, en tenant compte des négations.
+- **Comparer** : `POST /v1/profiles/compare` calcule rendement ajusté, repli maximal et écart-type échantillonnal non annualisé sur les mêmes dates communes et la même devise. La courbe est en base 100; seul l’affichage est échantillonné. Méthode, période, limites et SHA-256 des entrées restent dans le document. Des devises différentes sont refusées sans conversion implicite.
+- **Scénarios** : Synthèse, Paramètres et Méthode séparent résultat et hypothèses. Modifier un paramètre rend les anciens résultats indisponibles jusqu’au recalcul ou au rétablissement. Chaque document possède son propre brouillon; changer de scénario ne réutilise pas les paramètres du précédent. La navigation IA peut cibler un `documentId`; sinon le dernier scénario est sélectionné. Le recalcul est mémorisé. Les centiles sont conditionnels, sans probabilité future annoncée.
+- **Preuves** : les références reçues sont conservées par identifiant, y compris lorsque deux preuves partagent une URL. Le filtre « Liées au constat » utilise les `evidenceIds` de la carte. Une référence ouverte ne prouve pas que toute son information a été validée.
+- **Mémoire** : état de synchronisation, version, confirmation, provenance des huit rubriques, rechargement et export du contexte.
 
-Alignement distingue le constat de l’IA, sélectionné par défaut après publication, des tensions et inconnues des règles de champs. Les pistes de la carte reprennent le dialogue avec sa question d’origine; les limites restent consultables. Les champs cités sont éditables par un lien direct. La version des champs utilisée pour une carte est conservée : une modification signale la péremption et désactive ses anciennes pistes jusqu’à actualisation. Les règles reconnaissent aussi les horizons et retraits exprimés en mois, notamment « 18 mois », sans supprimer la prise en compte des négations.
+## Outils et skills
 
-Comparer appelle `POST /v1/profiles/compare`. Les rendements ajustés et replis proviennent des mêmes dates communes et de la même devise. La variabilité est un écart-type échantillonnal non annualisé entre observations communes. La courbe est en base 100; seuls les points affichés sont échantillonnés. Le calcul, ses métriques, méthode, limites et empreinte des entrées restent dans le document. Des devises différentes sont refusées; aucun FX implicite ni volatilité de portefeuille inventée.
+`compare_profile_instruments` calcule et conserve la comparaison. `publish_profile_insight` valide la carte et refuse les références de preuve non reçues. Le résumé doit contenir un constat; une clarification exige une question ciblée, une tension ou une analyse partielle exige une piste ou une question. Le serveur joint les expositions effectivement lues à `portfolioBasis`, indépendamment du texte généré, et Alignement affiche les poids. Une carte refusée reçoit une consigne de reformulation ciblée; après trois essais invalides le tour termine avec une erreur explicite. Les brouillons des tours d’outils sont tamponnés; seul le texte final est publié dans le chat. S’il est vide après une carte ou un calcul réussi, le serveur reprend le résumé de la carte ou confirme l’action effectivement terminée, sans nouveau chiffre. Une demande limitée à une note ne peut pas rejouer un ancien scénario. `open_profile_view` ouvre une vue et peut cibler un document existant; un identifiant inconnu est refusé. Les événements de navigation restent distincts, même après une navigation manuelle. En mode Profile, `upsert_tab` ouvre la note créée ou modifiée.
 
-Scénarios réutilise les outils de simulation. `ProfileScenario.tsx` propose Synthèse, Paramètres et Méthode; le réglage des branches est compact. Les anciens résultats sont indisponibles si les hypothèses changent, jusqu’au recalcul ou au rétablissement. Le résultat modifié est conservé dans le document. Les centiles restent conditionnels, sans probabilité future annoncée.
+`close_profile_document` ferme uniquement le document demandé. Une demande explicite nommant exactement un document est routée vers cet outil; profil et autres documents sont conservés. Les identifiants réservés aux comparaisons et aux cartes ne peuvent pas être écrasés par une note arbitraire. `update_profile`, `ask_user` et les outils historiques/scénarios complètent le parcours. Une demande explicite de calcul ou de création de scénarios lit les capacités disponibles et ne peut être présentée comme terminée sans résultat calculé.
 
-## Outils et skills de l’agent
+Pour une demande strictement historique, le runtime charge `profile-workspace` et limite les outils aux données, calculs et vues nécessaires : ce tour ne modifie pas le profil et ne publie pas une carte d’adéquation. Le résultat ouvre Comparer. Ses symboles et sa période sont restaurés dans les contrôles, sans écraser une saisie en cours.
 
-- `compare_profile_instruments` calcule et conserve la comparaison, puis ouvre la vue correspondante.
-- `publish_profile_insight` valide une carte liée aux champs explicites du profil; aucune référence de preuve non reçue n’est acceptée.
-- `open_profile_view` sélectionne une vue, y compris Documents. `documentId` permet de sélectionner un document existant; les identifiants inconnus sont refusés. Chaque événement est distinct, même si la vue avait déjà été ouverte avant une navigation manuelle. En mode Profile, `upsert_tab` ouvre automatiquement la note créée ou modifiée.
-- `close_profile_document` ferme seulement le document demandé, en conservant profil et autres documents. Une demande nommant exactement un identifiant de document est routée côté serveur vers cet outil et ne peut pas fermer un autre document. Le bouton de fermeture permet aussi de retirer un scénario volumineux. La dernière fermeture de Documents revient à Profil.
-- `update_profile`, `ask_user`, les outils historiques/scénarios et `upsert_tab` restent partagés. Les IDs réservés aux comparaisons et cartes ne peuvent pas être remplacés par une note arbitraire.
-- `workspaceMode: profiles` charge les procédures investor-profile et profile-investment-alignment dans le vrai contexte modèle; la trace indique runtime-bootstrap. Le modèle peut découvrir d’autres skills selon la demande. Le skill profile-workspace décrit les commandes et les vues.
+Le mode `workspaceMode: profiles` charge réellement `investor-profile` et `profile-investment-alignment` dans le contexte Bedrock, avec attribution `runtime-bootstrap`. `profile-workspace` décrit les vues et commandes. Les sources versionnées `agent-skills/` et le snapshot API sont synchronisés par `scripts/sync-agent-skills.py` : **19 skills, version 1.8.18**, avec contenu et SHA-256 concordants au relevé du 15 novembre 2026. `/v1/profiles/status` et les événements `load_skill` permettent de vérifier la version exécutée.
 
-Les sources versionnées dans `agent-skills/` et le snapshot embarqué sont synchronisés par `scripts/sync-agent-skills.py`. Au 15 novembre 2026, la version est 1.8.13 avec 19 skills; lire la version courante dans `/v1/profiles/status` et le SHA-256 de chaque chargement. Une demande explicite de calcul ou de création de scénarios lit d’abord les capacités réellement disponibles; elle ne peut aboutir sans résultat calculé. Les demandes de précision sur un scénario reçoivent un intitulé de question contextualisé.
+## Déclaration connue et information manquante
 
-## Mémoire
+`profile_declarations` indique la disponibilité du texte pour les huit champs, sans certifier sa vérité financière. « Je ne peux pas absorber une perte compromettant ce projet » est une contrainte qualitative connue; le montant exact peut rester inconnu. Le validateur refuse les formulations observées qui nient cette déclaration dans une carte ou le texte final. Ce contrôle ciblé ne remplace pas une validation sémantique exhaustive. Une réponse finale contradictoire peut être corrigée deux fois avant une erreur explicite; elle n’est pas publiée telle quelle.
 
-`useProfileMemory.ts` charge la mémoire serveur avant d’autoriser les éditions et synchronise profil, documents et références de sources après modification. Les références conservées sont bornées aux 80 dernières. Au chargement, la mémoire serveur est la référence pour éviter qu’un ancien onglet du navigateur écrase un document plus récent. Les conversations restent dans le stockage local du navigateur, séparées par persona. Une nouvelle session de navigateur peut restaurer le profil et les documents depuis le serveur, mais ne retrouve pas l’historique local d’un autre navigateur.
+Exemple de discussion : « Mon portefeuille correspond-il à mon objectif de préservation pour un projet essentiel à 18 mois ? Lis le portefeuille fictif puis publie constats, pistes et inconnues dans Alignement. » La vue doit montrer les poids réellement retournés, relier le besoin de fonds à l’échéance et distinguer tolérance émotionnelle, capacité qualitative et montant non chiffré. L’ancienne sortie observée déclarait à tort la capacité inconnue et masquait les poids dans une réponse générique; les régressions portent sur ces erreurs. Les catégories seules ne permettent pas de mesurer le risque historique ni de conclure que le capital est garanti.
 
-`GET/PUT /v1/profiles/memory/{amira|mateo|robert}` utilise une révision optimiste. Un conflit 409 bloque l’écrasement et invite à recharger la mémoire. Les données locales ne sont pas présentées comme sauvegardées si la requête échoue.
+## Mémoire et protection du contexte
 
-- Local : SQLite dans `~/.local/share/investoros/profile-memory.sqlite3`, configurable avec `PROFILE_MEMORY_DB`.
-- AWS : `PROFILE_WORKSPACE_TABLE`, ou `SOURCE_WORKSPACE_TABLE`, active DynamoDB. Le mapping `DEMO_CONTEXTS` fournit les clés de comptes autorisées côté serveur; seule la propriété `profile_workspace` est modifiée. Les permissions GetItem et UpdateItem sur la table sont nécessaires. Le wrapper API Gateway/Cognito existant protège les routes déployées; le serveur de développement reste local.
-- Aucun Terraform global n’a été appliqué pour cette tranche. Le code actuel peut exploiter la table de comptes de la stack assistant-simulation sans nouvelle table.
+`useProfileMemory.ts` restaure la mémoire serveur avant d’autoriser les éditions, les envois, les réponses aux questions et les calculs mutables. La mémoire serveur est la référence au chargement; un ancien onglet ne doit pas écraser un document récent. Profil, documents et jusqu’à 80 références sont synchronisés après modification. Les lectures mémoire/statut/jobs retentent au maximum trois fois les erreurs réseau, 429 et certaines erreurs serveur, avec attente annulable; les écritures et créations de jobs ne sont pas rejouées automatiquement.
 
-## Vérifications du 15 novembre 2026
+`GET/PUT /v1/profiles/memory/{amira|mateo|robert}` utilise une révision optimiste. Un conflit `409` bloque l’écrasement et demande un rechargement. Un échec n’est jamais affiché comme une sauvegarde réussie. Dans Assistant, une modification de profil produit une sauvegarde sans remplacer les documents et sources partagés.
 
-- 50 tests API ciblés : calculs sur dates communes, refus FX, références de preuve, révisions/isolation, conservation finale des scénarios, orchestration/outils/skills et contenu des procédures fourni au modèle.
-- 12 tests des règles de cohérence, notamment les négations et les formulations rapportées (« fluctuations élevées », « ne peut pas absorber »).
-- TypeScript et build de production vérifiés. Le build conserve un avertissement de taille sur le bundle principal préexistant; il ne démontre pas une performance de réseau public.
-- Chrome/Playwright : six vues, comparaison réelle, erreurs de devise, édition et restauration dans une nouvelle session, agrandissement, mobile. À 1440×950, pas de défilement du corps des six vues de référence; les longues preuves et formulaires avancés peuvent défiler dans leur zone.
-- Bedrock réel depuis le navigateur : comparaison AAPL/MSFT et ouverture de vue; mise à jour du profil et carte d’alignement avec clarification interactive; deux scénarios AAPL; remplissage des huit champs de Robert et confirmation par clic, conservée après rechargement. Ces observations portent sur le modèle et le contexte de ces essais, sans garantie pour toute formulation future.
-- DynamoDB réel via l’adaptateur HTTP : écriture, relecture du profil fictif et refus d’une révision concurrente. Test effectué sur la table de comptes de développement.
+| Configuration | Stockage |
+|---|---|
+| Sans table AWS | SQLite dans `~/.local/share/investoros/profile-memory.sqlite3`, configurable avec `PROFILE_MEMORY_DB`. |
+| `PROFILE_WORKSPACE_TABLE` ou `SOURCE_WORKSPACE_TABLE` | Attribut `profile_workspace` de la table de comptes DynamoDB; clés autorisées par le mapping serveur `DEMO_CONTEXTS`. Permissions `GetItem` et `UpdateItem`. |
 
-Commandes reproductibles :
+Les conversations restent locales au navigateur, séparées par persona. Un nouveau navigateur restaure le profil et les documents, mais pas l’historique des messages ni le suivi local complet des recherches. Cette mémoire de démonstration n’est pas un système de comptes clients réels.
+
+## Transport AWS des réponses
+
+La passerelle HTTP API tamponne les réponses Lambda et impose un délai d’environ 29 secondes. Le frontend choisit le transport annoncé par `/v1/profiles/status` :
+
+- `stream` : NDJSON direct, conservé pour le développement local et les serveurs sans jobs configurés.
+- `async` : `POST /v1/profiles/chat/jobs` renvoie `202`, puis le navigateur lit `GET /v1/profiles/chat/jobs/{jobId}?accountId=…&after=…` toutes les 800 ms. Les événements d’outils, de texte et de navigation sont ceux du worker Bedrock; le curseur évite de les rejouer.
+
+`PROFILE_CHAT_JOBS_TABLE` et `PROFILE_CHAT_WORKER_FUNCTION` activent le mode asynchrone. Les jobs ont une expiration applicative d’une heure, un délai terminal de 180 secondes et une TTL DynamoDB `expiresAt`. Le worker Lambda est limité à 120 secondes. La requête est bornée à 200 000 octets et les événements à environ 378 000 octets; un dépassement termine avec une erreur explicite et conserve la progression déjà publiée.
+
+L’arrêt demande `POST /v1/profiles/chat/jobs/{jobId}/cancel?accountId=…`. Le worker vérifie l’état entre ses événements et opérations; un appel AWS déjà engagé peut finir. L’arrêt ne promet aucun retour arrière d’une opération exécutée. Aucun JWT ni mot de passe n’est stocké dans la table de jobs; les outils de recherche du worker passent par l’entrée IAM configurée.
+
+## État vérifié le 15 novembre 2026
+
+Le worker Profile utilise `us.anthropic.claude-sonnet-4-6`, sélectionné après comparaison réelle avec Nova Lite et Nova Pro sur les défauts de sorties observés. Ce choix est propre à cette stack; il ne valide pas automatiquement la justesse de toutes les futures réponses.
+
+Le frontend Profile est publié sur `https://d10hypspu2l2nc.cloudfront.net/app/profiles`, derrière Cognito. L’API Assistant/Simulation et le worker de chat sont déployés. La lecture des groupes Cognito sérialisés a été corrigée et la méthode CORS `PUT` autorisée pour sauvegarder la mémoire.
+
+| Preuve | Portée observée |
+|---|---|
+| Tests API : 257; cohérence : 12 | Contrats, calculs, outils, mémoire, orchestration, jobs et règles de profil. |
+| `test-profile-workbench-state.cjs` | Avec interceptions explicites : brouillons de scénarios isolés, preuves de même URL préservées, opérations bloquées pendant la restauration, expositions rendues et paramètres de comparaison restaurés sans perdre la saisie. |
+| `test-profile-async-chat.cjs` | Avec interceptions explicites : progression, curseurs, navigation et arrêt du chat asynchrone; ne prouve pas un appel AWS. |
+| `test-profile-deployed-api.cjs` | Vrai compte Cognito : routes protégées `200`, sans JWT `401`, sauvegarde DynamoDB `200`, conflit `409`, job `202` puis résultat réel et navigation. |
+| `PROFILE_DEPLOYED_MODE=1 test-profile-aws-live.cjs`, 16:33 UTC | Chrome sur le site public, sans interception : huit rubriques Robert, carte d’alignement, confirmation humaine, comparaison AAPL/MSFT, scénario AAPL 20 puis 30 séances, création/fermeture ciblée d’une note, restauration DynamoDB dans un navigateur neuf et carte du portefeuille fictif dont les poids correspondent exactement à la lecture serveur. La note ne relance aucun scénario; les 30 séances sont conservées après restauration. Les traces chargent les skills 1.8.18; aucune erreur de page relevée. |
+
+Les preuves locales ignorées par Git sont dans `docs/prep/profile-workbench-evidence/aws-renewed/`, notamment `deployed-ui/summary.json` et `deployed-ui/phases.json`. L’essai public valide ce parcours et ses formulations; il ne certifie pas tous les autres modules InvestorOS ni toutes les demandes futures. La réévaluation de l’alignement a été vérifiée sur le site : la nouvelle carte distingue les deux dimensions du risque, respecte le besoin à 18 mois et ne reprend plus la difficulté de financement inférée auparavant. Pour ce nouveau constat, le texte de l’ancienne interprétation est écarté des entrées du modèle; le document reste dans la mémoire jusqu’à sa mise à jour.
+
+TypeScript et le build isolé utilisé pour le déploiement ont réussi, avec authentification activée. Le bundle principal conserve un avertissement de taille d’environ 1,18 Mo. Certains lancements directs ont terminé avec le code 139, de cause non établie. Les reconstructions depuis le checkout, avec `npm run build --workspace @investoros/web -- --outDir /tmp/<dossier-unique>/dist --emptyOutDir` et la configuration AWS publique, ont ensuite réussi. Le hash du frontend servi correspond au dernier artefact. Journaux et commande exacte : `aws-renewed/final-build.json` et `final-build.log`.
+
+Le contrôle Chrome public à 1440×950 et 1440×800 couvre les six vues : aucun débordement vertical ou horizontal de la page, footer visible et agrandissement fonctionnel. À 1440×950, les six vues de référence tiennent dans leur panneau, sans défilement. À 1440×800, Comparer conserve 85 px de défilement interne; les cinq autres vues tiennent. Les pistes de discussion apparaissent avant le détail des déclarations et restent visibles au premier regard à 950 px. Le redimensionnement au clavier et à la souris ainsi que l’agrandissement ont été vérifiés. Les détails longs restent défilables. Les 19 maquettes ImageGen restent dans `docs/prep/ui-imagegen-2026-11-15/` : elles ne prouvent pas l’implémentation de leurs propositions pour les autres modules.
+
+## Cas de régression à conserver
+
+| Demande | Défaut reproduit | Résultat attendu |
+|---|---|---|
+| « Tolérance élevée, fonds indispensables dans 18 mois, perte compromettant le projet inacceptable : explique les tensions. » | Carte générique, emprunt inféré ou capacité déjà déclarée présentée comme absente. | Déclaration qualitative reconnue; confort émotionnel distinct des conséquences financières; montant non chiffré visible; pistes qui respectent les contraintes. |
+| « Compare historiquement AAPL et MSFT et ouvre Comparer. » | Modification du profil et carte d’adéquation non demandées. | Calcul sur dates/devise communes, Comparer sélectionné, aucun changement de profil. |
+| « Crée une note rappelant que les scénarios sont conditionnels. » | Un ancien scénario était relancé après la note et écrasait le recalcul de 30 séances par celui de 20. | Note créée dans Documents, aucun outil financier exécuté, scénario de 30 séances conservé au rechargement. |
+| « Lis mon portefeuille fictif puis publie constats, pistes et inconnues. » | Poids masqués, classement de concentration sans seuil et conclusion sur la stabilité depuis les seuls libellés. | Poids joints par le serveur; interprétation conditionnelle; catégories, garanties, liquidité, historique et risque mesuré distingués. |
+| Carte refusée pour longueur ou contenu. | Même appel répété jusqu’au délai Lambda. | Message de validation ciblé, deux reformulations possibles, erreur explicite après trois essais invalides. |
+| Résultat créé puis fin du modèle sans texte. | Réponse chat vide malgré le document calculé. | Résumé validé de la carte ou confirmation serveur du calcul effectué, sans chiffre ajouté. |
+
+Ces assertions couvrent les régressions observées. Elles ne sont pas une certification automatique de la justesse financière de toute phrase générée; inspecter le contenu réel de la carte lors d’un changement de modèle ou de skill.
+
+## Reproduire les contrôles
+
+Depuis la racine du dépôt, vérifier la cible API active dans Vite avant les essais locaux. Adapter l’URL au serveur démarré; aucun port n’est imposé par ce module.
 
 ```sh
 npm run typecheck --workspace @investoros/web
 npm run build --workspace @investoros/web
-PYTHONPATH=apps/api/src:apps/api/tests .venv/profile-api/bin/python -m unittest test_profile_decision test_profile_service test_agent_skills -q
+PYTHONPATH=apps/api/src .venv/profile-api/bin/python -m unittest discover -s apps/api/tests -q
 node --test apps/web/src/features/profiles/profile-consistency.test.mjs
-node scripts/test-profile-workbench.cjs
-node scripts/test-profile-scenario-workbench.cjs
-node scripts/test-profile-alignment-workbench.cjs
-node scripts/test-assistant-profile-memory.cjs
+PROFILE_WEB_URL=http://127.0.0.1:5185 node scripts/test-profile-workbench-state.cjs
+PROFILE_WEB_URL=http://127.0.0.1:5185 node scripts/test-profile-async-chat.cjs
+node scripts/test-profile-deployed-api.cjs
+PROFILE_DEPLOYED_MODE=1 PROFILE_LIVE_PORTFOLIO=1 node scripts/test-profile-aws-live.cjs
 ```
 
-Les essais navigateur supposent le frontend local 5175 et l’API 8010. Les traces et captures des essais réels sont conservées localement dans `docs/prep/profile-workbench-evidence/`, ignoré par Git. Cette tranche décrit du code et des vérifications locales avec appels AWS réels; elle n’atteste pas d’une publication de cette nouvelle interface sur le site public.
+Les deux dernières commandes utilisent le compte Cognito de test décrit dans `AGENTS.md`; elles lisent le fichier local ignoré sans afficher ses identifiants et modifient la mémoire fictive Robert. Ne pas lancer simultanément plusieurs essais qui écrivent ce même persona.
 
-## Vérifications complémentaires de l’alignement et de la mémoire
-
-`test-profile-alignment-workbench.cjs` utilise la vraie API de mémoire locale et le navigateur : constat IA distinct des règles, limites consultables, piste transmise au chat, note créée et sélectionnée par événement, preuve liée filtrée, accès au champ, signal de péremption et désactivation des pistes anciennes. La réponse modèle est interceptée dans cet essai pour rendre la navigation reproductible; ce test ne prouve pas une invocation Bedrock. Le navigateur ne présente aucun débordement du panneau ni de la page à 1440×950 sur ce cas. La capture validée est `docs/prep/profile-workbench-evidence/alignement-interactif.png`. Les fixtures sont retirées après l’essai.
-
-`test-assistant-profile-memory.cjs` vérifie qu’une modification dans Assistant produit une seule sauvegarde, en conservant les documents et références partagés. Le mode conversationnel sérialise uniquement le profil pour détecter les changements, ce qui évite une sauvegarde en boucle.
-
-Les 19 maquettes ImageGen et les captures de référence restent dans `docs/prep/ui-imagegen-2026-11-15/`. Elles proposent aussi des évolutions des autres modules : elles ne constituent pas une preuve de leur implémentation dans cette tranche Profile. Le composant sauvegardé 21st.dev « AI Agent Response » a été inspecté : il représente une trace d’exécution technique, sans contrat de fiche d’alignement; les composants et tokens existants sont conservés pour cette fiche.
-
-## Dernier état de session AWS
-
-Les identifiants AWS ont été renouvelés. Une lecture réelle d’une analyse de recherche existante a renvoyé 200 avec l’état complet, 6 preuves et 22 événements. Un appel Bedrock réel pour une demande d’analyse NVDA a toutefois échoué à afficher une question de clarification et a atteint la limite d’opérations; aucun lancement d’analyse (`start_analysis`) n’a eu lieu. Une session AWS valide et une lecture réussie ne prouvent pas que le parcours Bedrock complet fonctionne. Le workflow GitHub a publié le frontend du commit `286b08c` sur AWS dev; il ne déploie pas l’API Python, dont la version hébergée n’est pas confirmée par cette publication.
+Les historiques du starter sont un univers fini, pas des cours en direct. Les comparaisons sont descriptives; les scénarios sont des hypothèses; les cartes sont des interprétations et clarifications, sans conseil d’achat, de vente ou d’allocation personnalisée.

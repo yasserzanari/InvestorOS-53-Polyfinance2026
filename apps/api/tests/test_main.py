@@ -5,6 +5,16 @@ from investoros_api import main
 
 
 class LambdaAuthorizationTests(unittest.TestCase):
+    def test_gateway_group_array_serializations_authorize_exact_administrator_only(self):
+        allowed = [['administrators'], 'administrators', '["administrators"]', '[administrators]', '[readers administrators]']
+        denied = [None, [], {}, '["readers"]', 'administrators-extra', '[not-administrators]', 'readers,administrators', '[[administrators]]', '["administrators",null]', '[administrators,readers]']
+        with patch.dict('os.environ', {'REQUIRE_ADMIN_AUTH':'true'}):
+            for groups in allowed + denied:
+                with self.subTest(groups=groups), patch.object(main, '_mangum_handler', return_value={'statusCode':200}) as application:
+                    response=main.handler({'requestContext':{'routeKey':'GET /v1/profiles/status','authorizer':{'jwt':{'claims':{'cognito:groups':groups}}}}},None)
+                    self.assertEqual(response['statusCode'],200 if groups in allowed else 403)
+                    self.assertEqual(application.call_count,1 if groups in allowed else 0)
+
     def test_cors_defaults_are_limited_to_local_development_origins(self):
         with patch.dict("os.environ", {}, clear=True):
             self.assertEqual(

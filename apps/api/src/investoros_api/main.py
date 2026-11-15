@@ -12,6 +12,7 @@ from investoros_api.profiles.models import ScenarioAnalysisInput
 from investoros_api.profiles.portfolio import analyze_configured_scenario
 from investoros_api.profiles.router import router as profiles_router
 from investoros_api.profiles.forecast import router as forecast_router
+from investoros_api.profiles.jobs import router as profile_jobs_router
 from investoros_api.research.router import router as research_router
 from investoros_api.knowledge.router import router as knowledge_router
 from investoros_api.simulation import router as simulation_router
@@ -39,6 +40,7 @@ app.add_middleware(
 from investoros_api.profiles.memory import router as profile_memory_router
 app.include_router(profile_memory_router)
 app.include_router(profiles_router)
+app.include_router(profile_jobs_router)
 app.include_router(forecast_router)
 app.include_router(research_router)
 app.include_router(knowledge_router)
@@ -161,6 +163,27 @@ def demo_scenario_impact(
 _mangum_handler = Mangum(app)
 
 
+def _cognito_groups(value: Any) -> list[str]:
+    """Read groups from API Gateway's already validated JWT claims."""
+    if isinstance(value, list):
+        return value if all(isinstance(group, str) for group in value) else []
+    if not isinstance(value, str):
+        return []
+    value = value.strip()
+    if not value.startswith('['):
+        return [value]
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError:
+        # HTTP API can stringify an array as [group1 group2]. Do not split
+        # arbitrary comma-delimited strings or accept partial group names.
+        import re
+        if re.fullmatch(r'\[[\w:+./@= -]*\]', value):
+            return value[1:-1].split()
+        return []
+    return decoded if isinstance(decoded, list) and all(isinstance(group, str) for group in decoded) else []
+
+
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Require a Cognito administrators-group JWT for deployed app routes.
 
@@ -168,6 +191,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     narrows access to app administrators. Local FastAPI development bypasses
     the wrapper because REQUIRE_ADMIN_AUTH is unset.
     """
+    if event.get('source') == 'investoros.profile-chat-job' and 'requestContext' not in event:
+        from investoros_api.profiles.jobs import execute_job
+        return execute_job(event)
     if event.get('source') == 'investoros.research-iam' and 'requestContext' not in event:
         from investoros_api.research.iam_handler import handle
         return handle(event, context)
@@ -177,9 +203,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if route_key != "GET /health" and not route_key.startswith("OPTIONS "):
             authorizer = request_context.get("authorizer", {}).get("jwt", {})
             claims = authorizer.get("claims", {})
-            groups = claims.get("cognito:groups", [])
-            if isinstance(groups, str):
-                groups = [groups]
+            groups = _cognito_groups(claims.get("cognito:groups", []))
             if "administrators" not in groups:
                 return {
                     "statusCode": 403,

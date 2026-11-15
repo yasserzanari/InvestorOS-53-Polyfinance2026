@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from ..simulation import ScenarioProjectionRequest, project_scenarios, simulation_capabilities
 from ..simulation import history as simulation_history
+from ..simulation import assets as simulation_assets
 from .models import (
     AskUserInput,
     ChatRequest,
@@ -22,7 +23,7 @@ from .models import (
     SimulationHistoryInput,
     WorkspaceTab,
 )
-from .decision import CompareInput, InsightInput, compare_instruments, insight_tab, research_evidence_references
+from .decision import CompareInput, InsightInput, compare_instruments, insight_tab, research_evidence_references, profile_declarations, validate_profile_claims
 from .portfolio import analyze_configured_portfolio, analyze_configured_scenario
 from .sources import SOURCES, citations
 from .x_evidence import authorized_profiles, collect_authorized_posts
@@ -71,7 +72,7 @@ def _scenario_calculation_requested(request: ChatRequest) -> bool:
         text += '\n' + '\n'.join(item.content.casefold() for item in request.history[-6:] if item.role=='user')
     if re.match(r"\s*(?:comment|pourquoi|explique|qu['’]est)", text) or re.search(r'portefeuille|positions', text):
         return False
-    calculation = re.search(r'\b(?:calcule|calculer|simule|simuler|projette|projeter)\b', text)
+    calculation = re.search(r'\b(?:calcule|calculer|simule|simuler|projette|projeter|compare|comparer)\b', text)
     creation = re.search(r'\b(?:génère|générer|construis|construire|crée|créer)\s+(?:(?:un|une|des|les|deux|trois|quatre|le|la|ce|ces|[1-4])\s+)?(?:scénarios?|simulations?|trajectoires?)\b', text)
     return bool((calculation or creation) and re.search(r'scénario|simulation|trajectoire|choc', text))
 
@@ -100,7 +101,8 @@ def _explicit_document_closure(request: ChatRequest) -> str | None:
 
 def configuration() -> dict:
     return {'configured': bool(os.getenv('BEDROCK_MODEL_ID')), 'provider': 'aws-bedrock', 'skillsVersion': catalog_version(), 'researchConfigured': research_configured(),
-            'modelId': os.getenv('BEDROCK_MODEL_ID', ''), 'region': os.getenv('AWS_REGION', 'us-east-1')}
+            'modelId': os.getenv('BEDROCK_MODEL_ID', ''), 'region': os.getenv('AWS_REGION', 'us-east-1'),
+            'chatTransport': 'async' if os.getenv('PROFILE_CHAT_JOBS_TABLE') and os.getenv('PROFILE_CHAT_WORKER_FUNCTION') else 'stream'}
 
 
 def _visible_plan_has_steps(text: str) -> bool:
@@ -142,19 +144,22 @@ class VisibleText:
         self.buffer += text
         output = ''
         while self.buffer:
-            marker = '</thinking>' if self.hidden else '<thinking>'
-            at = self.buffer.lower().find(marker)
+            markers = ['</thinking>'] if self.hidden else ['<thinking>', '<response>', '</response>']
+            matches = [(self.buffer.lower().find(marker), marker) for marker in markers if marker in self.buffer.lower()]
+            at, marker = min(matches) if matches else (-1, markers[0])
             if at >= 0:
                 if not self.hidden:
                     output += self.buffer[:at]
                 self.buffer = self.buffer[at + len(marker):]
-                self.hidden = not self.hidden
+                if marker in {'<thinking>', '</thinking>'}:
+                    self.hidden = not self.hidden
                 continue
             # Hold only a suffix that could become a delimiter on the next chunk.
             hold = 0
-            for size in range(1, min(len(marker), len(self.buffer) + 1)):
-                if self.buffer.lower().endswith(marker[:size]):
-                    hold = size
+            for marker in markers:
+                for size in range(1, min(len(marker), len(self.buffer) + 1)):
+                    if self.buffer.lower().endswith(marker[:size]):
+                        hold = max(hold, size)
             safe = len(self.buffer) - hold
             if not self.hidden:
                 output += self.buffer[:safe]
@@ -203,7 +208,30 @@ def _portfolio_fit_requested(request: ChatRequest) -> bool:
 
 def _historical_comparison_requested(request: ChatRequest) -> bool:
     text = request.message.casefold()
-    return any(term in text for term in ('cours historique', 'rendement historique', 'rendements historiques', 'performance passée', 'historique des prix', 'évolution des cours'))
+    return ('compar' in text and 'historiquement' in text) or any(term in text for term in ('comparaison historique', 'compare les historiques', 'cours historique', 'rendement historique', 'rendements historiques', 'performance passée', 'historique des prix', 'évolution des cours'))
+
+
+def _historical_only_request(request: ChatRequest) -> bool:
+    text = request.message.casefold()
+    if not _historical_comparison_requested(request):
+        return False
+    if re.search(r'(?:seulement|uniquement|only).{0,45}histori', text):
+        return True
+    return not any(term in text for term in ('profil', 'objectif', 'horizon', 'tolérance', 'liquidit', 'capacité', 'contrainte', 'préférence', 'connaissance', 'portefeuille', 'enregistre', 'alignement', 'constat', 'scénario', 'note', 'document'))
+
+
+def _historical_calculation_requested(request: ChatRequest) -> bool:
+    if re.search(r'\bne\b.{0,25}\bcompar\w*\b.{0,12}\bpas\b|\bne\b.{0,25}\bpas\b.{0,20}\bcompar\w*|\bsans\s+compar\w*|\bpas\s+de\s+comparaison', request.message, re.I):
+        return False
+    if not _historical_comparison_requested(request) or not re.search(r'\b(?:compare|comparez|comparer)\b|\b(?:fais|calcule|réalise)\b.*\bcomparaison\b', request.message, re.I):
+        return False
+    if re.search(r'\bouvre\b.{0,30}\bcomparer\b', request.message, re.I):
+        return True
+    try:
+        tickers = [asset['ticker'] for asset in simulation_assets()['assets']]
+    except HTTPException:
+        return False
+    return sum(bool(re.search(r'(?<![\w.^=-])'+re.escape(ticker)+r'(?![\w.^=-])', request.message, re.I)) for ticker in tickers) >= 2
 
 
 def _platform_capability_request(request: ChatRequest) -> bool:
@@ -225,6 +253,14 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     model_id = config['modelId']
     profile = {key: value[:2000] for key, value in request.profile.items() if key in PROFILE_FIELDS}
     tabs = [tab.model_dump() for tab in request.tabs]
+    alignment_text = request.message.casefold()
+    refresh_alignment = request.workspaceMode == 'profiles' and any(
+        action in alignment_text for action in ('actualise', 'réévalue', 'mets à jour', 'publie')
+    ) and any(subject in alignment_text for subject in ('alignement', 'constat', 'tension', 'incohérence'))
+    alignment_complete = False
+    final_claim_repairs = 0
+    insight_validation_failures = 0
+    insight_recovery = ''
     messages = _messages(request)
     read_ids: list[str] = []
     source_registry: list[dict] = []
@@ -261,15 +297,27 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     portfolio_analyzed = False
     portfolio_result: dict | None = None
     research_started = False
+    note_requested = bool(re.search(r'\b(?:crée|créer|rédige|rédiger)\b.*\bnote\b', request.message, re.I))
+    note_created = False
+    note_only = request.workspaceMode == 'profiles' and note_requested and not re.search(r'\b(?:compare|comparez|calcule|calculer|simule|simuler|projette|projeter|recherche|lance)\b', request.message, re.I)
+    research_requested = bool(re.search(r'\banalyse\b.*\b(?:NVDA|AAPL|MSFT)\b', request.message, re.I))
     discovered_skills: set[str] = set()
     tools = TOOLS + (RESEARCH_TOOLS if research_configured() else [])
     platform_available_names = {tool['toolSpec']['name'] for tool in tools}
     platform_capability_request = _platform_capability_request(request)
+    historical_only = request.workspaceMode == 'profiles' and _historical_only_request(request) and not platform_capability_request
+    historical_comparison_required = request.workspaceMode == 'profiles' and not platform_capability_request and _historical_calculation_requested(request)
+    historical_comparison_complete = False
+    refresh_alignment = refresh_alignment and not historical_only
     if platform_capability_request:
         # Prevent the model from inventing a target to exercise an unrelated financial tool.
         tools = [tool for tool in tools if tool['toolSpec']['name'] in {'ask_user', 'search_skills', 'load_skill'}]
     if _portfolio_fit_requested(request) and not _historical_comparison_requested(request):
         tools = [tool for tool in tools if tool['toolSpec']['name'] != 'compare_profile_instruments']
+    if note_only:
+        tools = [tool for tool in tools if tool['toolSpec']['name'] in {'upsert_tab','open_profile_view','suggest_followups','search_skills','load_skill'}]
+    if historical_only:
+        tools = [tool for tool in tools if tool['toolSpec']['name'] in {'compare_profile_instruments','inspect_simulation_history','get_simulation_capabilities','search_skills','load_skill','read_sources','ask_user','open_profile_view'}]
     available_names = {tool["toolSpec"]["name"] for tool in tools}
     usage = {'inputTokens': 0, 'outputTokens': 0}
     last_tool_failed = False
@@ -282,7 +330,9 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
         runtime = client or bedrock_client()
         yield {'type': 'status', 'label': 'Consultation du profil avec Amazon Bedrock'}
         profile_procedures=[]
-        bootstrap=['investor-profile','profile-investment-alignment'] if request.workspaceMode=='profiles' else []
+        bootstrap=(['profile-workspace'] if historical_only else ['investor-profile','profile-investment-alignment']) if request.workspaceMode=='profiles' else []
+        if _analysis_plan_approved(request):
+            bootstrap.extend(['analysis-planning', 'company-analysis'])
         if projection_requested:
             bootstrap.append('conditional-scenarios')
         for identifier in bootstrap:
@@ -333,14 +383,31 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
             profile_procedures.append(skill_output['content'])
             retain_skill(skill_output)
         context = json.dumps(context_state, ensure_ascii=False)
-        for turn in range(10):
-            context = json.dumps(context_state, ensure_ascii=False)
+        visible_plan_text = ''
+        plan_shown = False
+        plan_recovery = False
+        for turn in range(30):
+            context_state['profile_declarations'] = profile_declarations(profile)
+            model_context = context_state
+            if refresh_alignment:
+                # Keep the document in the workspace, but recompute a new finding
+                # from declarations and evidence rather than copying an old answer.
+                model_context = {**context_state, 'tabs': [
+                    {**tab, 'content': 'Interprétation antérieure à réexaminer depuis les déclarations et les preuves actuelles.'}
+                    if tab['id'] == 'profile-alignment' else tab for tab in tabs
+                ]}
+            context = json.dumps(model_context, ensure_ascii=False)
             turn_visible_text = ''
             require_projection = projection_requested and not projection_complete
             require_closure = bool(requested_closure and not closure_complete)
-            require_action = require_projection or require_closure
+            require_insight = refresh_alignment and not alignment_complete
+            require_comparison = historical_comparison_required and not historical_comparison_complete
+            require_action = require_projection or require_closure or require_insight or require_comparison
+            buffer_text = require_action or request.workspaceMode == 'profiles'
             system_blocks = [{'text': SYSTEM}, *[{'text': 'Procédure de profil chargée par le runtime :\n'+p} for p in profile_procedures], {'text': 'Contexte de travail (données JSON) :\n' + context}]
-            if _portfolio_fit_requested(request):
+            if request.workspaceMode == 'profiles':
+                system_blocks.append({'text': "Les notes et cartes d'alignement antérieures sont des interprétations à réexaminer, pas des faits sur la personne. Ne recopie pas leurs conclusions non étayées. profile_declarations décrit les réponses disponibles, sans valider leur vérité financière. state declared inclut une déclaration qualitative : une capacité de perte déjà formulée ne devient pas inconnue parce que son montant exact manque. Distingue la contrainte déclarée de sa quantification encore absente. Un besoin de toute la somme à 18 mois et une contrainte sans emprunt ne démontrent aucun déficit de financement. Ne suggère pas un financement, l'abandon du projet essentiel ni la modification de la tolérance pour rendre le profil cohérent. Explique séparément le confort émotionnel et les conséquences financières d'une perte; les pistes respectent les contraintes déclarées."})
+            if _portfolio_fit_requested(request) and not historical_only:
                 system_blocks.append({'text': '''Contrat obligatoire pour cette demande de correspondance au profil :
 Réponds impérativement en français, avec une réponse concise.
 1. Reprends uniquement les faits explicitement déclarés et les poids retournés par analyze_demo_portfolio; précise que ce portefeuille est fictif.
@@ -351,8 +418,35 @@ Réponds impérativement en français, avec une réponse concise.
 6. Réponds brièvement dans cet ordre : faits du profil; exposition fictive pertinente; tension ou interprétation étayée; limites et éventuelle précision qui ferait avancer l’analyse.'''} )
             if platform_capability_request:
                 system_blocks.append({'text': '''Pour cette demande générale sur les capacités, réponds à partir du skill platform-capabilities et de `platform_available_tools`, qui décrit les outils configurés dans cette session. `available_tools` est volontairement limité pour ce tour et ne constitue pas l’inventaire général. Ne lance aucun outil financier ou de recherche, ne choisis pas de ticker et ne simule aucune mesure. Distingue capacité du produit, outils configurés et données réellement disponibles. Pour une question ESG générale, dis explicitement si aucun score comparable ou contrôle exhaustif des controverses n’est fourni. Réponds en français sans poser de question.'''} )
+            if insight_recovery:
+                system_blocks.append({'text':'La carte précédente a été refusée : '+insight_recovery+' Reformule les arguments; ne recopie pas l’appel refusé. Vise deux phrases et 250 à 450 caractères dans summary, maximum 800. Garde seulement le constat essentiel; les poids sont joints par le serveur et les inconnues vont dans limits. Aucun classement de concentration faible/modérée/élevée sans seuil fourni.'})
             tool_config={'tools':tools}
+            if historical_only:
+                system_blocks.append({'text':'Cette demande est limitée aux historiques. Ne modifie pas le profil et ne publie pas de carte d’adéquation. La comparaison et son ouverture sont prises en charge par compare_profile_instruments; utilise ses chiffres et ses limites. Ne pose que les questions nécessaires aux symboles ou à la période, jamais des questions personnelles pour ce calcul indépendant.'})
+            if require_comparison:
+                tool_config['toolChoice']={'any':{}}
+            if require_insight:
+                system_blocks.append({'text': 'Une nouvelle carte Alignement est explicitement demandée. Publie réellement un constat concret avec publish_profile_insight avant de conclure. Le résumé contient les faits ou inconnues qui éclairent la décision; une annonce « voici les constats » sans constat ne suffit pas. Les pistes respectent les contraintes déclarées. Une clarification comporte une question précise.'})
+                tool_config['toolChoice']={'any':{}}
+                if insight_recovery:
+                    tool_config['tools'] = [tool for tool in tools if tool['toolSpec']['name'] in {'publish_profile_insight','update_profile','analyze_demo_portfolio','search_skills','load_skill','ask_user'}]
+            if request.workspaceMode == 'profiles':
+                system_blocks.append({'text': 'Dans cette interface, les détails utiles sont dans les cartes et les outils. Le chat final comporte deux à quatre phrases avec le constat essentiel et sa limite; ne répète pas un long compte rendu déjà présent à droite.'})
+            if note_requested and not note_created:
+                system_blocks.append({'text':'Une note est demandée. Crée réellement cette note avec upsert_tab, kind note, avant de dire qu’elle existe. Utilise uniquement les faits et sources reçus; indique les informations non vérifiées.'})
+                tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name'] in {'upsert_tab','open_profile_view'}], 'toolChoice':{'any':{}}}
+            elif research_requested and not research_started:
+                system_blocks.append({'text':'Une analyse documentaire est demandée. Ne donne aucun événement ni source comme vérifié avant lecture. Charge analysis-planning et company-analysis, affiche le plan puis appelle ask_user pour son approbation. La simple demande n’autorise pas encore start_analysis.'})
+                tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name'] in {'search_skills','load_skill','ask_user','start_analysis'}], 'toolChoice':{'any':{}}}
+            if _analysis_plan_approved(request) and not research_started and 'start_analysis' in available_names:
+                system_blocks.append({'text':'La personne a déjà validé le plan dans le formulaire. Reprends la question et le périmètre dans son historique et lance start_analysis maintenant. Ne demande pas une seconde validation du même plan.'})
+                tool_config={'tools':tools,'toolChoice':{'tool':{'name':'start_analysis'}}}
+            if plan_recovery:
+                system_blocks.append({'text':'La demande de validation précédente a été refusée car aucun plan visible ne la précédait. Écris maintenant un plan concret numéroté de trois à six étapes, adapté à la demande et aux sources disponibles. Ne lance aucune recherche. Termine ce message sans outil; la validation sera demandée ensuite.'})
+                # Bedrock requires tool definitions while historical messages contain toolUse.
+                tool_config = {'tools': tools}
             if require_projection:
+                system_blocks.append({'text':'Recopie les paramètres déjà fournis : « à 30 jours » signifie horizonDays=30 et « au 15e jour » eventAfterDays=15 dans chaque branche; des séances utilisent horizonObservations et eventAfterObservations. Ne redemande pas un horizon présent dans le message. Ne mélange pas jours calendaires et séances.'})
                 system_blocks.append({'text':'Un calcul de scénarios est explicitement demandé et aucun résultat n’a encore été obtenu dans ce tour. Les capacités ont déjà été lues. Appelle project_market_scenarios avec les hypothèses réellement fournies, y compris un libellé event pour chaque branche; si une hypothèse indispensable manque, appelle ask_user. Ne remplace pas ce calcul par une description et ne prétends pas avoir ouvert un résultat inexistant.'})
                 tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name'] in {'project_market_scenarios','ask_user'}], 'toolChoice':{'any':{}}}
             elif require_closure:
@@ -361,7 +455,7 @@ Réponds impérativement en français, avec une réponse concise.
             response = runtime.converse_stream(
                 modelId=model_id,
                 system=system_blocks,
-                messages=messages, toolConfig=tool_config,
+                messages=messages, **({'toolConfig': tool_config} if tool_config else {}),
                 inferenceConfig={'maxTokens': 1800, 'temperature': 0.3},
             )
             blocks: dict[int, dict] = {}
@@ -382,7 +476,7 @@ Réponds impérativement en français, avec une réponse concise.
                         visible = visible_text.push(delta['text'])
                         if visible:
                             turn_visible_text += visible
-                            if not require_action:
+                            if not buffer_text:
                                 yield {'type': 'text', 'delta': visible}
                     elif 'toolUse' in delta:
                         blocks[index]['toolUse']['input'] += delta['toolUse']['input']
@@ -398,7 +492,7 @@ Réponds impérativement en français, avec une réponse concise.
             tail = visible_text.push('', final=True)
             if tail:
                 turn_visible_text += tail
-                if not require_action:
+                if not buffer_text:
                     yield {'type': 'text', 'delta': tail}
             contents = [blocks[i] for i in sorted(blocks)]
             for block in contents:
@@ -407,12 +501,26 @@ Réponds impérativement en français, avec une réponse concise.
             if contents:
                 messages.append({'role': 'assistant', 'content': contents})
             tool_uses = [block['toolUse'] for block in contents if 'toolUse' in block]
+            visible_plan_text += '\n' + turn_visible_text
             if not tool_uses:
+                if plan_recovery and _visible_plan_has_steps(turn_visible_text):
+                    if buffer_text:
+                        yield {'type':'text','delta':turn_visible_text}
+                    plan_shown = True
+                    plan_recovery = False
+                    messages.append({'role':'user','content':[{'text':'Le plan est maintenant affiché. Demande sa validation avec ask_user, purpose plan_approval, sans lancer la recherche.'}]})
+                    continue
                 if require_closure:
                     yield {'type':'error','code':'missing_document_action','message':'La fermeture n’a pas été confirmée. Vos documents restent conservés.'}
                     return
                 if require_projection:
                     yield {'type':'error','code':'missing_calculation','message':'Le calcul n’a pas été confirmé. Aucun résultat de scénario n’a été créé.'}
+                    return
+                if require_insight:
+                    yield {'type':'error','code':'missing_insight','message':'Le nouveau constat n’a pas été publié. La carte précédente reste conservée.'}
+                    return
+                if require_comparison:
+                    yield {'type':'error','code':'missing_comparison','message':'La comparaison n’a pas été calculée. Aucun nouveau résultat historique n’est présenté.'}
                     return
                 if last_tool_failed and not turn_visible_text.strip():
                     yield {'type':'error','code':'tool_failed','message':'La demande n’a pas pu être terminée. Les résultats déjà obtenus restent disponibles.'}
@@ -420,7 +528,34 @@ Réponds impérativement en français, avec une réponse concise.
                 if stop_reason in ('guardrail_intervened', 'content_filtered', 'max_tokens'):
                     yield {'type': 'error', 'code': stop_reason, 'message': 'La réponse Bedrock est incomplète. Précisez la demande puis réessayez.'}
                     return
+                if request.workspaceMode == 'profiles' and not turn_visible_text.strip():
+                    if alignment_complete:
+                        card = next((tab for tab in tabs if tab['id'] == 'profile-alignment'), None)
+                        if card:
+                            turn_visible_text = json.loads(card['content'])['summary']
+                    elif projection_complete:
+                        turn_visible_text = 'Le scénario conditionnel a été calculé avec les hypothèses fournies. Les trajectoires, paramètres et limites sont disponibles dans Scénarios; ce résultat n’est pas une prévision.'
+                    elif historical_comparison_complete:
+                        turn_visible_text = 'La comparaison historique a été calculée sur les dates et la devise communes. Retrouvez les chiffres, la courbe et la méthode dans Comparer; ces observations ne prédisent pas les rendements futurs.'
+                    elif closure_complete:
+                        turn_visible_text = 'Le document demandé a été fermé. Le profil et les autres documents sont conservés.'
+                    elif note_created:
+                        turn_visible_text = 'La note demandée est enregistrée dans Documents.'
+                if request.workspaceMode == 'profiles' and turn_visible_text.strip():
+                    try:
+                        validate_profile_claims([turn_visible_text], profile)
+                    except ValueError as error:
+                        if final_claim_repairs >= 2:
+                            yield {'type':'error','code':'profile_claim_conflict','message':'La réponse contredit une déclaration du profil. Les résultats déjà calculés restent disponibles; reformulez la question.'}
+                            return
+                        final_claim_repairs += 1
+                        messages.append({'role':'user','content':[{'text':str(error) + ' Corrige uniquement ta réponse finale à partir du profil courant et des résultats obtenus, sans redemander cette information.'}]})
+                        continue
+                if buffer_text and turn_visible_text.strip():
+                    yield {'type':'text','delta':turn_visible_text}
                 yield {'type': 'workspace', 'profile': profile, 'tabs': tabs}
+                if historical_comparison_complete and historical_only and not re.search(r'\b(?:ouvre|ouvrir|affiche)\b.{0,30}\bpreuves\b', request.message, re.I):
+                    yield {'type':'profile_view','view':'comparison'}
                 yield {'type': 'done', 'modelId': model_id, 'usage': usage}
                 return
             results = []
@@ -605,33 +740,50 @@ Réponds impérativement en français, avec une réponse concise.
                     elif name == 'open_profile_view':
                         if 'view' not in args or not set(args) <= {'view','documentId'} or args['view'] not in {'profile','alignment','comparison','scenarios','evidence','memory','documents'}:
                             raise ValueError('Vue de profil inconnue.')
-                        if args['view']=='documents':
-                            documents=[tab for tab in tabs if tab['kind'] not in {'decision','simulation','profile'}]
+                        if historical_only and args['view'] not in {'comparison','evidence'}:
+                            raise ValueError('Cette demande historique utilise Comparer ou Preuves; elle ne change pas l’analyse du profil.')
+                        if args['view'] in {'documents','scenarios'}:
+                            documents=[tab for tab in tabs if (tab['kind']=='simulation' if args['view']=='scenarios' else tab['kind'] not in {'decision','simulation','profile'})]
                             if not documents or ('documentId' in args and not any(tab['id']==args['documentId'] for tab in documents)):
                                 raise ValueError('Document inconnu dans cet espace de travail.')
                         elif 'documentId' in args:
-                            raise ValueError('documentId est réservé à la vue Documents.')
+                            raise ValueError('documentId est réservé aux vues Documents et Scénarios.')
                         output = args
                         yield {'type':'profile_view', **args}
                     elif name in ('compare_profile_instruments', 'publish_profile_insight'):
                         if name == 'compare_profile_instruments':
-                            if _portfolio_fit_requested(request) and not _historical_comparison_requested(request):
+                            if not historical_only and _portfolio_fit_requested(request) and not _historical_comparison_requested(request):
                                 raise ValueError('La demande porte sur l’adéquation au profil, pas sur les rendements passés. Utilise portfolio-exposures et analyse_demo_portfolio; n’effectue pas de comparaison historique non demandée.')
-                            if _portfolio_fit_requested(request) and not portfolio_analyzed:
+                            if not historical_only and _portfolio_fit_requested(request) and not portfolio_analyzed:
                                 raise ValueError('Pour traiter les deux volets, appelle d’abord analyze_demo_portfolio après avoir chargé portfolio-exposures; la comparaison historique vient ensuite.')
                             output = compare_instruments(CompareInput.model_validate(args))
+                            historical_comparison_complete = True
                             tab = {'id':'profile-comparison','title':'Comparaison','kind':'decision','content':json.dumps(output,ensure_ascii=False)}
                             registered = register_sources([{'id':'history-'+m['ticker'],'title':m['ticker']+' · historique ajusté','url':m['sourceUrl'],'snippet':output['methodDetails']} for m in output['metrics']])
                             yield {'type':'sources','citations':list(source_registry)}
                             view='comparison'
                         else:
+                            if 'portefeuille' in request.message.casefold() and _portfolio_fit_requested(request) and not portfolio_analyzed:
+                                raise ValueError('Lire d’abord le portefeuille fictif avec analyze_demo_portfolio avant de publier un constat sur ses expositions.')
                             tab = insight_tab(InsightInput.model_validate(args), dict(profile), received_evidence | {s['id'] for s in source_registry})
-                            output = json.loads(tab['content']); view='alignment'
+                            output = json.loads(tab['content'])
+                            if portfolio_result and isinstance(portfolio_result.get('positions'), list):
+                                # These weights come from the server's persona fixture, never model arguments.
+                                output['portfolioBasis'] = {
+                                    'portfolioName': portfolio_result['portfolioName'],
+                                    'currency': portfolio_result['currency'],
+                                    'positions': [{'label': position['label'], 'weightPct': position['weightPct']}
+                                                  for position in portfolio_result['positions']],
+                                }
+                                tab['content'] = json.dumps(output, ensure_ascii=False)
+                            view='alignment'
                         existing=next((i for i,t in enumerate(tabs) if t['id']==tab['id']),None)
                         if existing is None:
                             if len(tabs)>=12: raise ValueError('Fermez un onglet avant de créer un autre dossier.')
                             tabs.append(tab)
                         else: tabs[existing]=tab
+                        if name == 'publish_profile_insight':
+                            alignment_complete = True
                         yield {'type':'workspace','profile':profile,'tabs':tabs}
                         yield {'type':'profile_view','view':view}
                     elif name == 'update_profile':
@@ -677,8 +829,16 @@ Réponds impérativement en français, avec une réponse concise.
                         yield {'type': 'sources', 'citations': list(source_registry)}
                     elif name == 'ask_user':
                         question_input = AskUserInput.model_validate({'title':'Précisons le scénario' if projection_requested else 'Précisons votre demande',**args})
-                        if question_input.purpose == 'plan_approval' and not _visible_plan_has_steps(turn_visible_text):
-                            raise ValueError('Montre d’abord le plan visible en trois à six étapes avant de demander sa validation.')
+                        if question_input.purpose == 'plan_approval' and not _visible_plan_has_steps(visible_plan_text + '\n' + turn_visible_text):
+                            if _visible_plan_has_steps(question_input.description or ''):
+                                yield {'type':'text','delta': '\n\n' + question_input.description + '\n\n'}
+                                plan_shown = True
+                            else:
+                                plan_recovery = True
+                                raise ValueError('Écris maintenant le plan numéroté en trois à six étapes avant toute nouvelle demande de validation. Ne répète pas cet appel sans ce plan.')
+                        if question_input.purpose == 'plan_approval' and buffer_text and not plan_shown:
+                            yield {'type':'text','delta':visible_plan_text.strip()+'\n\n'}
+                            plan_shown = True
                         question_request = {'id': str(uuid.uuid4()), **question_input.model_dump()}
                         yield {'type': 'questions', 'request': question_request}
                         yield {'type': 'tool', 'id': tool_id, 'name': name, 'status': 'done',
@@ -725,14 +885,20 @@ Réponds impérativement en français, avec une réponse concise.
                         if existing is None:
                             if len(tabs)>=12: raise ValueError('Fermez un document avant de conserver ces trajectoires.')
                             tabs.append(scenario_tab)
-                        else: tabs[existing]=scenario_tab
+                        else:
+                            tabs.pop(existing)
+                            tabs.append(scenario_tab)
                         yield {'type':'workspace','profile':profile,'tabs':tabs}
-                        yield {'type':'profile_view','view':'scenarios'}
+                        yield {'type':'profile_view','view':'scenarios','documentId':scenario_tab['id']}
                         if name=='project_market_scenarios':
                             projection_complete=True
+                    if name == 'publish_profile_insight':
+                        insight_recovery = ''
                     last_tool_failed = False
                     yield {'type': 'tool', 'id': tool_id, 'name': name, 'status': 'done', 'input': args, 'output': output}
                     if name in ('update_profile', 'upsert_tab', 'close_profile_document'):
+                        if name == 'upsert_tab':
+                            note_created = True
                         yield {'type': 'workspace', 'profile': profile, 'tabs': tabs}
                     results.append({'toolResult': {'toolUseId': tool_id, 'content': [{'json': output if isinstance(output, dict) else {'items': output}}], 'status': 'success'}})
                 except (ValueError, ValidationError) as error:
@@ -748,6 +914,12 @@ Réponds impérativement en français, avec une réponse concise.
                         message = str(error)[:300]
                     yield {'type': 'tool', 'id': tool_id, 'name': name, 'status': 'failed', 'input': args, 'error': message}
                     results.append({'toolResult': {'toolUseId': tool_id, 'content': [{'text': message}], 'status': 'error'}})
+                    if name == 'publish_profile_insight':
+                        insight_validation_failures += 1
+                        insight_recovery = message
+                        if insight_validation_failures >= 3:
+                            yield {'type':'error','code':'insight_validation_failed','message':'La carte n’a pas pu être validée après deux reformulations. Le profil et les résultats déjà obtenus restent disponibles.'}
+                            return
             messages.append({'role': 'user', 'content': results})
         yield {'type': 'error', 'code': 'step_limit', 'message': 'La limite d’opérations de ce tour est atteinte. Le travail effectué reste disponible.'}
     except ClientError as error:

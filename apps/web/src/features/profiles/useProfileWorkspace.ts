@@ -144,9 +144,9 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
             const tab:WorkspaceTab={id,title:`Trajectoires · ${projection.ticker.toUpperCase()}`,kind:'simulation',content:JSON.stringify(tool.output)};
             const exists=workspace.tabs.some(item=>item.id===id);
             if(exists||workspace.tabs.length<12) {
-              update(w=>({...w,tabs:w.tabs.some(item=>item.id===id)?w.tabs.map(item=>item.id===id?tab:item):[...w.tabs,tab]}));
+              update(w=>({...w,tabs:[...w.tabs.filter(item=>item.id!==id),tab]}));
               setActiveTab(id);
-              update(w=>({...w,profileView:'scenarios:'+createLocalId()}));
+              update(w=>({...w,profileView:'scenarios:'+createLocalId()+':'+id}));
             }
           }
         }
@@ -159,7 +159,7 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
       }
       if(event.type==='questions')patch(m=>({...m,questionRequest:event.request as AskUserRequest,followUps:[]}));
       if(event.type==='followups')patch(m=>({...m,followUps:event.prompts as FollowUp[]}));
-      if(event.type==='profile_view')update(w=>({...w,profileView:String(event.view)+':'+createLocalId()+':'+String(event.documentId??'')}));
+      if(event.type==='profile_view')update(w=>{const previous=w.profileView?.split(':');const target=event.documentId??(event.view==='scenarios'&&previous?.[0]==='scenarios'?previous[2]:'')??'';return {...w,profileView:String(event.view)+':'+createLocalId()+':'+String(target)};});
       if(event.type==='workspace') {update(w=>{
         const fields=event.profile as Record<string,string>;
         const changed=fieldOrder.filter(key=>fields[key]!==undefined&&fields[key]!==w.profile[key]);

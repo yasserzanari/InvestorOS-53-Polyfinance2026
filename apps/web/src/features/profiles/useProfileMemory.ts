@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../../shared/auth';
-import { profileApiBase, type WorkspaceTab, type Citation } from './profile-api';
+import { profileApiBase, readProfileApi, type WorkspaceTab, type Citation } from './profile-api';
 import type { Profile } from './profile-model';
 type State = {profile:Profile;tabs:WorkspaceTab[];sources:Citation[]};
 function serializedMemory(state:State, conversationScoped:boolean) {
@@ -20,7 +20,7 @@ export function useProfileMemory(accountId:string, state:State, restore:(profile
     const controller=new AbortController();const account=accountId;
     setReady('');setStatus('Chargement de la mémoire…');conflict.current=false;saving.current=false;
     sharedWorkspace.current={tabs:[],sources:[]};
-    authenticatedFetch(`${profileApiBase}/v1/profiles/memory/${account}`,{signal:controller.signal}).then(async response=>{
+    readProfileApi(`${profileApiBase}/v1/profiles/memory/${account}`,{signal:controller.signal}).then(async response=>{
       if(!response.ok){const error=await response.json().catch(()=>null);throw Error(typeof error?.detail==='string'?error.detail:'Mémoire serveur indisponible');}
       const data=await response.json();if(controller.signal.aborted||owner.current!==account)return;
       revision.current=data.revision;
@@ -37,7 +37,7 @@ export function useProfileMemory(accountId:string, state:State, restore:(profile
     if(ready!==accountId||conflict.current||serialized===lastSaved.current)return;
     const account=accountId;
     const timer=window.setTimeout(async()=>{
-      if(saving.current)return;
+      if(saving.current||owner.current!==account)return;
       saving.current=true;setStatus('Enregistrement…');
       try {
         const memory=conversationScoped?{profile:latest.current.profile,...sharedWorkspace.current}:{profile:latest.current.profile,tabs:latest.current.tabs,sources:latest.current.sources};

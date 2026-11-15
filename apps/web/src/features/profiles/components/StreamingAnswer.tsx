@@ -13,7 +13,8 @@ export function StreamingAnswer({ text, streaming = false, citations = [], follo
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const safe = citations.filter((source) => /^https?:\/\//i.test(source.url));
   const domain = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
-  const parts = text.split(/(\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\*\*[^*]+\*\*|\[\d+\])/g).filter(Boolean);
+  const visibleText = text.replace(/<\/?response>/gi, '');
+  const parts = visibleText.split(/(\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\*\*[^*]+\*\*|\[\d+\])/g).filter(Boolean);
   return <div className="w-full min-w-0 text-[13.5px] leading-[1.7] text-neutral-700">
     <p className="whitespace-pre-wrap break-words">{parts.map((part, i) => {
       const linked = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(part);

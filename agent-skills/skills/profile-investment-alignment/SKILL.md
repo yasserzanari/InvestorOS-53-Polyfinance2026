@@ -5,7 +5,7 @@ description: Relier une demande d’investissement fictive aux objectifs, à l�
 
 # Relier le profil à une demande
 
-Utilise les déclarations du persona actif et le contexte courant. Une curiosité pour un titre ne prouve pas une intention d’achat. Distingue le projet concerné, son horizon, la tolérance émotionnelle aux fluctuations, la capacité financière à subir une perte, les besoins de liquidité et les préférences. Ne complète pas une inconnue par une supposition.
+Utilise les déclarations du persona actif et le contexte courant. Une curiosité pour un titre ne prouve pas une intention d’achat. Distingue le projet concerné, son horizon, la tolérance émotionnelle aux fluctuations, la capacité financière à subir une perte, les besoins de liquidité et les préférences. Ne complète pas une inconnue par une supposition. Le contexte `profile_declarations` indique quelles réponses sont déjà déclarées. Une capacité qualitative (« je ne peux pas absorber une perte compromettant ce projet ») est connue comme déclaration; seul son montant exact peut manquer. Ne la qualifie pas de non renseignée et ne la redemande pas. Cet état ne certifie ni la vérité financière ni un niveau mesuré.
 
 ## Construire une interprétation utile
 
@@ -14,6 +14,16 @@ Utilise les déclarations du persona actif et le contexte courant. Une curiosit�
 - Si une propriété de l’actif n’est pas mesurée ou documentée, ne la déduis ni de son nom ni de son secteur. Présente alors une tension de profil (si elle existe) séparément d’une conclusion sur le produit.
 - Un horizon court, une forte dépendance aux fonds ou une faible capacité de perte rend la stabilité et la liquidité particulièrement pertinentes. Ce contexte ne prouve pas à lui seul qu’un titre précis est instable ou inadapté.
 - Tolérance élevée et recherche de diversification peuvent coexister : examine concentration et chevauchements disponibles. La tolérance élevée ne demande pas automatiquement davantage de risque; le nombre de lignes ne prouve pas une diversification.
+
+## Éviter les fausses incohérences
+
+La tolérance émotionnelle et la capacité financière sont deux dimensions distinctes. Leur écart peut justifier une discussion sur les pertes supportables; il ne prouve ni erreur de l'utilisateur ni besoin de modifier ses objectifs. Préserve les contraintes déclarées dans les pistes proposées. Ne suggère pas de chercher un financement quand la personne exclut l'emprunt, ni de rendre non essentiel un projet qu'elle a qualifié d'essentiel.
+
+Exemple fictif : Robert accepte émotionnellement des fluctuations élevées, mais doit disposer de toute cette somme dans 18 mois et ne peut absorber une perte compromettant son projet. Lecture étayée : son confort face aux fluctuations ne suffit pas à établir sa capacité financière; la disponibilité du capital à l'échéance compte pour ce projet. Lecture non étayée à exclure : « ce besoin sera difficile à atteindre sans emprunt ». Aucun montant, déficit ni rendement requis n'a été fourni. L'absence d'emprunt, l'absence de crypto et des connaissances débutantes ne constituent pas à elles seules des incohérences.
+
+Pistes utiles : discuter de la conséquence d'une baisse encore présente à l'échéance; préciser le montant indispensable si inconnu; comparer des scénarios sous hypothèses explicitement fournies. Ne redemande pas une information déjà connue et ne propose pas d'augmenter la capacité de perte par une simple modification de formulaire. Une curiosité pour AAPL ou une comparaison historique n'établit pas un achat envisagé ni une exposition réelle.
+
+Repères de méthode consultés : [AMF, profil d'investisseur](https://lautorite.qc.ca/grand-public/outils-et-calculateurs/calculateurs/votre-profil-dinvestisseur) et [OCRI, compréhension du risque](https://www.ciro.ca/office-investor/understanding-risk). Ces repères distinguent les dimensions du profil; ils ne valident pas une conclusion sur un titre ni la conformité réglementaire du prototype.
 
 Les catégories « crypto-actifs », « technologies et IA » ou « actions mondiales » ne prouvent pas que le portefeuille détient Bitcoin, NVIDIA ou un titre particulier. Sans composition sous-jacente, ne calcule pas de chevauchement. Sans poids envisagé et source de financement, ne chiffre pas l’effet d’un ajout.
 
@@ -36,3 +46,11 @@ N’attribue aucun score de convenance. Ne conseille pas d’acheter, vendre ou 
 ## Rendre les pistes discutables dans Profile
 
 La carte `publish_profile_insight` alimente une fiche distincte des règles déterministes des champs. Renseigne `alternatives` avec deux ou trois pistes courtes à examiner, sans les présenter comme des prescriptions. Un clic reprend la piste dans le chat avec la question d’origine; les champs liés et les références restent consultables dans leurs vues. Renseigne `limits` avec les inconnues qui empêchent une conclusion; ne les enterre pas dans un long paragraphe. Si le profil a changé, actualise l’analyse avant de réutiliser une ancienne piste. Les dates et horizons exprimés en mois doivent garder leur unité et être reliés au projet concerné.
+
+Le résumé de la carte contient un constat concret fondé sur les déclarations ou les données reçues, jamais une annonce du type « voici les constats ». Pour `clarification`, renseigne `nextQuestion` avec une question ciblée. Pour une tension ou une analyse partielle, fournis au moins une piste utile ou une question; respecte les contraintes déjà déclarées. Une information autonome ne nécessite pas de relance artificielle.
+
+Les poids réellement lus sont joints par le serveur à `portfolioBasis` de la carte et rendus dans la vue Alignement. Ne fabrique pas ce champ et ne les remplace pas par des poids imaginés. Utilise le résumé pour expliquer la conséquence conditionnelle pertinente et les limites, plutôt que recopier toute la liste des positions.
+
+Rédige `summary` en deux phrases ciblées, idéalement 250 à 450 caractères (maximum 800); garde les inconnues détaillées dans `limits`. Après un refus de validation, corrige les champs indiqués plutôt que répéter les mêmes arguments. Un indice de concentration sans seuil documenté ne justifie pas une étiquette « faible », « modérée » ou « élevée ».
+
+Un libellé « Obligations court terme » ne suffit pas à qualifier une catégorie de stable, garantie ou sans risque. Reprends les catégories déclarées, puis distingue ce qui manque sur leurs échéances, garanties et liquidité. Une forte part de liquidités ne devient pas préoccupante du seul fait d’un horizon court ou d’une faible capacité de perte. Pour une piste de simulation, invite la personne à choisir les chocs; ne transforme pas un pourcentage inventé en hypothèse déjà acceptée.

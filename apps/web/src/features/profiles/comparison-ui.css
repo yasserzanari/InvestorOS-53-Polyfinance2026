@@ -1,0 +1,25 @@
+.pb-data-note{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border:1px solid #dfe8f4;border-radius:9px;background:#f5f8fc;color:#73849d;font-size:10px;line-height:1.55}
+.pb-data-note svg{flex:none;margin-top:1px;color:#6783af}
+.pb-data-note strong{color:#435c80;font-weight:600}
+.pb-metrics{flex:none;display:grid;gap:10px}
+.pb-metrics>header{display:flex;justify-content:space-between;align-items:end;gap:12px}
+.pb-metrics>header h3{margin:0 0 3px;font-size:14px;color:#314968}
+.pb-metrics>header p{font-size:10px}
+.pb-metrics>header>span{flex:none;padding:5px 8px;border:1px solid #e1e8f1;border-radius:7px;background:#fff;color:#75859d;font-size:9px}
+.pb-metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.pb-metric-card{min-width:0;padding:11px 12px 9px;border:1px solid var(--pb-line);border-top:2px solid var(--metric-color,#3568df);border-radius:10px;background:#fff;box-shadow:0 2px 8px #2a41620a}
+.pb-metric-title{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-bottom:8px;border-bottom:1px solid #edf1f7}
+.pb-metric-title>span{display:grid;gap:3px;min-width:0}
+.pb-metric-title strong{font-size:12px;color:#30496c}
+.pb-metric-title small{max-width:160px;overflow:hidden;color:#8998ae;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.pb-metric-title>small{flex:none;text-align:right;font-size:8px}
+.pb-metric-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding-top:9px}
+.pb-metric-values>div{display:grid;gap:5px;min-width:0}
+.pb-metric-values span{color:#8795aa;font-size:8px;line-height:1.3}
+.pb-metric-values strong{color:#354e70;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pb-metric-card footer{padding-top:7px;margin-top:7px;border-top:1px solid #edf1f7;color:#8a97aa;font-size:8px}
+@media(max-width:700px){.pb-metric-grid{grid-template-columns:1fr}.pb-metric-values span{font-size:9px}.pb-metric-values strong{font-size:12px}}
+
+.pb-body[data-view="comparison"]{gap:9px;padding-top:16px;padding-bottom:16px}
+.pb-body[data-view="comparison"] .pb-chart{height:clamp(140px,17vh,180px);flex:0 0 auto}
+.pb-body[data-view="comparison"] .pb-metrics>header p{display:none}

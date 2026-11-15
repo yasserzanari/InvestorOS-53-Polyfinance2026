@@ -28,6 +28,30 @@ for name in assets_universe.csv prices_daily.csv corporate_actions.csv; do
   fi
   cp "$data_dir/$name" "$package_data/$name"
 done
+# Import from a shallow directory to catch repository-only path assumptions.
+"$python_bin" - "$build_dir" <<'PY'
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+def copy_package_file(source, destination):
+    try:
+        return os.link(source, destination)
+    except OSError:
+        return shutil.copy2(source, destination)
+
+with tempfile.TemporaryDirectory(prefix='investoros-lambda-', dir='/tmp') as temporary:
+    package = Path(temporary)
+    shutil.copytree(sys.argv[1], package, copy_function=copy_package_file, dirs_exist_ok=True)
+    environment = {**os.environ, 'PYTHONPATH': str(package), 'PYTHONDONTWRITEBYTECODE': '1', 'AWS_EC2_METADATA_DISABLED': 'true'}
+    subprocess.run(
+        [sys.executable, '-c', 'from investoros_api.main import app; print("Lambda package import verified:", app.title)'],
+        cwd=temporary, env=environment, check=True,
+    )
+PY
 rm -f "$tmp_zip"
 "$python_bin" - "$build_dir" "$tmp_zip" <<'PY'
 from pathlib import Path

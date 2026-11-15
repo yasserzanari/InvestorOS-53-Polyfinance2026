@@ -5,8 +5,8 @@ import { AdvancedChatInput } from '../../../shared/ui/advanced-ai-chat-input';
 type Recognition = { lang: string; continuous: boolean; interimResults: boolean; start(): void; stop(): void; abort(): void; onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null };
 
 /** Prompt bar composed from the supplied prompt-box pattern, with actual browser dictation. */
-export function PromptBar({ value, onChange, onSend, busy = false, onStop, placeholder = 'Décrivez vos objectifs, posez une question…' }: {
-  value: string; onChange: (value: string) => void; onSend: () => void; busy?: boolean; onStop?: () => void; placeholder?: string;
+export function PromptBar({ value, onChange, onSend, busy = false, disabled = false, onStop, placeholder = 'Décrivez vos objectifs, posez une question…' }: {
+  value: string; onChange: (value: string) => void; onSend: () => void; busy?: boolean; disabled?: boolean; onStop?: () => void; placeholder?: string;
 }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -40,21 +40,21 @@ export function PromptBar({ value, onChange, onSend, busy = false, onStop, place
     try { engine.start(); setSeconds(0); setRecording(true); setNotice(''); } catch { setNotice('Impossible de démarrer la dictée. Vérifiez les permissions du navigateur.'); }
   };
   const stopVoice = () => { recognition.current?.stop(); setRecording(false); };
-  const send = () => { if (busy || !value.trim()) return; restoreFocus.current = Boolean(rootRef.current?.contains(document.activeElement)); stopVoice(); onSend(); setNotice(''); };
+  const send = () => { if (busy || disabled || !value.trim()) return; restoreFocus.current = Boolean(rootRef.current?.contains(document.activeElement)); stopVoice(); onSend(); setNotice(''); };
   return <div className="pw-prompt-root" ref={rootRef}>
     <AdvancedChatInput
       className="pw-shared-prompt"
       textareaProps={{
-        value, disabled:busy, 'aria-label':'Message à l’assistant',
+        value, disabled:busy||disabled, 'aria-label':'Message à l’assistant',
         placeholder:recording?'Votre transcription apparaît ici…':placeholder,
         onChange:event=>onChange(event.currentTarget.value),
         onKeyDown:event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();send();}},
       }}
       onSend={send}
       hideSendButton={busy}
-      sendButtonProps={{disabled:!value.trim(), 'aria-label':'Envoyer le message'}}
+      sendButtonProps={{disabled:disabled||!value.trim(), 'aria-label':'Envoyer le message'}}
       actionIcons={[
-        <button key="microphone" type="button" className={`pw-prompt-mic${recording?' is-recording':''}`} disabled={busy} aria-label={recording?'Arrêter la dictée':'Dicter un message'} aria-pressed={recording} onClick={recording?stopVoice:startVoice}>{recording?<Square size={16}/>:<Mic size={18}/>}</button>,
+        <button key="microphone" type="button" className={`pw-prompt-mic${recording?' is-recording':''}`} disabled={busy||disabled} aria-label={recording?'Arrêter la dictée':'Dicter un message'} aria-pressed={recording} onClick={recording?stopVoice:startVoice}>{recording?<Square size={16}/>:<Mic size={18}/>}</button>,
         <span key="hint" className="pw-prompt-hint">{recording?`Dictée en cours · ${seconds} s`:'Entrée pour envoyer'}</span>,
         ...(busy?[<button key="stop" type="button" className="pw-prompt-mic" onClick={onStop} aria-label="Arrêter la réponse"><Square size={16}/></button>]:[]),
       ]}
