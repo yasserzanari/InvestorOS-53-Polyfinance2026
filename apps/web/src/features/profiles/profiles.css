@@ -91,6 +91,9 @@
 .pw-empty>.pw-voice-orb.pw-landing-orb{position:absolute;top:clamp(28px,8vh,68px);left:calc(50% - 42px);width:84px;height:84px;display:block;isolation:isolate;margin:0;box-shadow:0 0 30px #78bdf266,0 0 68px #9b96f633,inset 0 0 18px #fff}
 .pw-landing-orb:before{position:absolute;z-index:-1;inset:-20px;border-radius:50%;background:radial-gradient(circle,#9bdcf255 0%,#c9baff32 46%,transparent 74%);content:"";filter:blur(10px);animation:pw-landing-orb-aura 3.6s ease-in-out infinite alternate}
 @keyframes pw-landing-orb-aura{from{opacity:.45;transform:scale(.88)}to{opacity:1;transform:scale(1.08)}}
+.pw-landing-orb{transition:opacity .2s ease,visibility .2s ease}
+.pw-chat.is-landing:has(.pw-voice-live) .pw-landing-orb{visibility:hidden;opacity:0;animation-play-state:paused}
+.pw-chat.is-landing:has(.pw-voice-live) .pw-landing-orb span,.pw-chat.is-landing:has(.pw-voice-live) .pw-landing-orb:before{animation-play-state:paused}
 .pw-landing-eyebrow{margin-bottom:8px;color:#7d8ba1;font-size:9px;font-weight:650;letter-spacing:.14em}
 .pw-chat.is-landing .pw-landing-heading h2{margin:0;color:#1d2f4d;font-size:clamp(27px,3vw,36px);font-weight:590;letter-spacing:-.045em;line-height:1.18}
 .pw-chat.is-landing .pw-landing-heading p{max-width:none;margin:10px 0 25px;color:#74839a;font-size:13px;line-height:1.6}
