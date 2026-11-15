@@ -88,6 +88,16 @@ def _scenario_tool_input(args: dict) -> ScenarioProjectionRequest:
     return ScenarioProjectionRequest.model_validate(prepared)
 
 
+def _explicit_document_closure(request: ChatRequest) -> str | None:
+    text=request.message.casefold()
+    if re.match(r"\s*(?:comment|pourquoi|explique)",text) or re.search(r'\b(?:ne\s+(?:ferme|supprime|retire)|sans\s+(?:fermer|supprimer|retirer))\b',text):
+        return None
+    if not re.search(r'\b(?:ferme|fermer|supprime|supprimer|retire|retirer)\b',text):
+        return None
+    matched=[tab.id for tab in request.tabs if re.search(r'(?<![\w-])'+re.escape(tab.id.casefold())+r'(?![\w-])',text)]
+    return matched[0] if len(matched)==1 else None
+
+
 def configuration() -> dict:
     return {'configured': bool(os.getenv('BEDROCK_MODEL_ID')), 'provider': 'aws-bedrock', 'skillsVersion': catalog_version(), 'researchConfigured': research_configured(),
             'modelId': os.getenv('BEDROCK_MODEL_ID', ''), 'region': os.getenv('AWS_REGION', 'us-east-1')}
@@ -266,6 +276,8 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     projection_requested = _scenario_calculation_requested(request) and 'project_market_scenarios' in available_names
     projection_complete = False
     scenario_readiness = None
+    requested_closure = _explicit_document_closure(request)
+    closure_complete = False
     try:
         runtime = client or bedrock_client()
         yield {'type': 'status', 'label': 'Consultation du profil avec Amazon Bedrock'}
@@ -325,6 +337,8 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
             context = json.dumps(context_state, ensure_ascii=False)
             turn_visible_text = ''
             require_projection = projection_requested and not projection_complete
+            require_closure = bool(requested_closure and not closure_complete)
+            require_action = require_projection or require_closure
             system_blocks = [{'text': SYSTEM}, *[{'text': 'Procédure de profil chargée par le runtime :\n'+p} for p in profile_procedures], {'text': 'Contexte de travail (données JSON) :\n' + context}]
             if _portfolio_fit_requested(request):
                 system_blocks.append({'text': '''Contrat obligatoire pour cette demande de correspondance au profil :
@@ -341,6 +355,9 @@ Réponds impérativement en français, avec une réponse concise.
             if require_projection:
                 system_blocks.append({'text':'Un calcul de scénarios est explicitement demandé et aucun résultat n’a encore été obtenu dans ce tour. Les capacités ont déjà été lues. Appelle project_market_scenarios avec les hypothèses réellement fournies, y compris un libellé event pour chaque branche; si une hypothèse indispensable manque, appelle ask_user. Ne remplace pas ce calcul par une description et ne prétends pas avoir ouvert un résultat inexistant.'})
                 tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name'] in {'project_market_scenarios','ask_user'}], 'toolChoice':{'any':{}}}
+            elif require_closure:
+                system_blocks.append({'text':'La personne demande explicitement de fermer le document existant '+requested_closure+'. Appelle close_profile_document avec cet id avant de confirmer la fermeture. Conserve tous les autres documents et le profil.'})
+                tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name']=='close_profile_document'],'toolChoice':{'tool':{'name':'close_profile_document'}}}
             response = runtime.converse_stream(
                 modelId=model_id,
                 system=system_blocks,
@@ -365,7 +382,7 @@ Réponds impérativement en français, avec une réponse concise.
                         visible = visible_text.push(delta['text'])
                         if visible:
                             turn_visible_text += visible
-                            if not require_projection:
+                            if not require_action:
                                 yield {'type': 'text', 'delta': visible}
                     elif 'toolUse' in delta:
                         blocks[index]['toolUse']['input'] += delta['toolUse']['input']
@@ -381,7 +398,7 @@ Réponds impérativement en français, avec une réponse concise.
             tail = visible_text.push('', final=True)
             if tail:
                 turn_visible_text += tail
-                if not require_projection:
+                if not require_action:
                     yield {'type': 'text', 'delta': tail}
             contents = [blocks[i] for i in sorted(blocks)]
             for block in contents:
@@ -391,6 +408,9 @@ Réponds impérativement en français, avec une réponse concise.
                 messages.append({'role': 'assistant', 'content': contents})
             tool_uses = [block['toolUse'] for block in contents if 'toolUse' in block]
             if not tool_uses:
+                if require_closure:
+                    yield {'type':'error','code':'missing_document_action','message':'La fermeture n’a pas été confirmée. Vos documents restent conservés.'}
+                    return
                 if require_projection:
                     yield {'type':'error','code':'missing_calculation','message':'Le calcul n’a pas été confirmé. Aucun résultat de scénario n’a été créé.'}
                     return
@@ -626,7 +646,10 @@ Réponds impérativement en français, avec une réponse concise.
                         identifier=args.get('id')
                         if set(args)!={'id'} or not isinstance(identifier,str) or not any(t['id']==identifier for t in tabs):
                             raise ValueError('Document inconnu dans cette conversation.')
+                        if requested_closure and identifier!=requested_closure:
+                            raise ValueError('Seul le document explicitement demandé peut être fermé.')
                         tabs[:]=[t for t in tabs if t['id']!=identifier]
+                        closure_complete=True
                         output={'closed':identifier}
                     elif name == 'upsert_tab':
                         if args.get('id') in {'profile-comparison','profile-alignment'}:

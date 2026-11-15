@@ -17,7 +17,7 @@ Scénarios réutilise les outils de simulation. `ProfileScenario.tsx` propose Sy
 - `compare_profile_instruments` calcule et conserve la comparaison, puis ouvre la vue correspondante.
 - `publish_profile_insight` valide une carte liée aux champs explicites du profil; aucune référence de preuve non reçue n’est acceptée.
 - `open_profile_view` sélectionne une vue, y compris Documents. `documentId` permet de sélectionner un document existant; les identifiants inconnus sont refusés. Chaque événement est distinct, même si la vue avait déjà été ouverte avant une navigation manuelle. En mode Profile, `upsert_tab` ouvre automatiquement la note créée ou modifiée.
-- `close_profile_document` ferme seulement le document demandé, en conservant profil et autres documents. Le bouton de fermeture permet aussi de retirer un scénario volumineux. La dernière fermeture de Documents revient à Profil.
+- `close_profile_document` ferme seulement le document demandé, en conservant profil et autres documents. Une demande nommant exactement un identifiant de document est routée côté serveur vers cet outil et ne peut pas fermer un autre document. Le bouton de fermeture permet aussi de retirer un scénario volumineux. La dernière fermeture de Documents revient à Profil.
 - `update_profile`, `ask_user`, les outils historiques/scénarios et `upsert_tab` restent partagés. Les IDs réservés aux comparaisons et cartes ne peuvent pas être remplacés par une note arbitraire.
 - `workspaceMode: profiles` charge les procédures investor-profile et profile-investment-alignment dans le vrai contexte modèle; la trace indique runtime-bootstrap. Le modèle peut découvrir d’autres skills selon la demande. Le skill profile-workspace décrit les commandes et les vues.
 
