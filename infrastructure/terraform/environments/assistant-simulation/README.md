@@ -50,7 +50,7 @@ terraform show /tmp/investoros-assistant-simulation.tfplan
 
 Le 15 novembre 2026, les sept ressources de chat créées dans AWS dev ont été importées dans ce state. Aucun `apply` Terraform global n’a été exécuté pour cette intervention. Relever l’état réel et le plan avant une mise à jour : ne pas recréer une ressource déjà importée, ni appliquer un plan qui supprime, remplace ou modifie des ressources hors de cette stack. La configuration CORS de l’API partagée appartient à son module propriétaire; sa présence dans le code ne prouve pas son application dans AWS.
 
-L’archive API doit être cohérente entre Assistant/Simulation et worker pour que contrats, outils et skills correspondent. Un déploiement du frontend seul ne met pas à jour ces fonctions. Conserver une version de retour arrière et vérifier le statut de mise à jour des fonctions avant l’essai connecté.
+L’archive API doit être cohérente entre Assistant/Simulation et worker pour que contrats, outils et skills correspondent. Terraform l’envoie dans le bucket privé `investoros-<environment>-<account>-lambda-artifacts-<region>` sous une clé adressée par contenu; les deux fonctions déploient le même objet S3, ce qui supporte les archives dépassant la limite d’envoi direct Lambda. Le chiffrement S3 AES-256 est activé. Les anciennes clés d’artefacts ne sont pas supprimées automatiquement afin de conserver un retour arrière. Un déploiement du frontend seul ne met pas à jour ces fonctions. Vérifier le statut de mise à jour des fonctions avant l’essai connecté.
 
 ## Vérifications observées
 

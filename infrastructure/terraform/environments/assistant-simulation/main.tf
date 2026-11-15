@@ -10,14 +10,15 @@ locals {
       portfolio_id = persona.portfolio_id
     }
   }
-  model_arn            = "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/${trimprefix(var.bedrock_model_id, "us.")}"
-  profile_arn          = "arn:${data.aws_partition.current.partition}:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}"
-  cognito_issuer       = data.terraform_remote_state.foundation.outputs.cognito_issuer
-  cognito_client_id    = data.terraform_remote_state.foundation.outputs.cognito_client_id
-  portfolio_table_name = data.terraform_remote_state.foundation.outputs.demo_table_names.portfolios
-  portfolio_table_arn  = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.portfolio_table_name}"
-  accounts_table_name  = data.terraform_remote_state.foundation.outputs.demo_table_names.accounts
-  accounts_table_arn   = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.accounts_table_name}"
+  model_arn              = "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/${trimprefix(var.bedrock_model_id, "us.")}"
+  profile_arn            = "arn:${data.aws_partition.current.partition}:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}"
+  lambda_artifact_bucket = "investoros-${var.environment}-${data.aws_caller_identity.current.account_id}-lambda-artifacts-${var.aws_region}"
+  cognito_issuer         = data.terraform_remote_state.foundation.outputs.cognito_issuer
+  cognito_client_id      = data.terraform_remote_state.foundation.outputs.cognito_client_id
+  portfolio_table_name   = data.terraform_remote_state.foundation.outputs.demo_table_names.portfolios
+  portfolio_table_arn    = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.portfolio_table_name}"
+  accounts_table_name    = data.terraform_remote_state.foundation.outputs.demo_table_names.accounts
+  accounts_table_arn     = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.accounts_table_name}"
   common_tags = {
     Project     = "InvestorOS"
     Environment = var.environment
@@ -46,6 +47,15 @@ resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/lambda/${local.name_prefix}"
   retention_in_days = 14
   tags              = local.common_tags
+}
+
+resource "aws_s3_object" "api_package" {
+  bucket                 = local.lambda_artifact_bucket
+  key                    = "assistant-simulation/api-${filesha256(local.package_path)}.zip"
+  source                 = local.package_path
+  source_hash            = filebase64sha256(local.package_path)
+  server_side_encryption = "AES256"
+  tags                   = local.common_tags
 }
 
 resource "aws_iam_role" "api" {
@@ -108,7 +118,8 @@ resource "aws_lambda_function" "api" {
   role                           = aws_iam_role.api.arn
   runtime                        = "python3.12"
   handler                        = "investoros_api.main.handler"
-  filename                       = local.package_path
+  s3_bucket                      = aws_s3_object.api_package.bucket
+  s3_key                         = aws_s3_object.api_package.key
   source_code_hash               = filebase64sha256(local.package_path)
   timeout                        = 120
   memory_size                    = 512
