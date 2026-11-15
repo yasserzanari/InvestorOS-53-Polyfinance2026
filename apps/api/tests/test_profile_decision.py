@@ -138,6 +138,21 @@ class DecisionTests(unittest.TestCase):
         self.assertNotIn('event',args['branches'][0])
         with self.assertRaises(ValidationError):_scenario_tool_input({**args,'branches':[{'id':'down','title':'Baisse','eventAfterDays':10}]})
 
+    @patch.dict(os.environ,{'BEDROCK_MODEL_ID':'test-model'})
+    def test_explicit_document_command_requires_the_tool_and_preserves_other_tabs(self):
+        request=ChatRequest(message='Ferme uniquement draft.',tabs=[{'id':'draft','title':'Brouillon','kind':'note'},{'id':'kept','title':'À conserver','kind':'note'}])
+        runtime=RuntimeStub(stream_tool('close_profile_document',{'id':'draft'}))
+        events=list(run_chat(request,runtime))
+        self.assertEqual(runtime.calls[0]['toolConfig']['toolChoice'],{'tool':{'name':'close_profile_document'}})
+        self.assertEqual([t['id'] for t in [e for e in events if e['type']=='workspace'][-1]['tabs']],['kept'])
+        self.assertNotIn('toolChoice',runtime.calls[1]['toolConfig'])
+
+    def test_closure_routing_rejects_negation_and_ambiguous_document_ids(self):
+        from investoros_api.profiles.service import _explicit_document_closure
+        tabs=[{'id':'draft','title':'Brouillon','kind':'note'},{'id':'kept','title':'À conserver','kind':'note'}]
+        for prompt in ['Ne ferme pas draft','Comment fermer draft ?','Ferme draft ou kept','Ferme le brouillon']:
+            self.assertIsNone(_explicit_document_closure(ChatRequest(message=prompt,tabs=tabs)))
+
     def test_persistence_isolated_and_optimistic(self):
         with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'PROFILE_MEMORY_DB':tmp+'/memory.db','PROFILE_WORKSPACE_TABLE':'','SOURCE_WORKSPACE_TABLE':''}):
             initial=read_memory('amira');self.assertEqual(initial['revision'],0)
