@@ -35,8 +35,19 @@ class ScenarioBranch(BaseModel):
     id: str = Field(min_length=1, max_length=40, pattern=r"^[a-zA-Z0-9_-]+$")
     title: str = Field(min_length=1, max_length=80)
     event: str = Field(min_length=1, max_length=160)
+    sourceUrl: str | None = Field(default=None, max_length=1000)
     shockPct: float = Field(ge=-80, le=100)
     eventAfterObservations: int = Field(ge=0, le=120)
+
+    @field_validator("sourceUrl")
+    @classmethod
+    def secure_source_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        parsed = urlsplit(value.strip())
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("Source URLs must use HTTPS and cannot contain credentials")
+        return value.strip()
 
 
 class ScenarioProjectionRequest(BaseModel):
@@ -255,6 +266,7 @@ def project_scenarios(request: ScenarioProjectionRequest) -> dict[str, Any]:
             "id": branch.id,
             "title": branch.title,
             "event": branch.event,
+            **({"sourceUrl": branch.sourceUrl} if branch.sourceUrl else {}),
             "shockPct": branch.shockPct,
             "eventAfterObservations": event_time,
             "path": path,
@@ -271,6 +283,7 @@ def project_scenarios(request: ScenarioProjectionRequest) -> dict[str, Any]:
         "method": "À chaque jalon, les percentiles 10/50/90 sont calculés sur toutes les fenêtres historiques du même titre et de même durée disponibles dans le jeu. Le choc indiqué par l’utilisateur est appliqué au jalon choisi, puis multiplié aux percentiles historiques suivants. Les points intermédiaires sont des quantiles marginaux, pas des trajectoires individuelles cohérentes.",
         "limitations": [
             "Les pourcentages de choc sont des hypothèses saisies par l’utilisateur; ils ne sont pas estimés par le modèle.",
+            "Les liens de branche proviennent de l’utilisateur ou de l’événement sélectionné; leur contenu n’est pas vérifié par le calcul.",
         "Cette projection conditionnelle n’est pas une prévision et n’établit ni probabilité de scénario ni causalité événement-cours.",
             "Le cours de départ est le dernier cours du paquet configuré; il peut être différé par rapport au marché actuel.",
             "Les quantiles historiques ne tiennent pas compte d’un changement de régime, de volatilité future, d’impôts ou des positions d’un portefeuille.",

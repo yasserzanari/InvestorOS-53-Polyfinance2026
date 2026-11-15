@@ -103,6 +103,7 @@ export function SimulationResultTab({ content }: { content: string }) {
                 <span aria-hidden="true" />
                 <div><h3>{branch.title}</h3><p>{branch.event} · choc {branch.shockPct > 0 ? '+' : ''}{branch.shockPct} % après {branch.eventAfterObservations} séances</p></div>
               </div>
+              {branch.sourceUrl && <a className="assistant-scenario-branch-source" href={safeSourceUrl(branch.sourceUrl)} target="_blank" rel="noreferrer"><ExternalLink size={12} aria-hidden="true" /> Source déclarée pour cette hypothèse</a>}
               <BranchChart branch={branch} currency={projection.currency} />
               <dl className="assistant-scenario-quantiles">
                 <div><dt>10e percentile</dt><dd>{end ? number(end.lowerPrice, projection.currency) : '—'}</dd></div>

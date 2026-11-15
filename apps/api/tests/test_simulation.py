@@ -129,7 +129,7 @@ class SimulationHistoryTests(unittest.TestCase):
             ticker="ABC",
             horizonObservations=20,
             branches=[
-                ScenarioBranch(id="down", title="Baisse", event="Tarif", shockPct=-10, eventAfterObservations=0),
+                ScenarioBranch(id="down", title="Baisse", event="Tarif", sourceUrl="https://www.federalregister.gov/documents/2025-1", shockPct=-10, eventAfterObservations=0),
                 ScenarioBranch(id="base", title="Stable", event="Tarif", shockPct=0, eventAfterObservations=10),
             ],
         )
@@ -138,10 +138,19 @@ class SimulationHistoryTests(unittest.TestCase):
 
         self.assertEqual(result["asOf"], "2025-05-31")
         self.assertEqual(result["branches"][0]["path"][0]["medianPrice"], 225.0)
+        self.assertEqual(result["branches"][0]["sourceUrl"], "https://www.federalregister.gov/documents/2025-1")
+        self.assertNotIn("sourceUrl", result["branches"][1])
         base_path = result["branches"][1]["path"]
         self.assertFalse(base_path[0]["eventApplied"])
         self.assertTrue(any(point["eventApplied"] for point in base_path))
         self.assertIn("pas une prévision", " ".join(result["limitations"]))
+        self.assertIn("liens de branche", " ".join(result["limitations"]))
+
+    def test_projection_source_urls_must_be_https_without_credentials(self):
+        with self.assertRaises(ValueError):
+            ScenarioBranch(id="bad", title="Source invalide", event="Tarif", sourceUrl="http://example.com", shockPct=-10, eventAfterObservations=0)
+        with self.assertRaises(ValueError):
+            ScenarioBranch(id="bad", title="Source invalide", event="Tarif", sourceUrl="https://user:pass@example.com", shockPct=-10, eventAfterObservations=0)
 
     def test_projection_rejects_duplicate_branch_ids_and_offsets_after_horizon(self):
         with self.assertRaises(ValueError):

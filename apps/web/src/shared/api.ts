@@ -161,6 +161,7 @@ export type ScenarioBranchInput = {
   id: string;
   title: string;
   event: string;
+  sourceUrl?: string;
   shockPct: number;
   eventAfterObservations: number;
 };
