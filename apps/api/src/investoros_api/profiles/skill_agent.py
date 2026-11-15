@@ -11,7 +11,7 @@ SKILL_TOOLS = [
 
 
 def run_skill_agent(client, *, model_id: str, system: str, prompt: str,
-                    required_skills: tuple[str, ...], max_tokens: int = 1000, role: str = 'specialist') -> dict:
+                    required_skills: tuple[str, ...], max_tokens: int = 1000, role: str = 'specialist', result_schema: dict | None = None) -> dict:
     """Only reviewed skill tools; financial/business execution remains with the caller."""
     catalog = catalog_summary()
     known = {entry['id'] for entry in catalog}
@@ -51,9 +51,10 @@ def run_skill_agent(client, *, model_id: str, system: str, prompt: str,
         applied = '\n'.join(loaded_content.values()) if ready else ''
         phase_note = ('Les procédures de rôle sont DÉJÀ chargées ci-dessous. Ne les recherche pas à nouveau. '
                       + ('Tu peux chercher une procédure complémentaire si nécessaire.' if iteration < 2 else 'La phase de recherche de procédures est terminée. Produis maintenant la réponse métier au format demandé.'))
+        structured_config = {'tools':[{'toolSpec':{'name':'publish_result','description':'Publier le résultat structuré du spécialiste avec ses citations.', 'inputSchema':{'json':result_schema}}}], 'toolChoice':{'tool':{'name':'publish_result'}}} if result_schema and ready else None
         response = client.converse(modelId=model_id, system=[{'text': role_system}, {'text': policy}, {'text': phase_note},
                                   *([{'text': 'Procédures approuvées chargées pour ce rôle :\n' + applied}] if applied else [])],
-                                  messages=messages, **({'toolConfig': {'tools': SKILL_TOOLS}} if iteration < 2 else {}),
+                                  messages=messages, **({'toolConfig': structured_config} if structured_config else {'toolConfig': {'tools': SKILL_TOOLS}} if iteration < 2 else {}),
                                   inferenceConfig={'maxTokens': max_tokens, 'temperature': 0.1})
         for key in usage:
             usage[key] += response.get('usage', {}).get(key, 0)
@@ -61,6 +62,12 @@ def run_skill_agent(client, *, model_id: str, system: str, prompt: str,
         messages.append(message)
         blocks = message.get('content', [])
         calls = [block['toolUse'] for block in blocks if 'toolUse' in block]
+        if result_schema and ready and len(calls) == 1 and calls[0].get('name') == 'publish_result':
+            output = calls[0].get('input')
+            if not isinstance(output, dict):
+                raise RuntimeError('Résultat structuré du spécialiste invalide')
+            trace.append({'tool':'publish_result','status':'done','actor':'model'})
+            return {'text':json.dumps(output,ensure_ascii=False),'skills':list(loaded.values()),'skill_trace':trace,'usage':usage,'role':role}
         if iteration >= 2 and calls:
             raise RuntimeError('Model requested a tool after the discovery phase')
         if len(calls) > 8:
