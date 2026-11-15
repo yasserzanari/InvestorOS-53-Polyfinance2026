@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Bot, FileText, GitBranch, ListChecks, Plus, X, PanelRight, ExternalLink, Sparkles } from 'lucide-react';
 import { useDemoAccount } from '../../shared/DemoAccountContext';
@@ -38,6 +39,11 @@ function toolSources(tool: ToolEvent) {
 }
 
 function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWorkspaceProps) {
+  const splitContainer=useRef<HTMLDivElement>(null);
+  const [split,setSplit]=useState(()=>{try{const value=Number(localStorage.getItem('investoros.profile-split'));return value>=25&&value<=75?value:50;}catch{return 50;}});
+  const [resizing,setResizing]=useState(false);
+  const changeSplit=(value:number)=>{const next=Math.max(25,Math.min(75,value));setSplit(next);try{localStorage.setItem('investoros.profile-split',String(next));}catch{}};
+  const resizeAt=(clientX:number)=>{const rect=splitContainer.current?.getBoundingClientRect();if(rect)changeSplit((clientX-rect.left)/rect.width*100);};
   const location = useLocation();
   const navigate = useNavigate();
   const {activeAccount}=useDemoAccount();
@@ -65,13 +71,14 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
       {text&&<MessageActions text={text} actions={['copy','regenerate','feedback']} onCopy={value=>{if(!navigator.clipboard&&value){const el=document.createElement("textarea");el.value=value;document.body.appendChild(el);el.select();document.execCommand("copy");el.remove();}}} versions={m.versions.length||1} version={m.version} onVersionChange={version=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,version}:x)}))} onRegenerate={()=>regenerate(m)} regenerating={busy&&m===workspace.messages.at(-1)} onFeedback={(kind,reason)=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,feedback:reason||kind}:x)}))}/>}
     </article>;
   };
+  const reduceMotion=useReducedMotion();
   const landing=assistantMode&&workspace.messages.length===0;
-  const promptComposer=<>
+  const promptComposer=<motion.div layout layoutId={assistantMode?"assistant-prompt":undefined} transition={{duration:reduceMotion?0:0.48,ease:[0.22,1,0.36,1]}} style={{width:"100%"}}>
     {pendingQuestion?.questionRequest&&<div className="pw-question-dock"><div className="pw-question-waiting" role="status">L’assistant attend votre réponse</div><AskUserCard key={pendingQuestion.questionRequest.id} request={pendingQuestion.questionRequest} disabled={busy} onSubmit={answer=>void answerQuestions(pendingQuestion.id,pendingQuestion.questionRequest!,answer)}/></div>}
     <PromptBar value={input} onChange={setInput} onSend={()=>submit()} busy={busy} onStop={stop} placeholder={pendingQuestion?'Ou répondez librement ici…':'Posez votre question…'}/>
-  </>;
+  </motion.div>;
   return <section className="profiles-page pw-page" aria-label={assistantMode?'Assistant InvestorOS':'Espace de profil investisseur'}>
-    <div className={`pw-workspace${assistantMode?' is-assistant-mode':''}`}>
+    <LayoutGroup id={`workspace-${activeAccount.id}-${assistantMode?"assistant":"profiles"}`}><div ref={splitContainer} style={{"--profile-split":`${split}%` } as CSSProperties} className={`pw-workspace${resizing?" is-resizing":""}${assistantMode?' is-assistant-mode':''}`}>
       <AssistantChatPanel
         status={busy?activity:pendingQuestion?'En attente de vos réponses':connected?'Amazon Bedrock':'Connexion à l’API nécessaire'}
         provider={connected?'Bedrock':'Hors connexion'}
@@ -83,7 +90,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
         onSelectConversation={openConversation}
         assistantMode={assistantMode}
         landing={landing}
-        showStatus={!assistantMode}
+        showStatus
         activity={busy&&<><ThinkingPill width={156} height={32} label="En cours"/><span>{activity}</span></>}
         composerClassName={pendingQuestion?'is-awaiting-answer':''}
         composer={promptComposer}
@@ -97,7 +104,14 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
           </>:<><Sparkles size={28}/><h2>Commençons par vos projets.</h2><p>Parlez de vos objectifs, de votre horizon ou d’une contrainte. L’assistant structure votre profil et organise ses résultats dans les onglets.</p><div>{['Aide-moi à préciser mon profil','Crée un plan pour construire mon profil','Demande un avis à un spécialiste du risque'].map(t=><button type="button" key={t} onClick={()=>submit(t)}>{t}<Plus size={14}/></button>)}</div></>}
         </div>:<MessageScroller className="pw-messages" messages={workspace.messages.map(m=>({id:m.id,content:m.text,from:m.role}))} renderMessage={renderMessage}/>}
       </AssistantChatPanel>
-      {!assistantMode&&<section className="pw-inspector" aria-label="Espace de travail de l’assistant">
+      {!assistantMode&&<div className="pw-split-handle" role="separator" tabIndex={0} aria-label="Redimensionner le chat et les onglets" aria-orientation="vertical" aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(split)} aria-valuetext={`${Math.round(split)} % pour le chat`} title="Glissez pour redimensionner · Double-clic pour équilibrer"
+        onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);setResizing(true);resizeAt(event.clientX);}}
+        onPointerMove={event=>{if(event.currentTarget.hasPointerCapture(event.pointerId))resizeAt(event.clientX);}}
+        onPointerUp={event=>{if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);setResizing(false);}}
+        onPointerCancel={()=>setResizing(false)} onLostPointerCapture={()=>setResizing(false)} onDoubleClick={()=>changeSplit(50)}
+        onKeyDown={event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();changeSplit(event.key==='Home'?25:event.key==='End'?75:split+(event.key==='ArrowLeft'?-2:2));}}}
+      ><span aria-hidden="true"/></div>}
+      <section className="pw-inspector" aria-label="Espace de travail partagé de l’assistant">
         <div className="pw-tab-bar" role="tablist" aria-label="Documents et activités">
           {workspace.tabs.map(t=><div className={`pw-tab${t.id===tab?.id?' is-active':''}`} key={t.id}><button type="button" role="tab" aria-selected={t.id===tab?.id} onClick={()=>setActiveTab(t.id)}>{t.kind==='agents'?<Bot size={14}/>:t.kind==='tasks'?<ListChecks size={14}/>:t.kind==='simulation'?<GitBranch size={14}/>:<FileText size={14}/>}<span>{t.title}</span></button>{t.id!=='profile'&&<button type="button" aria-label={`Fermer ${t.title}`} onClick={()=>{update(w=>({...w,tabs:w.tabs.filter(x=>x.id!==t.id)}));if(t.id===activeTab)setActiveTab('profile');}}><X size={12}/></button>}</div>)}
           <button className="pw-add-tab" type="button" onClick={addTab} disabled={workspace.tabs.length>=12||busy} aria-label="Ajouter un onglet"><Plus size={16}/></button>
@@ -107,8 +121,8 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
           {tab.kind==='profile'?<ProfileInspector profile={workspace.profile} onChange={(key,value)=>update(w=>({...w,profile:{...w.profile,[key]:value,confirmed:false}}))} onDiscuss={prompt=>submit(prompt)}/>:tab.kind==='simulation'?<SimulationResultTab content={tab.content}/>:tab.kind==='tasks'?<><ResearchProgress title={tab.title} variant="plain" status={busy?'running':allTools.length?'complete':'queued'} phase={allTools.some(t=>t.status==='running')?'reading':'writing'} phaseLabels={{planning:'Demande',searching:'Contexte',reading:'Outils',writing:'Réponse'}} plan={allTools.map(t=>({id:t.id,title:t.name,status:t.status==='done'?'done':t.status==='running'?'active':'skipped'}))} sourcesRead={allSources.length} sourcesFound={allSources.length} current={busy?{kind:'write',text:activity}:undefined} summary={allTools.length?`${allTools.filter(t=>t.status==='done').length} opérations terminées`:'Aucune tâche lancée'} onCancel={busy?stop:undefined}/><textarea className="pw-document" aria-label="Notes du plan" value={tab.content} onChange={e=>editTab({content:e.target.value})}/>{tab.items?.map(item=><div className="pw-task" key={item.id}><label><input type="checkbox" checked={item.status==='done'} onChange={e=>editTab({items:tab.items?.map(x=>x.id===item.id?{...x,status:e.target.checked?'done':'pending'}:x)})}/><span>{item.title}</span></label>{item.url&&(item.url.startsWith('/app/')?<Link to={item.url} aria-label={`Ouvrir le module pour ${item.title}`}><ExternalLink size={13}/>Ouvrir</Link>:<a href={safeSourceUrl(item.url)} target="_blank" rel="noreferrer"><ExternalLink size={13}/>Source</a>)}</div>)}</>:tab.kind==='agents'?<AgentsWorkspace agents={allAgents} busy={busy} activity={activity}/>:tab.kind==='sources'?<div className="pw-source-list">{allSources.length?allSources.map(s=><a href={safeSourceUrl(s.url)} target="_blank" rel="noreferrer" key={s.id}><ExternalLink size={14}/><div><strong>{s.title}</strong><p>{s.snippet}</p><small>{s.url}</small></div></a>):<p className="pw-muted">Les sources consultées apparaîtront ici.</p>}</div>:<><textarea className="pw-document" aria-label="Contenu de l’onglet" value={tab.content} onChange={e=>editTab({content:e.target.value})} placeholder="Écrivez ici ou demandez à l’assistant de remplir cet onglet…"/>{tab.items?.map(item=><label className="pw-task" key={item.id}><input type="checkbox" checked={item.status==='done'} onChange={e=>editTab({items:tab.items?.map(x=>x.id===item.id?{...x,status:e.target.checked?'done':'pending'}:x)})}/><span>{item.title}</span>{item.url&&<a href={safeSourceUrl(item.url)} target="_blank" rel="noreferrer">Source</a>}</label>)}</>}</>}
         </div>
         <footer className="pw-inspector-footer">{busy?'L’assistant met à jour votre espace…':'Modifiable par vous et par l’assistant'}<span>{workspace.tabs.length} onglets</span></footer>
-      </section>}
-    </div>
+      </section>
+    </div></LayoutGroup>
   </section>;
 }
 
