@@ -18,6 +18,7 @@ import { ToolActivityFeed } from './components/ToolActivityFeed';
 import { Subagent } from './components/subagent';
 import { ResearchProgress } from './components/research-progress';
 import { AskUserCard } from './components/AskUserCard';
+import { parsePlan, PlanCard } from './components/PlanCard';
 import { AgentsWorkspace } from './components/AgentsWorkspace';
 import { ProfileInspector } from './ProfileInspector';
 import { ProfileWorkbench } from './ProfileWorkbench';
@@ -96,11 +97,12 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
     const m=workspace.messages.find(x=>x.id===item.id)!;
     if(m.role==='user')return <div className="pw-user-message">{m.text}</div>;
     const text=m.versions[m.version]??m.text;
+    const plan=parsePlan(text);
     return <article className="pw-answer" data-ui-message="">
       <ToolActivityFeed tools={m.tools} runs={runs} active={busy&&m===workspace.messages.at(-1)} onOpenResearch={()=>{setActiveTab('research-results');setTabsOpen(true);}}/>
       {m.agents.map(a=><Subagent key={a.id} name={a.name} status={a.status} task={a.task} summary={a.summary} activity={a.status==='running'?'Consultation du spécialiste Bedrock':undefined} startedAt={a.startedAt} durationMs={a.durationMs}/>)}
       {m.tools.some(tool=>['start_analysis','inspect_market_movements'].includes(tool.name)&&tool.status==='done')&&<button type="button" className="pw-view-research" onClick={()=>{setActiveTab('research-results');setTabsOpen(true);}}>Voir les résultats et le suivi<ExternalLink size={14}/></button>}
-      <StreamingAnswer text={text} streaming={busy&&m===workspace.messages.at(-1)} citations={m.citations} followUps={m.questionRequest?[]:m.followUps} onFollowUp={p=>submit(p.label)}/>
+      {plan ? <PlanCard plan={plan} waiting={Boolean(m.questionRequest&&!m.questionAnswer)} responded={Boolean(m.questionAnswer)}/> : <StreamingAnswer text={text} streaming={busy&&m===workspace.messages.at(-1)} citations={m.citations} followUps={m.questionRequest?[]:m.followUps} onFollowUp={p=>submit(p.label)}/>}
       {m.questionRequest&&m.questionAnswer&&<AskUserCard key={m.questionRequest.id} request={m.questionRequest} answer={m.questionAnswer} disabled={busy||!memory.ready||(!m.questionAnswer&&pendingQuestion?.id!==m.id)} onSubmit={answer=>{void answerQuestions(m.id,m.questionRequest!,answer);}}/>}
       {m.error&&<p className="pw-error" role="alert">{m.error}</p>}
       {text&&<MessageActions text={text} actions={['copy','regenerate','feedback']} onCopy={value=>{if(!navigator.clipboard&&value){const el=document.createElement("textarea");el.value=value;document.body.appendChild(el);el.select();document.execCommand("copy");el.remove();}}} versions={m.versions.length||1} version={m.version} onVersionChange={version=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,version}:x)}))} onRegenerate={()=>regenerate(m)} regenerating={busy&&m===workspace.messages.at(-1)} onFeedback={(kind,reason)=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,feedback:reason||kind}:x)}))}/>}
