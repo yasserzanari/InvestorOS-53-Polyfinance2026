@@ -33,17 +33,29 @@ export function RiskMetricsPanel({ accountId, accountName, portfolio }: {
         message: `Analyse les risques précis du portefeuille fictif de ${accountName} et sa pertinence au regard de son profil, de ses objectifs, de son horizon, de sa tolérance au risque, de sa capacité à absorber une perte et de ses besoins de liquidité. Utilise analyze_demo_portfolio avant toute conclusion. Réponds en français en 3 ou 4 puces maximum : pour chaque risque, indique l'exposition ou le poids réellement retourné, le lien explicite avec le profil, puis ce qui reste inconnu. Termine par les limites. Ne fabrique aucun risque chiffré, aucune donnée de marché ou titre sous-jacent, ne recommande ni achat, ni vente, ni réallocation, et ne modifie pas le profil. Si les données ne soutiennent pas plusieurs risques précis, dis-le clairement.`,
       };
       let text = '';
+      let portfolioToolCompleted = false;
       await streamProfile(body, signal, (event: ProfileEvent) => {
         if (event.type === 'text' && typeof event.delta === 'string') text += event.delta;
-        if (event.type === 'error') throw new Error(typeof event.message === 'string' ? event.message : 'L’analyse IA n’a pas abouti.');
+        if (event.type === 'tool' && event.name === 'analyze_demo_portfolio' && event.status === 'done') {
+          portfolioToolCompleted = true;
+        }
+        if (event.type === 'error') throw new Error('portfolio-analysis-failed');
         if (text) setRisk({ status: 'loading', text });
       });
       if (!signal.aborted) {
+        if (!portfolioToolCompleted) {
+          setRisk({
+            status: 'error',
+            text: '',
+            message: 'Le calcul requis n’a pas été exécuté pour cette session. Aucune conclusion de risque n’est affichée.',
+          });
+          return;
+        }
         if (!text.trim()) throw new Error('L’assistant n’a pas fourni de risques analysables.');
         setRisk({ status: 'ready', text: text.trim() });
       }
-    } catch (error) {
-      if (!signal.aborted) setRisk({ status: 'error', text: '', message: error instanceof Error ? error.message : 'Analyse IA indisponible.' });
+    } catch {
+      if (!signal.aborted) setRisk({ status: 'error', text: '', message: 'L’analyse des risques est indisponible pour le moment. Aucune conclusion n’est affichée.' });
     }
   }, [accountId, accountName]);
 
