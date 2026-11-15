@@ -27,6 +27,7 @@ import { ProfileWorkbench } from './ProfileWorkbench';
 import { useProfileMemory } from './useProfileMemory';
 import { AssistantChatPanel } from '../assistant/AssistantChatPanel';
 import { SimulationResultTab } from '../assistant/SimulationResultTab';
+import { DecisionPanel } from './components/decision-panels/DecisionPanel';
 import './profiles.css';
 
 type ProfilesWorkspaceProps = { assistantMode?: boolean; initialPrompt?: string };
@@ -146,6 +147,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const renderWorkspaceTab=():ReactNode=>{
     if(!tab)return null;
     if(tab.kind==='note'&&!['research-skills','research-results'].includes(tab.id))return <NoteDocument title={tab.title} content={tab.content} onTitleChange={title=>editTab({title})} onContentChange={content=>editTab({content})} persistenceLabel="Note liée à cette conversation · conservée dans ce navigateur"/>;
+    if(tab.kind==='decision')return <DecisionPanel tab={tab} profile={workspace.profile} sources={allSources} onDiscuss={prompt=>submit(prompt)} disabled={busy||!memory.ready}/>;
     let content:ReactNode;
     if(tab.id==='research-skills')content=<SkillsUsedTab skills={skills}/>;
     else if(tab.id==='research-results')content=<ResearchResultsTab runs={runs} onRefresh={refreshResearch}/>;
@@ -206,7 +208,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
           {tab&&renderWorkspaceTab()}
           </>}
         </div>
-        {assistantMode&&<footer className="pw-inspector-footer">{busy?'L’assistant met à jour votre espace…':'Modifiable par vous et par l’assistant'}<span>{workspace.tabs.length} onglets</span></footer>}
+        {assistantMode&&<footer className="pw-inspector-footer">{busy?'L’assistant met à jour votre espace…':tab?.kind==='decision'?'Poursuivez l’analyse dans le chat':'Modifiable par vous et par l’assistant'}<span>{workspace.tabs.length} onglets</span></footer>}
       </section>
     </div></LayoutGroup>
   </section>;
