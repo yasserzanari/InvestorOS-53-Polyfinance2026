@@ -108,12 +108,6 @@ resource "aws_iam_role_policy" "api" {
         Action   = ["transcribe:StartStreamTranscriptionWebSocket"]
         Resource = "*"
       },
-      {
-        Sid      = "ManageFinanceFrenchVocabulary"
-        Effect   = "Allow"
-        Action   = ["transcribe:GetVocabulary", "transcribe:UpdateVocabulary"]
-        Resource = "arn:${data.aws_partition.current.partition}:transcribe:${var.aws_region}:${data.aws_caller_identity.current.account_id}:vocabulary/${local.name_prefix}-finance-fr-ca"
-      }
     ]
   })
 }
