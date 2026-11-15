@@ -1,3 +1,4 @@
+import { parseFinancialWidget, type FinancialWidgetData } from './components/financial-widgets';
 import { authenticatedFetch } from '../../shared/auth';
 import { toolActivityLabel } from './components/ToolActivityFeed';
 import { researchTabs, terminalResearch, type ResearchRun } from './research-workspace';
@@ -5,8 +6,8 @@ import { type AskUserRequest, type AskUserAnswer, formatQuestionAnswer } from '.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fieldOrder, initialProfiles, type Profile } from './profile-model';
 import { createLocalId, sourceUrl, streamProfile, profileApiBase, type AgentEvent, type AssistantPlan, type Citation, type FollowUp, type ToolEvent, type WorkspaceTab } from './profile-api';
-export type ChatMessage={id:string;role:'user'|'assistant';text:string;plan?:AssistantPlan;citations:Citation[];followUps:FollowUp[];tools:ToolEvent[];agents:AgentEvent[];versions:string[];version:number;feedback?:string|null;error?:string;questionRequest?:AskUserRequest;questionAnswer?:AskUserAnswer;questionDismissed?:boolean};
-type Workspace={profile:Profile;tabs:WorkspaceTab[];messages:ChatMessage[];researchRuns?:ResearchRun[];activeTab?:string;conversationScoped?:boolean;profileView?:string;sources?:Citation[]};
+export type ChatMessage={id:string;role:'user'|'assistant';text:string;plan?:AssistantPlan;citations:Citation[];followUps:FollowUp[];tools:ToolEvent[];agents:AgentEvent[];versions:string[];version:number;feedback?:string|null;widgets?:FinancialWidgetData[];widgetVersions?:FinancialWidgetData[][];error?:string;questionRequest?:AskUserRequest;questionAnswer?:AskUserAnswer;questionDismissed?:boolean};
+type Workspace={profile:Profile;tabs:WorkspaceTab[];messages:ChatMessage[];researchRuns?:ResearchRun[];activeTab?:string;conversationScoped?:boolean;profileView?:string;widgetSelection?:Pick<FinancialWidgetData,'view'|'period'>;sources?:Citation[]};
 export type ConversationHistoryItem={id:string;title:string;lastUsedAt:number;messages:ChatMessage[];tabs?:WorkspaceTab[];researchRuns?:ResearchRun[];activeTab?:string};
 const conversationsKey=(id:string)=>`investoros.conversations.v1.${id}`;
 const activeConversationKey=(id:string)=>`investoros.conversations.active.v1.${id}`;
@@ -89,7 +90,7 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     }
     const nextId=createLocalId();setConversationId(nextId);try{localStorage.setItem(activeConversationKey(currentAccount.current),nextId);}catch{}
     currentConversation.current=nextId;forcedResearch.current.clear();
-    update(w=>({...w,messages:[],tabs:[],researchRuns:[],activeTab:''}));setActiveTabState('');setError('');
+    update(w=>({...w,messages:[],tabs:[],researchRuns:[],activeTab:'',widgetSelection:undefined}));setActiveTabState('');setError('');
   },[conversationId,workspace,activeTab,conversations]);
   const openConversation=useCallback((id:string)=>{
     if(requestBusy.current||id===conversationId)return;
@@ -100,7 +101,7 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     setConversations(next);storeConversations(currentAccount.current,next);setConversationId(id);try{localStorage.setItem(activeConversationKey(currentAccount.current),id);}catch{}
     currentConversation.current=id;forcedResearch.current.clear();
     const tabs=target.tabs??[];const selected=tabs.some(tab=>tab.id===target.activeTab)?target.activeTab!:tabs[0]?.id??'';
-    update(w=>({...w,messages:target.messages,tabs,researchRuns:target.researchRuns??[],activeTab:selected}));setActiveTabState(selected);setError('');
+    update(w=>({...w,messages:target.messages,widgetSelection:undefined,tabs,researchRuns:target.researchRuns??[],activeTab:selected}));setActiveTabState(selected);setError('');
   },[conversations,workspace,activeTab,conversationId]);
   const send=async(text:string,regenerateId?:string,questionReply?:{messageId:string;request:AskUserRequest;answer:AskUserAnswer})=>{
     if(requestBusy.current||!text.trim()) return; requestBusy.current=true; setBusy(true);setError('');setActivity('Connexion à Bedrock');
@@ -111,9 +112,9 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     const source=regenerateId?workspace.messages.slice(0,workspace.messages.findIndex(m=>m.id===regenerateId)):workspace.messages;
     const history=source.filter(m=>m.text&&!m.error).slice(-28).map(m=>({role:m.role,content:m.text}));
     if(regenerateId&&history.at(-1)?.role==='user')history.pop();
-    update(w=>({...w,messages:regenerateId?w.messages.map(m=>m.id===id?{...m,text:'',plan:undefined,tools:[],agents:[],citations:[],followUps:[],error:undefined,questionRequest:undefined,questionAnswer:undefined,questionDismissed:false}:m):[...w.messages.map(m=>!questionReply&&m.questionRequest&&!m.questionAnswer?{...m,questionDismissed:true}:m),{id:createLocalId(),role:'user',text,citations:[],followUps:[],tools:[],agents:[],versions:[],version:0},{id,role:'assistant',text:'',citations:[],followUps:[],tools:[],agents:[],versions:[],version:0}]}));
+    update(w=>({...w,messages:regenerateId?w.messages.map(m=>m.id===id?{...m,text:'',plan:undefined,widgets:[],tools:[],agents:[],citations:[],followUps:[],error:undefined,questionRequest:undefined,questionAnswer:undefined,questionDismissed:false}:m):[...w.messages.map(m=>!questionReply&&m.questionRequest&&!m.questionAnswer?{...m,questionDismissed:true}:m),{id:createLocalId(),role:'user',text,citations:[],followUps:[],tools:[],agents:[],versions:[],version:0},{id,role:'assistant',text:'',citations:[],followUps:[],tools:[],agents:[],versions:[],version:0}]}));
     const patch=(fn:(m:ChatMessage)=>ChatMessage)=>{if(currentAccount.current===owner)update(w=>({...w,messages:w.messages.map(m=>m.id===id?fn(m):m)}));};
-    try {await streamProfile({message:text,workspaceMode:view,history,profile:Object.fromEntries(fieldOrder.map(key=>[key,workspace.profile[key]])),tabs:workspace.tabs,accountId,...(questionReply?{questionRequest:questionReply.request,questionAnswer:questionReply.answer}:{})},controller.signal,event=>{
+    try {await streamProfile({message:text,workspaceMode:view,history,widgetContext:[...source.flatMap(m=>(m.widgetVersions?.[m.version]??m.widgets??[]).filter(widget=>widget.persona===owner).map(({view,period})=>({view,period}))),...(workspace.widgetSelection?[workspace.widgetSelection]:[])].slice(-5),profile:Object.fromEntries(fieldOrder.map(key=>[key,workspace.profile[key]])),tabs:workspace.tabs,accountId,...(questionReply?{questionRequest:questionReply.request,questionAnswer:questionReply.answer}:{})},controller.signal,event=>{
       if(currentAccount.current!==owner)return;
       if(event.type==='status')setActivity(String(event.label));
       if(event.type==='text')patch(m=>({...m,text:m.text+String(event.delta||'')}));
@@ -158,6 +159,11 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
         patch(m=>({...m,citations}));
         update(w=>({...w,sources:[...(w.sources??[]).filter(c=>!citations.some(next=>next.id===c.id)),...citations].slice(-80)}));
       }
+      if(event.type==='financial_widget') {
+        const widget=parseFinancialWidget(event.widget);
+        if(!widget)patch(m=>({...m,error:'La carte reçue est invalide et ne peut pas être affichée. Réessayez la demande.'}));
+        if(widget&&widget.persona===owner)patch(m=>({...m,widgets:[...(m.widgets??[]).filter(item=>item.id!==widget.id),widget].slice(-8)}));
+      }
       if(event.type==='questions')patch(m=>({...m,questionRequest:event.request as AskUserRequest,followUps:[]}));
       if(event.type==='followups')patch(m=>({...m,followUps:event.prompts as FollowUp[]}));
       if(event.type==='profile_view')update(w=>{const previous=w.profileView?.split(':');const target=event.documentId??(event.view==='scenarios'&&previous?.[0]==='scenarios'?previous[2]:'')??'';return {...w,profileView:String(event.view)+':'+createLocalId()+':'+String(target)};});
@@ -168,7 +174,7 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
         return {...w,profile,tabs:w.researchRuns?.length?researchTabs(event.tabs as WorkspaceTab[]):event.tabs as WorkspaceTab[]};
       });}
       if(event.type==='error'){const message=String(event.message);setError(message);patch(m=>({...m,error:message}));}
-      if(event.type==='done'){completed=true;patch(m=>({...m,versions:[...m.versions,m.text],version:m.versions.length}));if(questionReply)update(w=>({...w,messages:w.messages.map(m=>m.id===questionReply.messageId?{...m,questionAnswer:questionReply.answer}:m)}));}
+      if(event.type==='done'){completed=true;patch(m=>({...m,versions:[...m.versions,m.text],widgetVersions:[...(m.widgetVersions??m.versions.map(()=>[])),m.widgets??[]],version:m.versions.length}));if(questionReply)update(w=>({...w,messages:w.messages.map(m=>m.id===questionReply.messageId?{...m,questionAnswer:questionReply.answer}:m)}));}
     });}catch(e){if(currentAccount.current===owner){const message=controller.signal.aborted?'Génération arrêtée.':(e instanceof Error?e.message:'Connexion interrompue.');setError(message);patch(m=>({...m,error:message}));}}finally{if(currentAccount.current===owner){requestBusy.current=false;setBusy(false);setActivity('');patch(m=>({...m,tools:m.tools.map(tool=>tool.status==='running'?{...tool,status:'failed',error:'Opération interrompue avant sa confirmation.',finishedAt:Date.now()}:tool)}));}}
     return completed;
   };

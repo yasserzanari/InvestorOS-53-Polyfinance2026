@@ -1,5 +1,5 @@
 {
-  "version": "1.8.18",
+  "version": "1.8.19",
   "skills": [
     {
       "id": "investor-profile",
@@ -416,6 +416,47 @@
       "path": "skills/platform-capabilities/SKILL.md",
       "content": "---\nname: platform-capabilities\ndescription: Expliquer ce qu’InvestorOS peut mesurer ou vérifier avec les outils réellement disponibles, et nommer ses limites sans lancer une analyse.\n---\n\n# Capacités réelles d’InvestorOS\n\nUtilise ce skill quand la personne demande ce que la plateforme sait faire, ce qu’elle peut vérifier ou quelles données lui manquent. Vérifie `platform_available_tools` dans le contexte lorsqu’il est fourni; sinon, vérifie `available_tools`. Cet inventaire de la session prime sur le récapitulatif ci-dessous. Une question de capacité appelle une réponse directe, pas une recherche d’entreprise, un exemple d’action choisi par l’assistant ou un calcul de démonstration non demandé.\n\n## Parcours que la plateforme peut prendre en charge\n\n- **Profil et objectifs** : conserver les déclarations explicites sur objectifs, horizon, tolérance, capacité de perte, liquidité et préférences. Les inconnues restent visibles; la tolérance émotionnelle ne remplace pas la capacité financière.\n- **Portefeuille fictif** : calculer les poids et la concentration des lignes configurées pour un persona. Ce ne sont pas des avoirs de courtage. Les libellés sont des catégories larges, sans composition sous-jacente; le calcul ne fournit pas à lui seul rendement, volatilité, repli historique, adéquation ou diversification effective.\n- **Cours historiques** : lire les séries historiques uniquement pour les actifs présents dans l’univers configuré et sur leurs dates disponibles. Une série n’est pas un cours en direct. Les comparaisons utilisent les dates communes et restent descriptives; elles ne démontrent ni causalité ni adéquation.\n- **Trajectoires sans choc** : certaines séries permettent une estimation bootstrap bornée, accompagnée de validations et limites historiques. Ce n’est ni une prévision ni la réaction attendue à une actualité.\n- **Scénarios hypothétiques** : appliquer un choc explicite fourni ou choisi par la personne, sur les positions et horizons acceptés par l’outil. Le résultat est conditionnel; il ne simule pas automatiquement corrélations, liquidité ou comportement réel.\n- **Recherche d’entreprise** : si `start_analysis` et le moteur de recherche sont disponibles, collecter des preuves provenant des sources autorisées pour une cible et une question précises. Les résultats peuvent être partiels; une recherche ne produit pas automatiquement un prix cible, une recommandation ou une couverture exhaustive.\n- **Mouvements historiques** : si `inspect_market_movements` est disponible, rapprocher un mouvement confirmé dans un dossier existant des références configurées et des documents lus. Les pistes de presse restent à vérifier et le résultat ne prouve pas une causalité.\n- **Chaîne d’approvisionnement** : consulter les relations et documents effectivement couverts. Dans le déploiement documenté, le graphe structuré concerne NVIDIA et ses fournisseurs déclarés dans un rapport annuel; ses points sont des repères géographiques schématiques. La présence d’un lien ne donne pas son poids, sa criticité ou la perte financière attendue.\n- **Publications X** : uniquement les comptes autorisés et les publications réellement lues. Un post est une déclaration attribuée, pas une preuve indépendante ni une cause de mouvement de cours.\n\n## Capacités absentes ou conditionnelles\n\n- Ne promets pas de score ESG fiable, de classement ESG comparable ou d’exclusion de controverses. Une préférence ESG, une déclaration et une preuve isolée ne constituent pas une évaluation complète; il faut une entreprise, un indicateur défini, des sources pertinentes et une couverture vérifiée.\n- Ne promets pas de données de marché chinoises ni de veille exhaustive sur la chaîne d’approvisionnement. Vérifie la présence d’une source dédiée dans le catalogue de la session; sans elle, présente explicitement cette couverture comme indisponible.\n- Ne suppose pas que Bitcoin ou NVIDIA est détenu parce que le portefeuille contient une catégorie « crypto-actifs », « technologies » ou « actions mondiales ».\n- N’appelle aucun outil qui exige une cible si la personne pose seulement une question générale sur la plateforme. N’utilise pas AAPL, NVDA ou une autre valeur comme exemple implicite.\n- Les noms d’outils ne sont pas des capacités garanties. Si l’outil n’est pas dans `available_tools`, dis que cette action n’est pas disponible dans la session; ne simule pas son résultat.\n\n## Format de réponse\n\nRéponds en quelques rubriques courtes : ce que la plateforme mesure, ce qu’elle peut rechercher, et les limites qui changent l’interprétation. Sépare clairement une capacité codée, les sources actuellement configurées et les données réellement disponibles pour la question. Ne dis pas « en direct », « vérifié » ou « complet » sans preuve de cette session. N’ajoute pas de questionnaire si la personne demande seulement un aperçu des capacités.\n",
       "sha256": "4ecd0f887dafc99109eb29f29609cb77b4c295cdb80a4dd53435431092e58e30"
+    },
+    {
+      "id": "portfolio-visual-widgets",
+      "description": "Afficher dans le chat le portefeuille actif, ses positions, sa répartition, ses gains et pertes ou les variations par secteur avec des données serveur.",
+      "tags": [
+        "portefeuille",
+        "positions",
+        "affiche",
+        "afficher",
+        "montre",
+        "montrer",
+        "graphique",
+        "courbe",
+        "widget",
+        "visuel",
+        "chat",
+        "directement",
+        "carte",
+        "chaleur",
+        "heatmap",
+        "répartition",
+        "allocation",
+        "argent",
+        "poids",
+        "gains",
+        "pertes",
+        "contributions",
+        "variation",
+        "variations",
+        "varier",
+        "évolution",
+        "performance",
+        "secteur",
+        "secteurs"
+      ],
+      "required_tools": [
+        "render_portfolio_widget"
+      ],
+      "path": "skills/portfolio-visual-widgets/SKILL.md",
+      "content": "---\nname: portfolio-visual-widgets\ndescription: Afficher dans le chat le portefeuille actif, ses positions, sa répartition, ses gains et pertes ou les variations par secteur avec des données serveur.\n---\n\n# Montrer le portefeuille dans la conversation\n\nUtilise ce parcours pour « montre mon portefeuille », « affiche mes positions en carte de chaleur », « où est mon argent ? », « qu’est-ce qui fait varier mon portefeuille ? » ou « montre la variation par secteur ». Il affiche un widget directement dans le chat ; aucun onglet ni dossier de recherche n’est nécessaire. Une demande d’adéquation au profil relève de portfolio-exposures ; une comparaison historique de titres relève de historical-market ; un choc conditionnel relève de conditional-scenarios.\n\nAppelle réellement `render_portfolio_widget` avec seulement `view` et `period`. Choisis la vue selon la question :\n\n| Besoin | view |\n|---|---|\n| Valeur du portefeuille et courbe | portfolio |\n| Positions, poids et variations en tuiles | heatmap |\n| Répartition de l’argent | allocation |\n| Gains et pertes apportés par chaque position | contributions |\n| Variations regroupées par secteur | sectors |\n\nLes périodes autorisées sont `1D`, `1W`, `1M`, `1Y` : jour, semaine, mois, année. Reprends celle donnée dans la demande ou le contexte. Sans période précisée, utilise `1M` pour portfolio et `1D` pour les autres vues ; ne bloque pas un simple affichage par un questionnaire. Si une période explicite ne correspond pas à ces choix, utilise `ask_user` plutôt que de la remplacer silencieusement.\n\nLe serveur choisit le compte actif et construit les données. Ne fournis aucun compte, ticker, montant, poids, rendement, secteur, série, HTML ou JavaScript dans les arguments. Un libellé « actions mondiales », « technologie », « obligations » ou « crypto-actifs » ne révèle pas les instruments détenus. Un fonds ne révèle pas ses composants ni son exposition sectorielle : conserve la part non couverte renvoyée. N’invente ni prix historiques, ni taux de change, ni gains pour remplir une courbe ou une carte. Une valeur indisponible n’est pas zéro.\n\nPour les contributions, changeValue mesure le gain ou la perte monétaire de la position; contributionPct mesure son impact en points sur le portefeuille de début de période. changePct est la variation propre de la position, jamais sa contribution au portefeuille. Ne les confonds pas.\n\nLis l’état, les dates, la devise, la classification et les limites du résultat. Une période demandée peut manquer d’historique commun ou de conversion FX ; conserve ces limites, sans substituer une autre période, un actif voisin ou une estimation mémorisée. Une sortie partielle ne justifie pas un total exhaustif. Une visualisation de démonstration reste fictive ; un historique ne devient pas une cotation en direct. Les variations observées ne prouvent pas la cause de ces variations.\n\nLe widget n’est affiché que si l’outil confirme le résultat. En cas d’erreur ou d’outil absent, dis brièvement ce qui manque ; ne prétends pas avoir ouvert une vue. Pour une simple demande visuelle, le widget et une phrase utile suffisent. Utilise les mots « valeur », « part », « hausse », « baisse », « gains » et « pertes » ; n’expose pas les noms d’outils, les identifiants techniques ni le journal d’exécution dans la réponse. Ne recopie pas toutes les lignes du widget en prose et ne transforme pas le résultat en conseil d’achat, vente ou réallocation.\n",
+      "sha256": "43142f5a5af50841ecd8691ff3b7489147e87ae6229935060aa49448a8da259d"
     }
   ]
 }

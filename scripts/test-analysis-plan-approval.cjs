@@ -38,6 +38,12 @@ const ndjson = (...events) => events.map(event => JSON.stringify(event)).join('\
           status: 200,
           contentType: 'application/x-ndjson; charset=utf-8',
           body: ndjson(
+            { type: 'plan', plan: { title: 'Analyse NVDA pour la semaine à venir', steps: [
+              { id: 'calendar', title: 'Vérifier le calendrier officiel et les annonces confirmées.' },
+              { id: 'documents', title: 'Examiner les publications récentes et les fondamentaux datés utiles.' },
+              { id: 'risks', title: 'Mettre en regard les risques, éléments contraires et informations manquantes.' },
+              { id: 'summary', title: 'Restituer les faits sourcés et les points à suivre, sans prévoir le cours.' },
+            ] } },
             { type: 'text', delta: 'Je te propose ce plan pour comprendre les principaux éléments à surveiller pour NVDA la semaine à venir :\n\n1. Vérifier le calendrier officiel et les annonces confirmées.\n2. Examiner les publications récentes et les fondamentaux datés utiles.\n3. Mettre en regard les risques, éléments contraires et informations manquantes.\n4. Restituer les faits sourcés et les points à suivre, sans prévoir le cours.\n' },
             { type: 'questions', request },
             { type: 'done' },
@@ -69,13 +75,12 @@ const ndjson = (...events) => events.map(event => JSON.stringify(event)).join('\
     await page.getByRole('button', { name: 'Envoyer le message' }).click();
 
     await page.getByText('Vérifier le calendrier officiel et les annonces confirmées.', { exact: false }).waitFor();
-    const questionCard = page.locator('.pw-question-dock .ask-user-card');
-    await questionCard.getByRole('radio', { name: 'Oui, lancer ce plan' }).waitFor();
+    const questionCard = page.locator('.pw-plan-card[data-plan-state="awaiting-approval"]');
+    await questionCard.getByRole('button', { name: 'Confirmer et lancer le plan de recherche' }).waitFor();
     assert.equal(requests.length, 1, 'Aucun second chat request ne doit partir avant le choix de la personne.');
-    await questionCard.getByRole('radio', { name: 'Oui, lancer ce plan' }).check();
-    await questionCard.getByRole('button', { name: 'Envoyer' }).click();
+    await questionCard.getByRole('button', { name: 'Confirmer et lancer le plan de recherche' }).click();
 
-    await page.getByText('Réponses envoyées', { exact: true }).waitFor();
+    await page.getByText('Confirmation envoyée', { exact: true }).waitFor();
     assert.equal(requests.length, 2, 'La validation explicite doit reprendre la conversation.');
     assert.equal(requests[1].questionRequest.purpose, 'plan_approval');
     assert.equal(requests[1].questionAnswer.answers[0].questionId, 'launch-plan');

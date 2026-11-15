@@ -1,5 +1,5 @@
 {
-  "version": "1.8.18",
+  "version": "1.8.19",
   "skills": [
     {
       "id": "investor-profile",
@@ -378,6 +378,45 @@
       ],
       "required_tools": [],
       "path": "skills/platform-capabilities/SKILL.md"
+    },
+    {
+      "id": "portfolio-visual-widgets",
+      "description": "Afficher dans le chat le portefeuille actif, ses positions, sa répartition, ses gains et pertes ou les variations par secteur avec des données serveur.",
+      "tags": [
+        "portefeuille",
+        "positions",
+        "affiche",
+        "afficher",
+        "montre",
+        "montrer",
+        "graphique",
+        "courbe",
+        "widget",
+        "visuel",
+        "chat",
+        "directement",
+        "carte",
+        "chaleur",
+        "heatmap",
+        "répartition",
+        "allocation",
+        "argent",
+        "poids",
+        "gains",
+        "pertes",
+        "contributions",
+        "variation",
+        "variations",
+        "varier",
+        "évolution",
+        "performance",
+        "secteur",
+        "secteurs"
+      ],
+      "required_tools": [
+        "render_portfolio_widget"
+      ],
+      "path": "skills/portfolio-visual-widgets/SKILL.md"
     }
   ]
 }

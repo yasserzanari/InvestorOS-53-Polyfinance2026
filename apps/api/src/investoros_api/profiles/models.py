@@ -117,6 +117,12 @@ class QuestionAnswer(BaseModel):
     answers: list[UserAnswer] = Field(max_length=3)
 
 
+class PortfolioWidgetInput(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    view: Literal['portfolio', 'heatmap', 'allocation', 'contributions', 'sectors']
+    period: Literal['1D', '1W', '1M', '1Y'] = '1M'
+
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     message: str = Field(min_length=1, max_length=8000)
@@ -125,6 +131,7 @@ class ChatRequest(BaseModel):
     profile: dict[str, str] = Field(default_factory=dict, max_length=8)
     tabs: list[WorkspaceTab] = Field(default_factory=list, max_length=12)
     accountId: Literal['amira', 'mateo', 'robert'] = 'mateo'
+    widgetContext: list[PortfolioWidgetInput] = Field(default_factory=list, max_length=5)
     questionRequest: QuestionRequest | None = None
     questionAnswer: QuestionAnswer | None = None
 
@@ -159,6 +166,8 @@ class ChatRequest(BaseModel):
             if question.required and not selected and not item.text:
                 raise ValueError('Répondez aux questions obligatoires avant l’envoi.')
         return self
+
+
 
 
 class PositionShock(BaseModel):

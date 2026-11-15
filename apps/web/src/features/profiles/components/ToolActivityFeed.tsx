@@ -61,6 +61,7 @@ export function ToolActivityFeed({ tools, runs = [], active, onOpenResearch }: {
 }
 
 export function toolActivityLabel(name: string) {
+  if (name === 'render_portfolio_widget') return 'Préparation du graphique';
   if (name === 'start_analysis') return 'Je lance l’analyse';
   if (['get_analysis_status', 'get_analysis_result', 'get_evidence'].includes(name)) return 'Je vérifie les résultats';
   return 'Je prépare l’analyse';
