@@ -1,4 +1,4 @@
-import { ListChecks } from 'lucide-react';
+import { ArrowRight, Check, ListChecks, LoaderCircle } from 'lucide-react';
 import type { AssistantPlan } from '../profile-api';
 
 /** Recognizes the concise French step plans currently returned by the profile assistant. */
@@ -19,10 +19,12 @@ export function parsePlan(text: string): AssistantPlan | null {
   return steps.length ? { title, description: description || undefined, steps } : null;
 }
 
-export function PlanCard({ plan, waiting = false, responded = false }: {
+export function PlanCard({ plan, waiting = false, responded = false, onApprove, approveDisabled = false }: {
   plan: AssistantPlan;
   waiting?: boolean;
   responded?: boolean;
+  onApprove?: () => void;
+  approveDisabled?: boolean;
 }) {
   const status = responded ? 'Réponse envoyée' : waiting ? 'À confirmer' : `${plan.steps.length} étapes`;
   return <section className="pw-plan-card" aria-label={plan.title} data-plan-state={waiting ? 'awaiting-approval' : responded ? 'responded' : 'drafting'}>
@@ -38,6 +40,7 @@ export function PlanCard({ plan, waiting = false, responded = false }: {
         <span>{step.title}{step.detail && <small>{step.detail}</small>}</span>
       </li>)}
     </ol>
-    {waiting && <footer>Rien ne démarre avant votre confirmation.</footer>}
+    {waiting && <footer><span>Rien ne démarre avant votre confirmation.</span>{onApprove && <button type="button" onClick={onApprove} disabled={approveDisabled} aria-label="Confirmer et lancer le plan de recherche">{approveDisabled ? <LoaderCircle size={14} className="pw-plan-approve-spinner" /> : <ArrowRight size={14} />}Lancer le plan</button>}</footer>}
+    {responded && <footer className="pw-plan-card-confirmed"><Check size={14} aria-hidden="true" />Confirmation envoyée</footer>}
   </section>;
 }
