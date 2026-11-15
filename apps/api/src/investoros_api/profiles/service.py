@@ -864,7 +864,7 @@ Réponds impérativement en français, avec une réponse concise.
                         else:
                             tabs[existing] = tab
                         output = tab
-                        if request.workspaceMode=='profiles' and tab['kind'] not in {'decision','simulation','profile'}:
+                        if tab['kind'] not in {'decision','simulation','profile'}:
                             yield {'type':'workspace','profile':profile,'tabs':tabs}
                             yield {'type':'profile_view','view':'documents','documentId':tab['id']}
                     elif name == 'read_sources':
