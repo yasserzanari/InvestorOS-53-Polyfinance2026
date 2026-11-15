@@ -143,6 +143,7 @@
 .dashboard-status-copy { display: grid; min-width: 0; gap: 3px; }
 .dashboard-status-copy > span { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-status-copy > strong { overflow: hidden; color: var(--text); font-size: clamp(14px, 1.2vw, 17px); font-weight: 680; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
+.tone-teal .dashboard-status-copy > strong { display: -webkit-box; overflow: hidden; text-overflow: clip; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .dashboard-status-copy > small { overflow: hidden; color: #77869a; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-status-arrow { color: #9ba7b5; }
 
@@ -173,7 +174,7 @@
   align-content: stretch;
   grid-template-rows: auto minmax(210px, 1fr) auto;
 }
-.dashboard-side-column { grid-template-rows: minmax(0, 1fr); }
+.dashboard-side-column { height: fit-content; align-self: start; align-content: start; grid-template-rows: auto; }
 .dashboard-panel {
   min-width: 0;
   min-height: 0;
@@ -358,9 +359,9 @@
 .portfolio-map-empty strong { color: #354860; font-size: 12px; font-weight: 670; }
 .portfolio-map-empty p { margin: 4px 0 0; color: #74839a; font-size: 11px; line-height: 1.45; }
 .portfolio-map-empty > a { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border: 1px solid #dfe7f1; border-radius: 9px; color: var(--brand); }
-.portfolio-map-content { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.portfolio-map-content { display: flex; min-height: 0; flex: 0 0 auto; flex-direction: column; }
 .portfolio-map-meta { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; color: #73839a; font-size: 10px; }
-.portfolio-map-chart { min-height: 0; flex: 1; overflow: hidden; border: 1px solid rgba(227,234,245,.8); border-radius: 16px; background: linear-gradient(140deg, rgba(246,249,255,.82), rgba(255,255,255,.64)); outline: none; }
+.portfolio-map-chart { min-height: 0; flex: 0 0 auto; overflow: hidden; border: 1px solid rgba(227,234,245,.8); border-radius: 16px; background: linear-gradient(140deg, rgba(246,249,255,.82), rgba(255,255,255,.64)); outline: none; }
 .portfolio-map-chart:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 .portfolio-map-chart svg { display: block; width: 100%; height: auto; }
 .portfolio-map-tile { cursor: pointer; }
