@@ -3,7 +3,6 @@ import { BriefcaseBusiness, CircleHelp } from 'lucide-react';
 import { useDemoAccount } from '../../shared/DemoAccountContext';
 import { loadDemoOverview, type DemoApiConnection } from '../../shared/api';
 import { AllocationPanel } from './components/AllocationPanel';
-import { DemoPortfolioSource } from './components/DemoPortfolioSource';
 import { PositionsPanel } from './components/PositionsPanel';
 import { RiskMetricsPanel } from './components/RiskMetricsPanel';
 import './styles/portfolio.css';
@@ -25,12 +24,10 @@ export function PortfolioPage() {
   const portfolio = overview?.portfolio ?? null;
 
   return (
-    <section className="portfolio-page" aria-label="Portefeuille fictif">
+    <section className="portfolio-page" aria-label="Portefeuille">
       <header className="portfolio-toolbar">
-        <div className="portfolio-heading"><BriefcaseBusiness size={19} /><div><h1>Portefeuille</h1><span>Positions et risques du compte de démonstration</span></div></div>
+        <div className="portfolio-heading"><BriefcaseBusiness size={19} /><div><h1>Portefeuille</h1><span>Compte de démonstration · données fictives</span></div></div>
       </header>
-
-      <DemoPortfolioSource accountName={activeAccount.name} connection={api} />
 
       <div className="portfolio-dashboard-grid">
         {overview && portfolio ? <>

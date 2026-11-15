@@ -222,6 +222,14 @@ def _portfolio_fit_requested(request: ChatRequest) -> bool:
     return any(term in text for term in profile_context) and any(term in text for term in fit_intent)
 
 
+def _portfolio_analysis_required(request: ChatRequest) -> bool:
+    """Require the configured portfolio calculation for profile risk/exposure analyses."""
+    text = request.message.casefold()
+    portfolio_context = any(term in text for term in ('portefeuille', 'positions', 'expositions'))
+    analysis_intent = any(term in text for term in ('risque', 'exposition', 'concentration', 'diversification', 'pondération'))
+    return request.workspaceMode == 'profiles' and portfolio_context and analysis_intent
+
+
 def _historical_comparison_requested(request: ChatRequest) -> bool:
     text = request.message.casefold()
     return ('compar' in text and 'historiquement' in text) or any(term in text for term in ('comparaison historique', 'compare les historiques', 'cours historique', 'rendement historique', 'rendements historiques', 'performance passée', 'historique des prix', 'évolution des cours'))
@@ -335,6 +343,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     platform_available_names = {tool['toolSpec']['name'] for tool in tools}
     platform_capability_request = _platform_capability_request(request)
     historical_only = request.workspaceMode == 'profiles' and _historical_only_request(request) and not platform_capability_request
+    portfolio_analysis_required = _portfolio_analysis_required(request) and not historical_only
     historical_comparison_required = request.workspaceMode == 'profiles' and not platform_capability_request and _historical_calculation_requested(request)
     historical_comparison_complete = False
     refresh_alignment = refresh_alignment and not historical_only
@@ -486,6 +495,11 @@ Réponds impérativement en français, avec une réponse concise.
             elif require_closure:
                 system_blocks.append({'text':'La personne demande explicitement de fermer le document existant '+requested_closure+'. Appelle close_profile_document avec cet id avant de confirmer la fermeture. Conserve tous les autres documents et le profil.'})
                 tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name']=='close_profile_document'],'toolChoice':{'tool':{'name':'close_profile_document'}}}
+            if portfolio_analysis_required and not portfolio_analyzed and turn == 0 and not require_action:
+                system_blocks.append({'text':'Une analyse des risques ou des expositions du portefeuille exige le calcul déterministe du portefeuille configuré. Appelle analyze_demo_portfolio maintenant avant toute conclusion; ne remplace pas cet outil par une description.'})
+                tool_config={'tools':[tool for tool in tools if tool['toolSpec']['name']=='analyze_demo_portfolio'], 'toolChoice':{'tool':{'name':'analyze_demo_portfolio'}}}
+            elif portfolio_analysis_required and portfolio_analyzed:
+                tool_config={**tool_config, 'tools':[tool for tool in tool_config['tools'] if tool['toolSpec']['name']!='analyze_demo_portfolio']}
             response = runtime.converse_stream(
                 modelId=model_id,
                 system=system_blocks,

@@ -1,6 +1,7 @@
 import { PieChart } from 'lucide-react';
 import type { DemoOverview } from '../../../shared/api';
 import { AllocationChart, type AllocationItem } from './AllocationChart';
+import { portfolioDisplayLabel } from '../utils/portfolio-label';
 
 const colors = ['#247f78', '#4d6eb3', '#ad7440', '#8b6ab4', '#3984a3', '#b05d69'];
 
@@ -11,7 +12,7 @@ export function AllocationPanel({ portfolio, selected, onSelect }: {
 }) {
   const positions: AllocationItem[] = portfolio.positions.map((position, index) => ({
     symbol: position.id,
-    name: position.label,
+    name: portfolioDisplayLabel(position.label),
     weight: position.weight_pct,
     value: position.value,
     color: colors[index % colors.length],
