@@ -18,6 +18,7 @@ import { ToolActivityFeed } from './components/ToolActivityFeed';
 import { Subagent } from './components/subagent';
 import { ResearchProgress } from './components/research-progress';
 import { AskUserCard } from './components/AskUserCard';
+import type { AskUserRequest } from './question-model';
 import { parsePlan, PlanCard } from './components/PlanCard';
 import { AgentsWorkspace } from './components/AgentsWorkspace';
 import { ProfileInspector } from './ProfileInspector';
@@ -84,6 +85,12 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   },[initialPrompt,busy,memory.ready,location.key]);
   useEffect(()=>{const controller=new AbortController();readProfileApi(`${profileApiBase}/v1/profiles/status`,{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(data=>{setConnected(data.configured);setModel(data.modelId||'');}).catch(()=>{if(!controller.signal.aborted)setConnected(false)});return()=>controller.abort();},[]);
   const submit=(text=input)=>{if(!text.trim()||busy||!memory.ready)return;setMobilePane('chat');void send(text);setInput('');};
+  const approvePlan=(messageId:string,request:AskUserRequest)=>{
+    const question=request.questions[0];
+    const approve=question?.options.find(option=>option.label.trim().toLocaleLowerCase()==='oui, lancer ce plan');
+    if(!question||!approve)return;
+    void answerQuestions(messageId,request,{requestId:request.id,answers:request.questions.map(item=>({questionId:item.id,selectedOptionIds:item.id===question.id?[approve.id]:[],text:''}))});
+  };
   const tab=workspace.tabs.find(t=>t.id===activeTab)||workspace.tabs[0];
   const addTab=()=>{const id=createLocalId();const count=workspace.tabs.filter(item=>item.kind==='note'&&item.id!=='research-skills'&&item.id!=='research-results').length;update(w=>({...w,tabs:[...w.tabs,{id,title:count?`Note ${count+1}`:'Notes',kind:'note',content:''}]}));setActiveTab(id);if(assistantMode)setTabsOpen(true);};
   const closeTab=(id:string)=>{if(!memory.ready)return;const remaining=workspace.tabs.filter(tab=>tab.id!==id);update(w=>({...w,tabs:w.tabs.filter(tab=>tab.id!==id)}));if(id===activeTab)setActiveTab(remaining[0]?.id??'');};
@@ -102,8 +109,8 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
       <ToolActivityFeed tools={m.tools} runs={runs} active={busy&&m===workspace.messages.at(-1)} onOpenResearch={()=>{setActiveTab('research-results');setTabsOpen(true);}}/>
       {m.agents.map(a=><Subagent key={a.id} name={a.name} status={a.status} task={a.task} summary={a.summary} activity={a.status==='running'?'Consultation du spécialiste Bedrock':undefined} startedAt={a.startedAt} durationMs={a.durationMs}/>)}
       {m.tools.some(tool=>['start_analysis','inspect_market_movements'].includes(tool.name)&&tool.status==='done')&&<button type="button" className="pw-view-research" onClick={()=>{setActiveTab('research-results');setTabsOpen(true);}}>Voir les résultats et le suivi<ExternalLink size={14}/></button>}
-      {plan ? <PlanCard plan={plan} waiting={Boolean(m.questionRequest&&!m.questionAnswer)} responded={Boolean(m.questionAnswer)}/> : <StreamingAnswer text={text} streaming={busy&&m===workspace.messages.at(-1)} citations={m.citations} followUps={m.questionRequest?[]:m.followUps} onFollowUp={p=>submit(p.label)}/>}
-      {m.questionRequest&&m.questionAnswer&&<AskUserCard key={m.questionRequest.id} request={m.questionRequest} answer={m.questionAnswer} disabled={busy||!memory.ready||(!m.questionAnswer&&pendingQuestion?.id!==m.id)} onSubmit={answer=>{void answerQuestions(m.id,m.questionRequest!,answer);}}/>}
+      {plan ? <PlanCard plan={plan} waiting={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer} responded={m.questionRequest?.purpose==='plan_approval'&&Boolean(m.questionAnswer)} onApprove={m.questionRequest?.purpose==='plan_approval'&&!m.questionAnswer?()=>approvePlan(m.id,m.questionRequest!):undefined} approveDisabled={busy||!memory.ready}/> : <StreamingAnswer text={text} streaming={busy&&m===workspace.messages.at(-1)} citations={m.citations} followUps={m.questionRequest?[]:m.followUps} onFollowUp={p=>submit(p.label)}/>}
+      {m.questionRequest&&m.questionRequest.purpose!=='plan_approval'&&m.questionAnswer&&<AskUserCard key={m.questionRequest.id} request={m.questionRequest} answer={m.questionAnswer} disabled={busy||!memory.ready||(!m.questionAnswer&&pendingQuestion?.id!==m.id)} onSubmit={answer=>{void answerQuestions(m.id,m.questionRequest!,answer);}}/>}
       {m.error&&<p className="pw-error" role="alert">{m.error}</p>}
       {text&&<MessageActions text={text} actions={['copy','regenerate','feedback']} onCopy={value=>{if(!navigator.clipboard&&value){const el=document.createElement("textarea");el.value=value;document.body.appendChild(el);el.select();document.execCommand("copy");el.remove();}}} versions={m.versions.length||1} version={m.version} onVersionChange={version=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,version}:x)}))} onRegenerate={()=>regenerate(m)} regenerating={busy&&m===workspace.messages.at(-1)} onFeedback={(kind,reason)=>update(w=>({...w,messages:w.messages.map(x=>x.id===m.id?{...x,feedback:reason||kind}:x)}))}/>}
     </article>;
@@ -111,7 +118,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const reduceMotion=useReducedMotion();
   const landing=assistantMode&&workspace.messages.length===0;
   const promptComposer=<motion.div layout layoutId={assistantMode?"assistant-prompt":undefined} transition={{duration:reduceMotion?0:0.48,ease:[0.22,1,0.36,1]}} style={{width:"100%"}}>
-    {pendingQuestion?.questionRequest&&<div className="pw-question-dock"><div className="pw-question-waiting" role="status">L’assistant attend votre réponse</div><AskUserCard key={pendingQuestion.questionRequest.id} request={pendingQuestion.questionRequest} disabled={busy||!memory.ready} onSubmit={answer=>void answerQuestions(pendingQuestion.id,pendingQuestion.questionRequest!,answer)}/></div>}
+    {pendingQuestion?.questionRequest&&pendingQuestion.questionRequest.purpose!=='plan_approval'&&<div className="pw-question-dock"><div className="pw-question-waiting" role="status">L’assistant attend votre réponse</div><AskUserCard key={pendingQuestion.questionRequest.id} request={pendingQuestion.questionRequest} disabled={busy||!memory.ready} onSubmit={answer=>void answerQuestions(pendingQuestion.id,pendingQuestion.questionRequest!,answer)}/></div>}
     <PromptBar value={input} onChange={setInput} onSend={()=>submit()} disabled={!memory.ready} busy={busy} onStop={stop} placeholder={pendingQuestion?'Ou répondez librement ici…':'Posez votre question…'}/>
   </motion.div>;
   const renderWorkspaceTab=():ReactNode=>{
