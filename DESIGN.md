@@ -39,7 +39,7 @@ components:
 
 ### Creative North Star
 
-The product workspace should feel like a calm financial research desk: paper-white surfaces, slate-blue structure, compact labels, and teal used for evidence or saved-state cues. The product view favors operational clarity over a promotional dashboard aesthetic.
+The product workspace should feel like a calm financial research desk: paper-white surfaces, slate-blue structure, compact labels, and teal used for evidence or saved-state cues. The dashboard now carries a warm, slowly drifting mesh behind restrained glass surfaces; navigation and data panels stay legible and operational rather than promotional.
 
 ### Product context and register
 
@@ -54,7 +54,7 @@ The product workspace should feel like a calm financial research desk: paper-whi
 
 ## Colors
 
-The canvas `#F4F7FB` separates the workspace from white cards. Ink `#16243B` carries primary text, muted `#69778E` carries secondary labels, and line `#DCE4EE` defines quiet edges. Brand blue `#356CE0` is reserved for primary actions and focus; teal `#16A6B5` marks guidance and contextual emphasis. Caution `#B88736` and success `#318769` always appear with text or icons, never as color-only meaning.
+The canvas `#F4F7FB` separates the workspace from white cards. Ink `#16243B` carries primary text, muted `#69778E` carries secondary labels, and line `#DCE4EE` defines quiet edges. Brand blue `#356CE0` is reserved for primary actions and focus; teal `#16A6B5` marks guidance and contextual emphasis. Caution `#B88736` and success `#318769` always appear with text or icons, never as color-only meaning. The dashboard's ambient mesh uses `#FAFAFA`, `#F7D797`, and `#F7C097`; runtime values live in `apps/web/src/styles/tokens.css` and are read by `apps/web/src/shared/MeshDriftBackground.tsx`.
 
 ## Typography
 
@@ -62,11 +62,11 @@ Inter and its system fallbacks serve headings, body copy, and labels. Dense fina
 
 ## Layout
 
-The shared shell keeps its 76px collapsed sidebar and 62px top bar. Product pages use a fluid content width, compact card grids, and `clamp(18px, 3vw, 42px)` gutters. Profile work fills the viewport below the shared shell with two adjacent panels, no outer gutters. Chat and AI-managed documents scroll independently; the composer, tabs and bottom actions remain visible. Narrow layouts stack the panels.
+The shared shell keeps its 76px collapsed sidebar and 62px top bar. Product pages use a fluid content width, compact card grids, and `clamp(18px, 3vw, 42px)` gutters. The dashboard groups its prompt and notifications in the left column, with portfolio exposure and platform status in the right column. Profile work fills the viewport below the shared shell with two adjacent panels, no outer gutters. Chat and AI-managed documents scroll independently; the composer, tabs and bottom actions remain visible. Narrow layouts stack the panels.
 
 ## Elevation & Depth
 
-Hierarchy comes from white surfaces, hairline borders, and restrained shadows. Blur is limited to the shared shell. Product cards do not use large gradients or ambient animation.
+Hierarchy comes from hairline borders, restrained shadows, and selective backdrop blur. The shared shell and dashboard cards use translucent white over the warm ambient mesh; inner charts and text retain clear contrast. The WebGL background is mounted behind page content, caps device pixel ratio at 2, pauses when the tab is hidden, and becomes a still frame when reduced motion is requested.
 
 ## Shapes
 
