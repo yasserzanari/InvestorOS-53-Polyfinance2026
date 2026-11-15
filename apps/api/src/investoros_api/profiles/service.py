@@ -297,6 +297,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     portfolio_analyzed = False
     portfolio_result: dict | None = None
     research_started = False
+    research_launched = False
     note_requested = bool(re.search(r'\b(?:crée|créer|rédige|rédiger)\b.*\bnote\b', request.message, re.I))
     note_created = False
     note_only = request.workspaceMode == 'profiles' and note_requested and not re.search(r'\b(?:compare|comparez|calcule|calculer|simule|simuler|projette|projeter|recherche|lance)\b', request.message, re.I)
@@ -554,6 +555,8 @@ Réponds impérativement en français, avec une réponse concise.
                         turn_visible_text = 'La comparaison historique a été calculée sur les dates et la devise communes. Retrouvez les chiffres, la courbe et la méthode dans Comparer; ces observations ne prédisent pas les rendements futurs.'
                     elif closure_complete:
                         turn_visible_text = 'Le document demandé a été fermé. Le profil et les autres documents sont conservés.'
+                    elif research_launched:
+                        turn_visible_text = 'La recherche a été lancée. Retrouvez son activité, ses sources et les résultats disponibles dans le suivi; les conclusions seront disponibles après la collecte et sa validation.'
                     elif note_created:
                         turn_visible_text = 'La note demandée est enregistrée dans Documents.'
                 if request.workspaceMode == 'profiles' and turn_visible_text.strip():
@@ -658,6 +661,8 @@ Réponds impérativement en français, avec une réponse concise.
                                 raise ValueError('Une seule tentative de lancement par tour; vérifier son état avant de réessayer.')
                             research_started = True
                         output = research_tool(name, args, request.accountId)
+                        if name == 'start_analysis':
+                            research_launched = True
                         if name in ('get_evidence','get_analysis_result'):
                             identifiers, references=research_evidence_references(output)
                             received_evidence.update(identifiers)
@@ -912,7 +917,7 @@ Réponds impérativement en français, avec une réponse concise.
                     last_tool_failed = False
                     yield {'type': 'tool', 'id': tool_id, 'name': name, 'status': 'done', 'input': args, 'output': output}
                     if name in ('update_profile', 'upsert_tab', 'close_profile_document'):
-                        if name == 'upsert_tab':
+                        if name == 'upsert_tab' and args.get('kind') == 'note':
                             note_created = True
                         yield {'type': 'workspace', 'profile': profile, 'tabs': tabs}
                     results.append({'toolResult': {'toolUseId': tool_id, 'content': [{'json': output if isinstance(output, dict) else {'items': output}}], 'status': 'success'}})
