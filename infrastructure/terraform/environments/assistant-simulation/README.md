@@ -1,5 +1,15 @@
 # API Assistant, Simulation et jobs de chat
 
+## Déploiement automatique depuis `main`
+
+Le workflow GitHub Actions `Deploy assistant simulation infrastructure` lance un plan à chaque push sur `main` et applique les créations/modifications détectées dans ce state. Les plans qui contiennent une suppression ou un remplacement échouent avant l'application. Le workflow `CI` valide séparément les trois roots Terraform; le root global `dev` ne fait pas partie du déploiement automatique.
+
+Le job utilise GitHub OIDC, sans clé AWS statique, avec le rôle dédié dont l'ARN est stocké dans la variable de dépôt `AWS_TERRAFORM_ROLE_ARN`. Ce rôle doit autoriser uniquement le state `dev/assistant-simulation/terraform.tfstate` (et son fichier de verrou), la lecture du state de fondation `dev/terraform.tfstate`, le préfixe d'artefacts `assistant-simulation/`, les trois CSV privés sous `alphaforge_starter/`, et les ressources AWS gérées par ce root. Son trust doit être limité à ce dépôt et à `refs/heads/main`.
+
+Pour les changements API, skills ou Terraform, le job récupère les trois CSV privés depuis le bucket de recherche et reconstruit l'archive Lambda avec `scripts/build-api.sh`. Pour les autres changements, il reprend l'archive de la Lambda active afin que son hash reste stable et qu'un push sans rapport ne redéploie pas le code API. Une exécution manuelle `workflow_dispatch` reconstruit toujours l'archive.
+
+Le rôle OIDC est un prérequis à installer une seule fois hors du workflow, car le workflow ne peut pas créer le rôle qui lui donne accès à AWS. Aucun secret AWS longue durée n'est requis. Un plan destructif bloque le job et demande une revue humaine avant toute évolution du garde-fou.
+
 Cette stack relie `/v1/profiles/*` et `/v1/simulation/*` à la Lambda `investoros-dev-assistant-simulation`. API Gateway vérifie les JWT Cognito et la Lambda exige le groupe `administrators`. Le prévol `OPTIONS` reste sans authentification; `/health` est public. La configuration CORS de la passerelle doit autoriser `PUT` pour la mémoire, en plus de `GET`, `POST`, `PATCH` et `OPTIONS`.
 
 Le state S3 propre à cette stack est `dev/assistant-simulation/terraform.tfstate`. Le state canonique fournit notamment API, tables fictives et paramètres Cognito; aucune ressource ne doit en être retirée pour appliquer cette tranche. Les CSV historiques sont intégrés à l’archive locale ignorée produite par `scripts/build-api.sh`. Le script vérifie aussi l’import de l’API depuis un répertoire peu profond, proche du paquet Lambda; `docs/` et les jeux privés ne sont pas commités.

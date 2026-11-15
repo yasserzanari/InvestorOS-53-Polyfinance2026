@@ -1,0 +1,120 @@
+name: Deploy assistant simulation infrastructure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assistant-simulation-terraform
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      TERRAFORM_DIR: infrastructure/terraform/environments/assistant-simulation
+      RESEARCH_BUCKET: investoros-dev-010928221556-research-data-us-east-1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: python -m pip install --disable-pip-version-check uv
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.12.2
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Prepare Lambda package
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          rebuild=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            rebuild=true
+          else
+            changed_files="$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA")"
+            if grep -Eq '^(apps/api/|agent-skills/|infrastructure/terraform/|scripts/build-api\.sh$)' <<<"$changed_files"; then
+              rebuild=true
+            fi
+          fi
+
+          if [[ "$rebuild" == true ]]; then
+            dataset_dir="docs/prep/sources/Datathon2026/alphaforge_starter"
+            mkdir -p "$dataset_dir"
+            for name in assets_universe.csv prices_daily.csv corporate_actions.csv; do
+              aws s3 cp "s3://${RESEARCH_BUCKET}/alphaforge_starter/${name}" "$dataset_dir/${name}" --only-show-errors
+            done
+            ./scripts/build-api.sh
+          else
+            mkdir -p apps/api/build
+            code_url="$(aws lambda get-function \
+              --function-name investoros-dev-assistant-simulation \
+              --query 'Code.Location' \
+              --output text)"
+            curl --fail --silent --show-error "$code_url" --output apps/api/build/investoros-api.zip
+          fi
+
+      - name: Initialize Terraform
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init -input=false
+
+      - name: Plan and apply safe changes
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          terraform plan -input=false -detailed-exitcode -out=tfplan
+          plan_status=$?
+          set -e
+
+          if [[ "$plan_status" -eq 0 ]]; then
+            echo "Terraform: aucun changement à appliquer."
+            exit 0
+          elif [[ "$plan_status" -ne 2 ]]; then
+            echo "terraform plan a échoué (code ${plan_status})." >&2
+            exit "$plan_status"
+          fi
+
+          terraform show -json tfplan | python -c '
+          import json, sys
+          plan = json.load(sys.stdin)
+          changes = plan.get("resource_changes", [])
+          destructive = [
+              (item["address"], item["change"]["actions"])
+              for item in changes
+              if "delete" in item.get("change", {}).get("actions", [])
+          ]
+          if destructive:
+              print("Application bloquée: le plan contient une suppression ou un remplacement:")
+              for address, actions in destructive:
+                  print(f"- {address}: {actions}")
+              sys.exit(1)
+          print("Plan sans suppression ni remplacement; application autorisée.")
+          '
+
+          terraform apply -input=false -auto-approve tfplan
