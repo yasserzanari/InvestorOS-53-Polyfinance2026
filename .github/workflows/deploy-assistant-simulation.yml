@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -87,8 +87,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          plan_log="$RUNNER_TEMP/terraform-plan.log"
           set +e
-          terraform plan -input=false -detailed-exitcode -out=tfplan
+          terraform plan -no-color -input=false -detailed-exitcode -out=tfplan >"$plan_log" 2>&1
           plan_status=$?
           set -e
 
@@ -96,10 +97,11 @@ jobs:
             echo "Terraform: aucun changement à appliquer."
             exit 0
           elif [[ "$plan_status" -ne 2 ]]; then
-            echo "terraform plan a échoué (code ${plan_status})." >&2
+            echo "::error::terraform plan a échoué (code ${plan_status}); détails masqués pour éviter d'exposer des valeurs du state ou des URL AWS temporaires."
             exit "$plan_status"
           fi
 
+          set +e
           terraform show -json tfplan | python -c '
           import json, sys
           plan = json.load(sys.stdin)
@@ -111,10 +113,34 @@ jobs:
           ]
           if destructive:
               print("Application bloquée: le plan contient une suppression ou un remplacement:")
-              for address, actions in destructive:
-                  print(f"- {address}: {actions}")
+              for item in changes:
+                  action = item.get("change", {}).get("actions", [])
+                  if "delete" in action:
+                      paths = item.get("change", {}).get("replace_paths", [])
+                      print(f"- {item['address']}: {action}; attributs déclencheurs: {paths}")
               sys.exit(1)
+          planned = [
+              (item["address"], item["change"]["actions"])
+              for item in changes
+              if item.get("change", {}).get("actions") != ["no-op"]
+          ]
           print("Plan sans suppression ni remplacement; application autorisée.")
+          for address, actions in planned:
+              print(f"- {address}: {actions}")
           '
+          summary_status=$?
+          set -e
+          if [[ "$summary_status" -ne 0 ]]; then
+            exit "$summary_status"
+          fi
 
-          terraform apply -input=false -auto-approve tfplan
+          apply_log="$RUNNER_TEMP/terraform-apply.log"
+          set +e
+          terraform apply -no-color -input=false -auto-approve tfplan >"$apply_log" 2>&1
+          apply_status=$?
+          set -e
+          if [[ "$apply_status" -ne 0 ]]; then
+            echo "::error::terraform apply a échoué (code ${apply_status}); détails masqués pour éviter d'exposer des valeurs du state ou des URL AWS temporaires."
+            exit "$apply_status"
+          fi
+          echo "Application Terraform terminée avec succès."
