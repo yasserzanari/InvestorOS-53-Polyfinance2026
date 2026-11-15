@@ -1,6 +1,7 @@
-import { authenticatedFetch } from '../../shared/auth';
+import { authenticatedFetch, useAuth } from '../../shared/auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertTriangle, ArrowUpRight, BookOpen, Boxes, Check, ChevronRight, CircleHelp, Cloud, DollarSign, ExternalLink, Gauge, KeyRound, LockKeyhole, LogOut, Maximize, Minus, Plus, RefreshCw, Search, ShieldCheck, Workflow, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Activity, AlertTriangle, ArrowUpRight, BookOpen, Boxes, Check, ChevronRight, CircleHelp, Cloud, DollarSign, ExternalLink, Gauge, LogOut, Maximize, Minus, Plus, RefreshCw, Search, ShieldCheck, Workflow, X } from 'lucide-react';
 import { VoiceVocabularyPanel, type VoiceVocabulary } from './VoiceVocabularyPanel';
 import './admin.css';
 
@@ -13,7 +14,7 @@ type Graph = { available: boolean; source: string; readAt?: string; region?: str
 type ActivityData = { runs: Array<{ id: string; name: string; workflow: string; status: string; startedAt: string | null; endedAt: string | null; durationSeconds: number | null }>; errors?: Array<{ service: string; message: string }> };
 type Costs = { available: boolean; total?: number; currency?: string; attribution?: string; services?: Array<{ name: string; amount: number; unit: string }>; daily?: Array<{ start: string; amount: number }> ; message?: string };
 type Quotas = { available: boolean; region?: string; quotas: Array<{ name: string; value: number; unit?: string; adjustable: boolean }> };
-type Security = { adminConsole: { tokenConfigured: boolean; tokenValuesExposed: boolean; browserStorage: string; apiGate: string }; apis: Array<{ name: string; endpoint: string; gatewayAuthentication: { protected: boolean; unprotectedRoutes: number; totalRoutes: number }; corsOrigins: string[] }>; notes: string[] };
+type Security = { adminConsole: { authentication: string; browserSession: string; additionalSecretRequired: boolean }; apis: Array<{ name: string; endpoint: string; gatewayAuthentication: { protected: boolean; unprotectedRoutes: number; totalRoutes: number }; corsOrigins: string[] }>; notes: string[] };
 type Tab = 'Vue d’ensemble' | 'Architecture' | 'Activité' | 'Services' | 'Coûts & quotas' | 'Sécurité' | 'Vocabulaire vocal';
 const tabs: Array<{ name: Tab; icon: typeof Activity }> = [
   { name: 'Vue d’ensemble', icon: Gauge }, { name: 'Architecture', icon: Workflow }, { name: 'Activité', icon: Activity },
@@ -28,9 +29,8 @@ function display(value: number | null | undefined, suffix = '') { return value =
 function dateTime(value?: string | null) { return value ? new Date(value).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '—'; }
 
 export function AdminPage() {
-  const [token, setToken] = useState('');
-  const [draft, setDraft] = useState('');
-  const [connected, setConnected] = useState(false);
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('Vue d’ensemble');
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -44,27 +44,25 @@ export function AdminPage() {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const request = useCallback(async <T,>(path: string, signal?: AbortSignal): Promise<T> => {
-    const response = await authenticatedFetch(`${base}/v1/admin/${path}`, { headers: { Accept: 'application/json', 'x-admin-token': token }, signal });
-    if (response.status === 401) { setConnected(false); setToken(''); throw new Error('Jeton Admin invalide. Saisis-le de nouveau.'); }
+    const response = await authenticatedFetch(`${base}/v1/admin/${path}`, { headers: { Accept: 'application/json' }, signal });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || 'La console Admin est momentanément indisponible.');
     return payload as T;
-  }, [token]);
+  }, []);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
-    if (!connected || !token) return;
     setLoading(true); setError('');
     try {
       const data = await request<Summary>('summary', signal);
       setSummary(data); setLastUpdated(data.readAt);
     } catch (reason) { if (!signal?.aborted) setError(reason instanceof Error ? reason.message : 'Erreur de connexion.'); }
     finally { if (!signal?.aborted) setLoading(false); }
-  }, [connected, request, token]);
+  }, [request]);
 
-  useEffect(() => { if (!connected) return; const controller = new AbortController(); void refresh(controller.signal); const timer = window.setInterval(() => void refresh(), 30_000); return () => { controller.abort(); window.clearInterval(timer); }; }, [connected, refresh]);
+  useEffect(() => { const controller = new AbortController(); void refresh(controller.signal); const timer = window.setInterval(() => void refresh(), 30_000); return () => { controller.abort(); window.clearInterval(timer); }; }, [refresh]);
   useEffect(() => { document.title = `${tab} · Admin · InvestorOS`; }, [tab]);
   useEffect(() => {
-    if (!connected || (tab !== 'Activité' && tab !== 'Coûts & quotas' && tab !== 'Sécurité' && tab !== 'Vocabulaire vocal')) return;
+    if (tab !== 'Activité' && tab !== 'Coûts & quotas' && tab !== 'Sécurité' && tab !== 'Vocabulaire vocal') return;
     const controller = new AbortController();
     if (tab === 'Activité') void request<ActivityData>('activity', controller.signal).then(setActivity).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); });
     if (tab === 'Coûts & quotas') { void request<Costs>('costs', controller.signal).then(setCosts).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); }); void request<Quotas>('quotas', controller.signal).then(setQuotas).catch((reason) => { if (!controller.signal.aborted) setError(reason.message); }); }
@@ -76,20 +74,16 @@ export function AdminPage() {
       return () => { controller.abort(); if (timer) window.clearInterval(timer); };
     }
     return () => controller.abort();
-  }, [connected, request, tab, vocabulary?.state]);
+  }, [request, tab, vocabulary?.state]);
 
-  const connect = async (event: React.FormEvent) => { event.preventDefault(); if (!draft.trim()) return; setToken(draft.trim()); setConnected(true); setError(''); setSummary(null); };
-  const logout = () => { setConnected(false); setToken(''); setDraft(''); setSummary(null); setActivity(null); setCosts(null); setQuotas(null); setSecurity(null); setError(''); };
+  const logout = async () => { await signOut(); navigate('/login', { replace: true }); };
   const moveTab = (event: React.KeyboardEvent, index: number) => { if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return; event.preventDefault(); const next = (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; setTab(tabs[next].name); tabRefs.current[next]?.focus(); };
   const saveVocabulary = async (phrases: string[]) => {
-    const response = await authenticatedFetch(`${base}/v1/admin/voice-vocabulary`, { method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-admin-token': token }, body: JSON.stringify({ phrases }) });
+    const response = await authenticatedFetch(`${base}/v1/admin/voice-vocabulary`, { method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ phrases }) });
     const payload = await response.json().catch(() => ({}));
-    if (response.status === 401) { setConnected(false); setToken(''); throw new Error('Jeton Admin invalide. Saisis-le de nouveau.'); }
     if (!response.ok) throw new Error(payload.detail || 'La mise à jour du vocabulaire AWS a échoué.');
     setVocabulary(payload as VoiceVocabulary);
   };
-
-  if (!connected) return <main className="admin-gate"><div className="admin-gate-card"><span className="admin-gate-icon"><LockKeyhole size={22} /></span><div className="admin-eyebrow">CONSOLE PRIVÉE</div><h1>Administration InvestorOS</h1><p>Connecte-toi avec le jeton Admin configuré côté serveur pour consulter les ressources et les métriques AWS.</p><form onSubmit={connect}><label htmlFor="admin-token">Jeton d’administration</label><input id="admin-token" type="password" autoComplete="off" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Saisir le jeton Admin" required /><button type="submit"><KeyRound size={16} /> Ouvrir la console</button></form>{error && <div className="admin-inline-error" role="alert">{error}</div>}<small>Le jeton reste en mémoire dans cette page et est vérifié par l’API.</small></div></main>;
 
   return <div className={`admin-page${tab === 'Architecture' ? ' is-architecture' : tab === 'Activité' ? ' is-activity' : ''}`}>
     <header className="admin-header"><div><div className="admin-eyebrow">CENTRE DE CONTRÔLE · {summary?.region ?? 'AWS'}</div><h1>Administration</h1><p>État de la plateforme et ressources d’infrastructure en direct.</p></div><div className="admin-header-actions"><span className="admin-updated">Actualisé {dateTime(lastUpdated)}</span><button className="admin-icon-button" onClick={() => void refresh()} aria-label="Actualiser les données" title="Actualiser"><RefreshCw size={16} className={loading ? 'is-spinning' : ''} /></button><button className="admin-icon-button" onClick={logout} aria-label="Fermer la session Admin" title="Fermer la session"><LogOut size={16} /></button></div></header>
@@ -289,4 +283,4 @@ function Services({ services }: { services: Service[] }) {
   </div>;
 }
 function CostsPanel({ costs, quotas }: { costs: Costs | null; quotas: Quotas | null }) { const max = Math.max(1, ...(costs?.services ?? []).map((item) => item.amount)); return <div className="admin-content-panel"><div className="admin-section-heading"><div><h2>Coûts et quotas</h2><p>Cost Explorer et Service Quotas Amazon Bedrock.</p></div></div><div className="costs-grid"><article className="admin-card cost-card"><div className="admin-card-heading"><div><h3>Coûts AWS du mois</h3><p>Regroupement par service · {costs?.currency ?? 'USD'}</p></div><span className="admin-kpi-icon amber"><DollarSign size={17} /></span></div>{costs?.available ? <><strong className="cost-total">{new Intl.NumberFormat('fr-CA',{style:'currency',currency:costs.currency || 'USD'}).format(costs.total ?? 0)}</strong><div className="cost-bars">{costs.services?.slice(0,8).map((item) => <div className="cost-bar-row" key={item.name}><span>{item.name}</span><i><b style={{ width: `${Math.max(2,item.amount/max*100)}%` }} /></i><strong>{item.amount.toFixed(2)} {item.unit}</strong></div>)}</div><p className="cost-attribution"><CircleHelp size={14} />{costs.attribution}</p></> : <Empty message={costs?.message ?? 'Chargement des données Cost Explorer…'} />}</article><article className="admin-card quota-card"><div className="admin-card-heading"><div><h3>Quotas Amazon Bedrock</h3><p>Limites configurées dans {quotas?.region ?? 'la région AWS'}.</p></div><span className="admin-kpi-icon teal"><Gauge size={17} /></span></div>{quotas?.quotas.length ? <div className="quota-list">{quotas.quotas.map((item) => <div key={item.name}><span>{item.name}</span><strong>{display(item.value)} {item.unit}</strong>{item.adjustable && <small>Modifiable</small>}</div>)}</div> : <Empty message={quotas ? 'Aucun quota Bedrock pertinent retourné ou permission manquante.' : 'Chargement des quotas…'} />}</article></div></div>; }
-function SecurityPanel({ data }: { data: Security | null }) { return <div className="admin-content-panel"><div className="admin-section-heading"><div><h2>Sécurité et accès</h2><p>Contrôles observables et mode de protection de la console.</p></div></div><div className="security-grid"><article className="admin-card security-card"><div className="security-card-title"><ShieldCheck size={19} /><h3>Console Admin</h3></div><div className="security-item"><span>Jeton configuré côté serveur</span><strong>{data?.adminConsole.tokenConfigured ? 'Oui' : data ? 'Non' : '…'}</strong></div><div className="security-item"><span>Jeton exposé dans l’API</span><strong>{data?.adminConsole.tokenValuesExposed ? 'Oui' : 'Non'}</strong></div><div className="security-item"><span>Stockage navigateur</span><strong>{data?.adminConsole.browserStorage ?? 'Mémoire de la page'}</strong></div><div className="security-item"><span>Contrôle du serveur</span><strong>{data?.adminConsole.apiGate ?? 'Jeton Admin'}</strong></div></article><article className="admin-card security-card"><div className="security-card-title"><Cloud size={19} /><h3>API Gateway</h3></div>{data?.apis.map((api) => <div className="api-security-row" key={api.name}><strong>{api.name}</strong><span className={api.gatewayAuthentication.protected ? 'security-good' : 'security-warn'}>{api.gatewayAuthentication.protected ? <Check size={14} /> : <AlertTriangle size={14} />}{api.gatewayAuthentication.unprotectedRoutes} / {api.gatewayAuthentication.totalRoutes} routes sans authorizer Gateway</span><small>Origines CORS : {api.corsOrigins.join(', ') || 'non publiées'}</small></div>)}{!data?.apis.length && <Empty message="Chargement de la configuration API…" />}</article></div><div className="admin-security-note"><ShieldCheck size={16} /><span>L’API applique le jeton aux routes <code>/v1/admin</code>. Les routes historiques publiques sont recensées séparément. Aucune valeur de secret ni aucun droit de mutation AWS ne sont affichés ici.</span></div>{data?.notes.map((note) => <p className="security-note" key={note}>{note}</p>)}</div>; }
+function SecurityPanel({ data }: { data: Security | null }) { return <div className="admin-content-panel"><div className="admin-section-heading"><div><h2>Sécurité et accès</h2><p>Contrôles observables et mode de protection de la console.</p></div></div><div className="security-grid"><article className="admin-card security-card"><div className="security-card-title"><ShieldCheck size={19} /><h3>Console Admin</h3></div><div className="security-item"><span>Authentification</span><strong>{data?.adminConsole.authentication ?? '…'}</strong></div><div className="security-item"><span>Session navigateur</span><strong>{data?.adminConsole.browserSession ?? '…'}</strong></div><div className="security-item"><span>Jeton séparé requis</span><strong>{data ? (data.adminConsole.additionalSecretRequired ? 'Oui' : 'Non') : '…'}</strong></div></article><article className="admin-card security-card"><div className="security-card-title"><Cloud size={19} /><h3>API Gateway</h3></div>{data?.apis.map((api) => <div className="api-security-row" key={api.name}><strong>{api.name}</strong><span className={api.gatewayAuthentication.protected ? 'security-good' : 'security-warn'}>{api.gatewayAuthentication.protected ? <Check size={14} /> : <AlertTriangle size={14} />}{api.gatewayAuthentication.unprotectedRoutes} / {api.gatewayAuthentication.totalRoutes} routes sans authorizer Gateway</span><small>Origines CORS : {api.corsOrigins.join(', ') || 'non publiées'}</small></div>)}{!data?.apis.length && <Empty message="Chargement de la configuration API…" />}</article></div><div className="admin-security-note"><ShieldCheck size={16} /><span>API Gateway valide le JWT Cognito et le backend vérifie le groupe <code>administrators</code>. Les routes historiques publiques sont recensées séparément; aucun jeton Admin distinct n’est transmis.</span></div>{data?.notes.map((note) => <p className="security-note" key={note}>{note}</p>)}</div>; }
