@@ -1,20 +1,29 @@
 # Revue de cohérence du profil
 
-`assessProfile(profile)` est une fonction pure. Elle expose les champs incomplets,
-le nombre de champs renseignés et des points à clarifier avec leurs valeurs exactes.
-Les alertes sont recalculées à chaque modification manuelle ou issue de Bedrock.
+`assessProfile` adapte le moteur partagé `components/decision-panels/alignment-review.ts`. Assistant et Profil emploient les mêmes critères; aucune borne arbitraire «3 ans» ou «8 ans» ne permet de qualifier une incohérence.
 
-Les règles signalent uniquement des associations explicites : horizon de trois ans
-ou moins et forte tolérance; horizon d’au moins huit ans et retrait proche; forte
-tolérance et conséquences financières lourdes d’une perte. Une négation comme
-« aucun retrait à court terme » n’établit pas un besoin de retrait. Toute mention
-« à préciser » conserve le champ parmi les informations manquantes, même si le
-reste de la réponse est renseigné.
+- **Rouge — incohérence à clarifier** : les réponses décrivent explicitement la totalité du même capital comme indisponible avant une durée et nécessaire plus tôt. Les durées sont comparées dans la même unité. Un retrait partiel, un compte séparé, une négation, un conditionnel, une plage ou plusieurs projets empêchent ce constat automatique.
+- **Ambre — point à clarifier** : tolérance émotionnelle élevée et incapacité déclarée à subir une perte compromettant le projet. Ces dimensions peuvent coexister; leur différence ne prouve pas une contradiction et n’invalide pas la réponse.
+- **Information manquante** : aucune réponse exploitable. Une capacité qualitative connue reste connue même si le montant exact est à préciser.
 
-Il s’agit d’une revue de formulaire déterministe, pas d’un conseil financier, d’une
-validation de convenance ou d’un score de risque. L’absence d’alerte signifie
-seulement qu’aucune des règles actuelles ne correspond au texte. Les seuils sont
-explicites et modifiables dans ce module; les phrases ambiguës restent à examiner.
+Le rouge signale une contradiction bornée entre déclarations, pas une violation réglementaire, un risque de marché mesuré ou un verdict de convenance. Le moteur est lexical, volontairement conservateur et incomplet. L’absence d’alerte ne valide pas un profil. Les références justifient les distinctions financières; les formulations reconnues sont des choix de produit, pas des règles prescrites par les régulateurs.
 
-Vérification locale : `node --test apps/web/src/features/profiles/profile-consistency.test.mjs`
-(Node 24, prise en charge native de TypeScript).
+## Fondements vérifiés
+
+- [OCRI, Comprendre le risque](https://www.ciro.ca/office-investor/understanding-risk), section «Your Individual Risk Profile» : disposition émotionnelle et capacité financière s’évaluent séparément.
+- [ACVM/OCRI, avis 31-368 du 10 décembre 2025](https://www.ciro.ca/media/15051/download), section A.1, pp.4–6 : une faible capacité peut coexister avec une tolérance élevée; discuter les informations incompatibles et en documenter la résolution. Section A.2, pp.7–8 : examiner les circonstances financières et besoins de liquidité.
+- [AMF, Votre profil d’investisseur](https://lautorite.qc.ca/grand-public/outils-et-calculateurs/calculateurs/votre-profil-dinvestisseur), introduction et questions2–4 : différents comptes peuvent poursuivre différents objectifs et horizons. Les retraits prévus et l’objectif doivent être distingués.
+
+Ces documents encadrent des pratiques professionnelles ou de l’éducation financière. Ils ne certifient pas InvestorOS. L’interface montre la source conceptuelle, les déclarations exactes et la question à résoudre, sans prétendre corroborer les déclarations par des documents de marché.
+
+## Interaction et vérification
+
+Chaque réponse est modifiable dans Alignement ou discutable dans le chat. Les sauvegardes réutilisent la mémoire du profil existante. Le snapshot de l’analyse reste historique; une édition ne le réécrit pas. Une synthèse périmée est repliée et doit être actualisée.
+
+Le triangle ouvre un popover au survol, au clic et au clavier. Le popover contient l’explication, les réponses concernées, des actions d’édition/discussion et les liens des fondements financiers. Échap le ferme; il reste lisible quand le pointeur passe dessus.
+
+Vérification :
+```sh
+node --test apps/web/src/features/profiles/profile-consistency.test.mjs apps/web/src/features/profiles/components/decision-panels/alignment-review.test.mjs
+node scripts/test-assistant-decision-panels.cjs
+```

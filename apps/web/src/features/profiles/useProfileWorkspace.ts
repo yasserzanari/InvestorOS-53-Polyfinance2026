@@ -49,7 +49,8 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
         if(!alive)return;
         localStorage.removeItem(legacyConversationsKey(accountId));localStorage.removeItem(legacyActiveKey(accountId));
         try{localStorage.setItem(workspaceKey(accountId),JSON.stringify({...legacyWorkspace,messages:[],tabs:[],researchRuns:[],activeTab:''}));}catch{}
-        setWorkspace(loaded);setActiveTabState(readActiveTab(loaded));setConversations(items);setConversationId(active);currentConversation.current=active;setHistoryReady(true);
+        // Profile memory owns declarations and the Profile route's documents; history owns Assistant documents.
+        setWorkspace(current=>({...loaded,profile:current.profile,...(view==='profiles'?{tabs:current.tabs,sources:current.sources}:{} )}));setActiveTabState(readActiveTab(loaded));setConversations(items);setConversationId(active);currentConversation.current=active;setHistoryReady(true);
       }catch(e){if(!alive||controller.signal.aborted)return;setHistoryError(e instanceof Error?e.message:'Synchronisation du compte impossible.');setHistoryReady(false);}
     };void migrateAndLoad();return()=>{alive=false;controller.abort();abort.current?.abort();};
   },[accountId,view]);

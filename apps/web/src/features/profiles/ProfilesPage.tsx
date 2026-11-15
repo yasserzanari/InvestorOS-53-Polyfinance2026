@@ -147,7 +147,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const renderWorkspaceTab=():ReactNode=>{
     if(!tab)return null;
     if(tab.kind==='note'&&!['research-skills','research-results'].includes(tab.id))return <NoteDocument title={tab.title} content={tab.content} onTitleChange={title=>editTab({title})} onContentChange={content=>editTab({content})} persistenceLabel="Note liée à cette conversation · synchronisée avec le compte"/>;
-    if(tab.kind==='decision')return <DecisionPanel tab={tab} profile={workspace.profile} sources={allSources} onDiscuss={prompt=>submit(prompt)} disabled={busy||!memory.ready||!historyReady}/>;
+    if(tab.kind==='decision')return <DecisionPanel key={`${activeAccount.id}:${conversationId}:${tab.id}`} tab={tab} profile={workspace.profile} sources={allSources} onDiscuss={prompt=>submit(prompt)} onChange={changeProfile} saveStatus={memory.status} disabled={busy||!memory.ready||!historyReady}/>;
     let content:ReactNode;
     if(tab.id==='research-skills')content=<SkillsUsedTab skills={skills}/>;
     else if(tab.id==='research-results')content=<ResearchResultsTab runs={runs} onRefresh={refreshResearch}/>;

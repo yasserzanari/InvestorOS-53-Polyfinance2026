@@ -1,5 +1,11 @@
 # Espace Profile interactif
 
+## Alignement modifiable et explications sourcées
+
+Assistant et Profils partagent maintenant la vue structurée `components/decision-panels/InsightPanel.tsx`. Chaque réponse du profil peut être modifiée sur place ou précisée dans le chat. Les explications au survol/clic/clavier montrent les déclarations exactes et les fondements AMF/OCRI. Le rouge est réservé à une incompatibilité explicitement reconnue d’échéances pour la totalité du même capital; la différence tolérance/capacité reste une clarification en ambre. La méthode, ses limites lexicales et les sources sont dans `profile-consistency.md`. Aucun seuil automatique de trois/huit ans ne suffit à qualifier une incohérence.
+
+Une modification conserve l’ancien snapshot et replie la synthèse périmée jusqu’à actualisation. La restauration d’historique préserve les déclarations déjà chargées par la mémoire du profil. Vérification déterministe via `scripts/test-assistant-decision-panels.cjs` (aussi appelé par `scripts/test-profile-alignment-workbench.cjs`) : mémoire et conversations interceptées, sans mutation de compte. Les relevés historiques plus bas décrivent leurs versions antérieures, pas les sélecteurs actuels.
+
 ## Périmètre et parcours
 
 La route `/app/profiles` conserve le chat à gauche et six vues à droite : Profil, Alignement, Comparer, Scénarios, Preuves et Mémoire. Documents apparaît lorsqu’une note, une tâche ou un résultat de recherche est créé. Le panneau se redimensionne et s’agrandit; la mise en page garde le cadre dans la fenêtre, avec défilement interne pour les contenus longs. Sur petit écran, Conversation et Profil et analyses alternent dans le même espace.
