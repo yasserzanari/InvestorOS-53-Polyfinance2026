@@ -125,6 +125,17 @@ class ResearchSnapshotTests(unittest.TestCase):
         with self.assertRaises(ValueError):research_snapshot('../other-account','mateo')
         call.assert_not_called()
 
+    @patch('investoros_api.profiles.research_bridge._call')
+    def test_research_history_reads_only_requested_persona_with_bounded_limit(self, call):
+        from investoros_api.profiles.research_bridge import research_history
+        call.return_value={'analyses':[{'analysis_id':'run-1'}]}
+        self.assertEqual(research_history('amira', 12), {'analyses':[{'analysis_id':'run-1'}]})
+        call.assert_called_once_with('GET', '/analyses?limit=12', 'amira')
+        for limit in (0, 61, True):
+            with self.assertRaises(ValueError):
+                research_history('mateo', limit)
+        self.assertEqual(call.call_count, 1)
+
 class ResearchIamTransportTests(unittest.TestCase):
     @patch.dict('os.environ', {'RESEARCH_LAMBDA_FUNCTION':'investoros-dev-api'})
     @patch('investoros_api.profiles.research_bridge._lambda_client')
