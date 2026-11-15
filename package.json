@@ -1,11 +1,17 @@
 {
   "name": "investoros",
   "private": true,
-  "workspaces": ["apps/web"],
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "dev": "npm run dev -w @investoros/web",
     "dev:aws": "npm run dev:aws -w @investoros/web",
     "build": "npm run build -w @investoros/web",
     "typecheck": "npm run typecheck -w @investoros/web"
+  },
+  "devDependencies": {
+    "api-anything": "^0.4.0",
+    "pngjs": "^7.0.0"
   }
 }

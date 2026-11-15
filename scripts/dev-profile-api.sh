@@ -12,6 +12,28 @@ if ! "$PROFILE_API_PYTHON" -c 'import fastapi, uvicorn, boto3, mangum' >/dev/nul
   "$PROFILE_API_PYTHON" -m pip install -r "$PROJECT_ROOT/apps/api/requirements.txt" 'uvicorn>=0.30,<1'
 fi
 
+# Read only known development settings as literal values, without shell evaluation.
+profile_settings="$PROJECT_ROOT/apps/api/.env.profile-api"
+if [[ -f "$profile_settings" ]]; then
+  while IFS='=' read -r setting value; do
+    case "$setting" in
+      RESEARCH_API_URL|RESEARCH_LAMBDA_FUNCTION|AWS_REGION|BEDROCK_MODEL_ID|ADMIN_CONSOLE_TOKEN_SECRET_ARN|RESEARCH_ADMIN_TOKEN_SECRET_ARN)
+        if [[ -z "${!setting:-}" ]]; then export "$setting=$value"; fi ;;
+    esac
+  done < "$profile_settings"
+fi
+
+# Local-only Admin credential. This file is ignored by Git and parsed literally.
+admin_settings="$PROJECT_ROOT/apps/api/.env.admin.local"
+if [[ -f "$admin_settings" ]]; then
+  while IFS='=' read -r setting value; do
+    case "$setting" in
+      INVESTOROS_ADMIN_TOKEN)
+        if [[ -z "${INVESTOROS_ADMIN_TOKEN:-}" ]]; then export "INVESTOROS_ADMIN_TOKEN=$value"; fi ;;
+    esac
+  done < "$admin_settings"
+fi
+
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 export BEDROCK_MODEL_ID="${BEDROCK_MODEL_ID:-amazon.nova-pro-v1:0}"
 export DEMO_PORTFOLIO_MODE="${DEMO_PORTFOLIO_MODE:-local_fixture}"

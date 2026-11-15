@@ -11,7 +11,12 @@ from investoros_api.demo_contexts import PersonaId, context_for
 from investoros_api.profiles.models import ScenarioAnalysisInput
 from investoros_api.profiles.portfolio import analyze_configured_scenario
 from investoros_api.profiles.router import router as profiles_router
+from investoros_api.research.router import router as research_router
+from investoros_api.knowledge.router import router as knowledge_router
 from investoros_api.simulation import router as simulation_router
+from investoros_api.source_store import router as source_store_router
+from investoros_api.source_learning import router as source_learning_router
+from investoros_api.admin_console import router as admin_router
 
 def _cors_allowed_origins() -> list[str]:
     configured = os.getenv("CORS_ALLOWED_ORIGINS", "")
@@ -27,11 +32,16 @@ app = FastAPI(title="InvestorOS API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_allowed_origins(),
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
     allow_headers=["accept", "authorization", "content-type"],
 )
 app.include_router(profiles_router)
+app.include_router(research_router)
+app.include_router(knowledge_router)
 app.include_router(simulation_router)
+app.include_router(source_store_router)
+app.include_router(source_learning_router)
+app.include_router(admin_router)
 _dynamodb = None
 
 
@@ -172,4 +182,5 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     "headers": {"content-type": "application/json"},
                     "body": json.dumps({"detail": "Administrator access required"}),
                 }
+
     return _mangum_handler(event, context)

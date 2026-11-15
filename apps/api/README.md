@@ -164,3 +164,20 @@ ni d’un suivi complet des dirigeants, responsables publics ou autres comptes.
 ## Ce qui n’est pas encore branché
 
 La conversation partagée entre le profil et la page Assistant utilise le SDK Bedrock côté serveur lorsqu’un modèle est configuré; son statut de configuration ne prouve pas que l’invocation réussira. L’outil `analyze_demo_portfolio` lit le portefeuille fictif fixe configuré pour le déploiement et calcule les pondérations/concentration de manière déterministe. `inspect_simulation_history` lit les cours ajustés et événements du jeu Simulation configuré; `project_market_scenarios` exécute le même calcul de quantiles conditionnels que la page Simulation et n’accepte que les hypothèses explicites de l’utilisateur. Ces résultats comprennent un lien vers Simulation avec le ticker sélectionné. Un lien de relais n’exécute pas d’autres mutations dans le module cible. Les outils de conversation peuvent gérer le profil et les onglets partagés, consulter des spécialistes Bedrock ou préparer des tâches avec des liens vers les modules. Simulation ne prédit pas les cours. Il n’existe pas encore Step Functions, RAG/Knowledge Base, recherche générale externe, authentification utilisateur ou accès financier. Seuls les statuts émis par les opérations réellement appelées peuvent être présentés comme des exécutions réelles.
+
+## Recherche documentaire et skills
+
+Les modules `research/` et `knowledge/` font partie du paquet API commun. L’Assistant
+lance un workflow AWS via start_analysis; le moteur collecte les sources autorisées,
+les documents et calendriers pertinents, calcule l’historique puis compose un rapport
+sourcé. Les procédures approuvées sont découvertes avec search_skills et lues avec
+load_skill. Voir [profiles/SKILLS.md](src/investoros_api/profiles/SKILLS.md) et
+[profiles/README.md](src/investoros_api/profiles/README.md) pour les contrats,
+la provenance et les vérifications du parcours réel NVDA.
+
+`research/coverage.py` distingue la fin d’exécution et la couverture de la demande;
+`documents.py` borne la lecture des sources primaires; `report.py` restitue les faits
+numériques/datés et les points de vigilance conditionnels; `validation.py` contrôle
+les dates des constats d’émetteur par rapport aux passages cités. Le CIK reçu doit
+correspondre à l’entreprise demandée. Une simulation conditionnelle n’est lancée que
+si des hypothèses de projection ont été explicitement demandées.

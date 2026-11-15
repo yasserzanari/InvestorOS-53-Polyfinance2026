@@ -165,3 +165,83 @@ et la connexion optionnelle au moteur de recherche DEV2 via RESEARCH_API_URL.
 Le catalogue est embarqué dans le paquet Lambda; aucune installation distante
 n’est effectuée par l’agent. La boucle est désormais bornée à dix tours pour
 permettre découverte, chargement et action dans une même demande.
+
+## Suivi de recherche dans l’Assistant
+
+Après `start_analysis`, le client conserve l’identifiant et suit l’exécution par
+`GET /v1/profiles/research/{analysis_id}?accountId=mateo`. Cette route lit le
+résultat et les événements du moteur DEV2 avec le contexte du compte; elle ne
+relance pas l’analyse. Le suivi s’arrête à un état terminal, après trois erreurs
+consécutives ou après trois minutes. Le bouton d’actualisation reprend la lecture.
+
+Les onglets **Agents**, **Skills utilisés** et **Résultats de recherche** montrent
+les événements réellement retournés : agents Bedrock distincts des collecteurs,
+procédures chargées avec version/empreinte et acteur (modèle ou runtime), synthèse,
+affirmations et liens vers les preuves. Ils restent fermés lors de l’envoi d’un
+message jusqu’à une ouverture explicite. Le suivi est conservé dans l’espace local
+du compte et peut être ouvert avec `/app/assistant?analysis_id=<UUID>`.
+
+Validation du 15 novembre 2026 : soumission réelle depuis l’Assistant de la demande
+NVDA pour la semaine prochaine (recherche documentaire, sans projection chiffrée),
+analyse `3ca004a7-6a66-4c8e-b82a-9d751a058c0a` terminée, six intervenants,
+17 affirmations et trois preuves. Playwright a vérifié les trois onglets, la
+persistance après rechargement et l’accès direct depuis une session vierge sans
+nouvelle création d’analyse. Les 47 tests API ciblés et le contrôle TypeScript
+passent. Une recherche terminée ne garantit pas la présence d’informations sur
+chaque événement futur : les limites des sources restent celles du résultat.
+
+## Profils X autorisés et citations
+
+Le contexte de chaque tour charge les profils autorisés via `source_store.read_workspace(request.accountId)` (SQLite local, DynamoDB en AWS). Le modèle peut les relire avec `list_authorized_x_profiles`, puis utiliser `read_authorized_x_posts` avec un sujet et, facultativement, des usernames. Le serveur relit les autorisations avant chaque collecte et refuse tout auteur extérieur à la liste; le modèle ne peut pas choisir un autre persona. Les appels sont bornés à huit auteurs par collecte et trois collectes par tour, sans limiter la taille de la liste autorisée.
+
+`x_evidence.py` rejoue en Python la recette publique HTML/Relay documentée par API Anything dans `source_specs/x-public-timeline.json`; le runtime Lambda ne dépend donc pas de Node ou Chrome. La lecture prend au plus huit publications visibles par auteur; une recherche lexicale avec quelques équivalents français/anglais filtre le sujet, puis le modèle juge leur utilité. Les réponses indiquent les auteurs consultés, ceux restant à consulter, les échecs, dates, liens et limites. Les citations X sont fusionnées aux notes de méthode dans un registre de numéros stable et émises comme événements `sources`; seuls les liens présents dans ces citations sont rendus cliquables dans le texte du chat.
+
+Une publication est une déclaration attribuée et non une confirmation indépendante. La collecte publique est partielle; absence de correspondance ou échec doit être annoncé. Ce raccordement alimente la réponse du coordinateur Assistant; il n’ajoute pas de documents aux archives d’une recherche DEV2 déjà exécutée.
+
+### Liaison authentifiée et couverture
+
+Le client affiche séparément `execution_status` et `coverage`, avec l’horizon daté,
+les thèmes couverts/manquants, les sections référencées et les documents réellement
+lus. Il récupère jusqu’à deux pages de 150 événements et les preuves du résultat.
+Le bouton d’actualisation fonctionne aussi après un état terminal. Les erreurs de
+suivi sont bornées par analyse, et le changement de compte annule les requêtes.
+
+Sur AWS, le Bearer Cognito du demandeur est transmis à l’API de recherche dans un
+contexte de requête isolé, sans passer dans les arguments du modèle ou dans les
+traces. En développement, `RESEARCH_LAMBDA_FUNCTION=investoros-dev-api` sélectionne
+une invocation serveur signée IAM. Le serveur doit posséder lambda:InvokeFunction
+sur cette fonction; ce mode ne rend pas l’API HTTP publique et ne crée aucun JWT
+ni groupe Cognito artificiel. Aucun jeton ou secret n’est stocké dans le catalogue
+de skills. Le script dev-profile-api.sh lit cette option depuis le fichier local
+ignoré .env.profile-api.
+
+### Aperçus X dans les sources du chat
+
+Les nouvelles citations X transportent `xPost` (texte, date, lien, compteurs et images disponibles) et `xProfile` (auteur, avatar et vérification lus dans le tweet). Ces données restent attachées au message; aucune lecture réseau supplémentaire n’est nécessaire au survol. Les anciennes citations dépourvues de ces champs conservent leur lien de source habituel.
+
+Le composant `TweetSource` est monté seulement lorsque la liste Sources est dépliée. Il affiche une carte `XPostCard` en portail au survol ou au focus, la ferme avec Échap ou au repli, et ouvre le lien direct sur X au clic. La feuille de style du tweet est partagée avec la page Sources. Le frontend AWS a été construit depuis la version déployée avec seulement les composants et types de cette évolution, en conservant Cognito; l’API a reçu uniquement les champs de citation et leur extraction de métadonnées.
+
+Validation finale du 15 novembre 2026 : la demande simple « Analyse NVDA pour la
+semaine prochaine » lance bien start_analysis et termine l’analyse
+64d778f0-e51b-430f-8277-616bd9d4cc10. Les sept sources collectées et dix intervenants
+(agents Bedrock et collecteurs distincts) sont visibles. Le rapport contient cinq
+sections, dont les risques conditionnels, les périodes financières exactes et les
+horaires distincts de publication/conférence. Tous les critères de couverture sont
+remplis, sans prétendre prédire la réaction du cours.
+
+Playwright vérifie les trois onglets, les preuves et documents, la persistance,
+l’actualisation après terminaison et l’accès direct en session vierge. À 390×844,
+la page ne déborde dans aucune direction et le contenu long défile dans son panneau.
+Un scénario de panne simulée vérifie l’arrêt après trois erreurs et la reprise
+manuelle. Les images de contrôle ont leurs CRC PNG et leur décodage complet validés.
+
+Le contrôle validation.py rejette les dates de constats d’émetteur absentes des
+passages réellement lus, séparément des métadonnées de publication/dépôt. Il
+s’applique à la production du résultat et à sa lecture pour les analyses antérieures.
+Il s’agit d’un contrôle ciblé, pas d’une preuve générale de justesse sémantique.
+Les modules research/ et knowledge/ sont maintenant présents dans ce dépôt et
+scripts/build-api.sh refuse un paquet incomplet avant sa publication.
+
+### Activité des outils dans les messages
+
+Les événements `tool` sont affichés dans le message concerné via `ToolActivityFeed`, avec libellé français, paramètres utiles et résultat confirmé. La phase `preparing` commence au signal `contentBlockStart.toolUse` de Bedrock; `executing` indique le début d’exécution serveur. Le frontend garde les heures de réception et marque les opérations non confirmées comme interrompues à la fin ou à l’arrêt du flux. Le transport ferme sa lecture dès `done`/`error`, même si la connexion reste ouverte. La carte de `start_analysis` reprend les événements du run déjà suivis dans `researchRuns`, sans lancer une nouvelle analyse ni ajouter de polling.

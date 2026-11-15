@@ -39,7 +39,7 @@ function AgentCard({ agent }: { agent: AgentEvent }) {
         <span className="agent-workspace-avatar" aria-hidden="true">{initials || <Bot size={15} />}</span>
         <div className="agent-workspace-identity">
           <strong>{agent.name}</strong>
-          <span>Spécialiste Bedrock</span>
+          <span>{agent.kind==='collector'?'Outil de collecte / calcul':'Agent Bedrock'}</span>
         </div>
         <span className={`agent-workspace-status is-${agent.status}`} role="status">
           <AgentStatusIcon status={agent.status} />{statusCopy[agent.status]}
@@ -64,7 +64,7 @@ function AgentCard({ agent }: { agent: AgentEvent }) {
 
       <div className="agent-workspace-card-footer">
         <span><Clock3 size={12} aria-hidden="true" />{duration ?? 'Durée indisponible'}</span>
-        <span className="agent-workspace-call-id">Consultation réelle</span>
+        <span className="agent-workspace-call-id">Exécution réelle</span>
       </div>
     </article>
   );
@@ -85,7 +85,7 @@ export function AgentsWorkspace({ agents, busy, activity }: {
         <div className="agent-workspace-heading-icon"><Network size={17} aria-hidden="true" /></div>
         <div>
           <h2 id="agent-workspace-title">Agents</h2>
-          <p>Consultations réellement lancées par l’Assistant</p>
+          <p>Agents et collecteurs réellement exécutés</p>
         </div>
         <span className="agent-workspace-count">{recentAgents.length} / 12</span>
       </header>

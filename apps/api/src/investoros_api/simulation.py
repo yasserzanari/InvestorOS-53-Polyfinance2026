@@ -631,12 +631,17 @@ def issuer_social_posts(
     normalized = ticker.upper()
     if limit < 1 or limit > 25:
         raise HTTPException(status_code=422, detail="La limite doit être comprise entre 1 et 25.")
-    if accounts is not None and len(accounts) > 100:
-        raise HTTPException(status_code=422, detail="La liste des comptes X est trop longue.")
     requested_accounts = [part.strip().removeprefix("@").strip() for part in re.split(r"[,\s]+", accounts or "") if part.strip()]
-    if len(requested_accounts) > 5 or any(not re.fullmatch(r"[A-Za-z0-9_]{1,15}", item) for item in requested_accounts):
-        raise HTTPException(status_code=422, detail="Indiquez au plus cinq comptes X valides, séparés par des virgules ou des espaces.")
+    if any(not re.fullmatch(r"[A-Za-z0-9_]{1,15}", item) for item in requested_accounts):
+        raise HTTPException(status_code=422, detail="Indiquez des comptes X valides, séparés par des virgules ou des espaces.")
     normalized_accounts = list(dict.fromkeys(requested_accounts))
+    if len(normalized_accounts) > 5:
+        results = [issuer_social_posts(ticker, limit, ','.join(normalized_accounts[index:index + 5])) for index in range(0, len(normalized_accounts), 5)]
+        posts = {post['id']: post for result in results for post in result.get('posts', [])}
+        return {**results[0], 'accounts': normalized_accounts,
+                'available': any(result.get('available') for result in results),
+                'posts': sorted(posts.values(), key=lambda post: post.get('publishedAt', ''), reverse=True)[:limit],
+                'limitations': list(dict.fromkeys([*results[0].get('limitations', []), *[result['reason'] for result in results if not result.get('available') and result.get('reason')]]))}
     asset = _assets().get(normalized)
     if not asset:
         raise HTTPException(status_code=404, detail="Titre absent de l’univers historique configuré.")
@@ -859,3 +864,97 @@ def regulations(
         "legalStatus": "La version XML du site est un service informatif; vérifier l’édition officielle liée avant toute interprétation juridique.",
         "documents": documents,
     }
+
+
+# API Anything exposes documented, read-only public source operations.
+def _anything(*arguments: str):
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["npx", "--yes", "api-anything@0.4.0", *arguments],
+            capture_output=True, text=True, timeout=35, check=False,
+        )
+        payload = json.loads(result.stdout)
+        if result.returncode or (isinstance(payload, dict) and payload.get("ok") is False):
+            raise HTTPException(status_code=502, detail="La source API Anything refuse la requête ou est indisponible.")
+        return payload
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        raise HTTPException(status_code=503, detail="API Anything est indisponible sur ce serveur.")
+
+
+@router.get("/source-catalog")
+def source_catalog():
+    excluded = set(json.loads(Path(__file__).with_name('source_policy.json').read_text())['excluded_sources'])
+    return {"sites": [site for site in _anything("sites") if site['name'] not in excluded], "provider": "API Anything 0.4.0"}
+
+
+@router.get("/source-operations/{site}")
+def source_operations(site: str):
+    if not re.fullmatch(r"[a-z0-9-]{1,50}", site):
+        raise HTTPException(status_code=422, detail="Source invalide.")
+    excluded = set(json.loads(Path(__file__).with_name('source_policy.json').read_text())['excluded_sources'])
+    if site in excluded:
+        raise HTTPException(404, 'Source retirée du catalogue InvestorOS.')
+    return _anything("ops", site)
+
+
+@router.get("/x-profile/{username}")
+def public_x_profile(username: str):
+    username = username.removeprefix("@")
+    if not re.fullmatch(r"[A-Za-z0-9_]{1,15}", username):
+        raise HTTPException(status_code=422, detail="Saisissez un nom d’utilisateur X valide (sans URL).")
+    import subprocess
+    root = Path(__file__).resolve().parents[4]
+    try:
+        response = subprocess.run(['node', str(root/'scripts/read-x-profile.mjs'), username], cwd=root,
+            env={**os.environ, 'API_ANYTHING_LOCAL_ONLY':'1'}, capture_output=True, text=True, timeout=20)
+        payload = json.loads(response.stdout)
+        if response.returncode or not payload.get('ok'):
+            raise ValueError()
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        raise HTTPException(502, 'Le profil X est temporairement indisponible via API Anything.')
+    data = payload.get("data", {})
+    if not data.get("rest_id") or not data.get("core.screen_name"):
+        raise HTTPException(status_code=404, detail="Profil introuvable ou réponse incomplète.")
+    links = data.get('profile_bio.entities.url.urls') or []
+    website = next((item.get('expanded_url') for item in links if isinstance(item, dict) and isinstance(item.get('expanded_url'), str) and urlsplit(item['expanded_url']).scheme in ('http', 'https')), None)
+    profile = {
+        'detailsVersion': 1,
+        'following': data.get('relationship_counts.following'),
+        'joinedAt': datetime.fromtimestamp(data['core.created_at_ms']/1000, tz=timezone.utc).isoformat() if isinstance(data.get('core.created_at_ms'), (int, float)) else None,
+        'website': website,
+        'location': data.get('location.location'),
+        "id": data["rest_id"], "username": data["core.screen_name"],
+        "name": data.get("core.name"), "image": data.get("avatar.image_url"),
+        "bio": data.get("profile_bio.description"),
+        "followers": data.get("relationship_counts.followers"),
+        "verified": bool(data.get("verification.is_blue_verified") or data.get("verification.verified_type") in ("Government", "Business")),
+        "verifiedType": data.get("verification.verified_type"),
+        "source": "API Anything · X getUser", "latestPost": None,
+        "latestPostReason": None,
+    }
+    recent = public_x_posts(username)
+    profile['recentPosts'] = recent.get('posts', [])
+    profile['latestPost'] = next(iter(profile['recentPosts']), None)
+    profile['latestPostReason'] = recent.get('reason') if not recent.get('available') else ('Aucune publication visible sur ce profil public.' if not profile['recentPosts'] else None)
+    profile['postsObservedAt'] = recent.get('observedAt')
+    profile['postsSource'] = recent.get('source', 'API Anything · X getRecentPosts')
+    return profile
+
+
+@router.get('/x-posts/{username}')
+def public_x_posts(username: str):
+    import subprocess
+    username = username.removeprefix('@')
+    if not re.fullmatch(r'[A-Za-z0-9_]{1,15}', username):
+        raise HTTPException(422, 'Nom d’utilisateur X invalide.')
+    root = Path(__file__).resolve().parents[4]
+    try:
+        result = subprocess.run(['node', str(root/'scripts/read-x-posts.mjs'), username], cwd=root,
+            env={**os.environ, 'API_ANYTHING_LOCAL_ONLY':'1'}, capture_output=True, text=True, timeout=25)
+        payload = json.loads(result.stdout)
+        if result.returncode or not isinstance(payload, dict):
+            raise ValueError()
+        return payload
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        return {'available':False, 'posts':[], 'reason':'La lecture publique X via API Anything est temporairement indisponible.'}

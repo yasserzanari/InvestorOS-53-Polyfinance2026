@@ -1,0 +1,54 @@
+{
+  "name": "x-public-timeline",
+  "baseUrl": "https://x.com",
+  "operations": [
+    {
+      "name": "getRecentPosts",
+      "description": "Publications récentes visibles dans le profil public X, données Relay du serveur, couverture partielle.",
+      "request": {
+        "method": "GET",
+        "url": "https://x.com/realDonaldTrump",
+        "headers": {
+          "accept": "text/html",
+          "user-agent": "Mozilla/5.0"
+        }
+      },
+      "slots": [
+        {
+          "param": "screen_name",
+          "at": [
+            "path:0"
+          ]
+        }
+      ],
+      "volatile": [],
+      "trigger": {
+        "url": "https://x.com/{screen_name}"
+      },
+      "match": {
+        "method": "GET",
+        "host": "x.com",
+        "path": "/*"
+      },
+      "response": {
+        "format": "embedded",
+        "contentType": "text/html; charset=UTF-8",
+        "embedded": {
+          "regex": "value:(\"(?:\\\\.|[^\"\\\\])*profile_user_originals_timeline)"
+        }
+      },
+      "params": [
+        {
+          "name": "screen_name",
+          "type": "string",
+          "required": true,
+          "example": "realDonaldTrump"
+        }
+      ],
+      "readOnly": true,
+      "minTier": 1,
+      "learnedLoggedIn": false,
+      "learnedAt": "2026-11-15T00:55:24.886Z"
+    }
+  ]
+}
