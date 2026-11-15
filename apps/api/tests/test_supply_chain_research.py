@@ -54,6 +54,10 @@ class SupplyChainResearchTests(unittest.TestCase):
         self.assertIn('Contoso Foundry',docs[0]['text'])
         self.assertIn('Fabrikam Assembly',docs[0]['text'])
 
+    @patch('investoros_api.profiles.supply_chain_research.issuers',return_value=[{'ticker':'TSM','title':'TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD','cik_str':1}])
+    def test_legal_supplier_name_resolves_for_financials(self,_):
+        self.assertEqual(resolve('Taiwan Semiconductor Manufacturing Company Limited')['ticker'],'TSM')
+
     def test_fixed_origins_block_ssrf(self):
         for url in ['http://data.sec.gov/','https://localhost/','https://data.sec.gov@127.0.0.1/','https://data.sec.gov:444/']:
             with self.subTest(url=url),self.assertRaises(ValueError): read(url)

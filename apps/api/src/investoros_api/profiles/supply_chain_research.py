@@ -40,10 +40,17 @@ def normalize(value):
     return re.sub(r'[^a-z0-9]', '', value.casefold())
 
 
+def identity_name(value):
+    stripped = value.strip()
+    for _ in range(5):
+        stripped = re.sub(r'[,\s]+(?:incorporated|corporation|company|limited|corp|inc|ltd|co)\.?$', '', stripped, flags=re.I)
+    return normalize(stripped)
+
+
 def resolve(query):
     query = query.strip()
     rows = issuers()
-    exact = [row for row in rows if query.upper() == row['ticker'] or normalize(query) == normalize(row['title'])]
+    exact = [row for row in rows if query.upper() == row['ticker'] or identity_name(query) == identity_name(row['title'])]
     if len(exact) == 1:
         return exact[0]
     # A partial name must resolve uniquely. Never select the first ambiguous match.
@@ -83,7 +90,7 @@ def quarterly_revenue(payload):
 def logo_for(name):
     """Wikidata logo for an exact entity label; otherwise honest initials in the UI."""
     found = json.loads(read('https://www.wikidata.org/w/api.php?' + urlencode({'action':'wbsearchentities', 'search':name, 'language':'en', 'format':'json', 'limit':3})))
-    hit = next((item for item in found.get('search', []) if (normalize(item.get('label', '')) == normalize(name) or normalize(item.get('match', {}).get('text', '')) == normalize(name))), None)
+    hit = next((item for item in found.get('search', []) if (identity_name(item.get('label', '')) == identity_name(name) or identity_name(item.get('match', {}).get('text', '')) == identity_name(name))), None)
     if not hit:
         return None
     data = json.loads(read('https://www.wikidata.org/wiki/Special:EntityData/' + hit['id'] + '.json'))
