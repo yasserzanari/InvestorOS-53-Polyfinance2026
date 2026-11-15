@@ -18,10 +18,14 @@ def artifact_rotation(item):
 
 
 def validate(plan):
-    blocked = [item['address'] for item in plan.get('resource_changes', [])
+    blocked = [item for item in plan.get('resource_changes', [])
                if 'delete' in item.get('change', {}).get('actions', []) and not artifact_rotation(item)]
     if blocked:
-        raise ValueError('Suppression ou remplacement de ressource interdit : ' + ', '.join(blocked))
+        details = []
+        for item in blocked:
+            paths = item.get('change', {}).get('replace_paths', [])
+            details.append('{} (attributs déclencheurs: {})'.format(item['address'], paths or 'non précisés'))
+        raise ValueError('Suppression ou remplacement de ressource interdit : ' + ', '.join(details))
     return [(item['address'], item['change']['actions']) for item in plan.get('resource_changes', [])
             if item.get('change', {}).get('actions') != ['no-op']]
 
