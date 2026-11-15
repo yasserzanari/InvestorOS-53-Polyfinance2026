@@ -1,0 +1,147 @@
+{
+  "Comment": "Bedrock planning, browser/API research, source verification and evidence-linked synthesis.",
+  "StartAt": "Plan",
+  "States": {
+    "MarkFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "TimeoutSeconds": 60,
+      "Parameters": {
+        "FunctionName": "${research_worker_arn}",
+        "Payload": {
+          "account_id.$": "$.account_id",
+          "action": "fail",
+          "analysis_id.$": "$.analysis_id",
+          "error.$": "$.error"
+        }
+      },
+      "End": true
+    },
+    "Plan": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "TimeoutSeconds": 120,
+      "Parameters": {
+        "FunctionName": "${research_worker_arn}",
+        "Payload": {
+          "account_id.$": "$.account_id",
+          "action": "plan",
+          "analysis_id.$": "$.analysis_id",
+          "persona.$": "$.persona",
+          "portfolio.$": "$.portfolio",
+          "profile.$": "$.profile",
+          "question.$": "$.question",
+          "source_ids.$": "$.source_ids",
+          "x_evidence_id.$": "$.x_evidence_id",
+          "x_text.$": "$.x_text",
+          "x_url.$": "$.x_url"
+        }
+      },
+      "ResultSelector": {
+        "Payload.$": "$.Payload"
+      },
+      "ResultPath": "$.plan",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "MarkFailed"
+        }
+      ],
+      "Next": "ResearchTasks"
+    },
+    "ResearchTasks": {
+      "Type": "Map",
+      "ItemsPath": "$.plan.Payload.tasks",
+      "MaxConcurrency": 3,
+      "ItemSelector": {
+        "account_id.$": "$.account_id",
+        "analysis_id.$": "$.analysis_id",
+        "persona.$": "$.persona",
+        "question.$": "$.question",
+        "task.$": "$$.Map.Item.Value"
+      },
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "CollectEvidence",
+        "States": {
+          "CollectEvidence": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "TimeoutSeconds": 840,
+            "Parameters": {
+              "FunctionName": "${research_worker_arn}",
+              "Payload": {
+                "account_id.$": "$.account_id",
+                "action": "research",
+                "analysis_id.$": "$.analysis_id",
+                "persona.$": "$.persona",
+                "question.$": "$.question",
+                "task.$": "$.task"
+              }
+            },
+            "ResultSelector": {
+              "result.$": "$.Payload"
+            },
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "CollectionFailed"
+              }
+            ],
+            "End": true
+          },
+          "CollectionFailed": {
+            "Type": "Pass",
+            "Parameters": {
+              "reason": "La source n'a pas pu être consultée.",
+              "source_id.$": "$.task.source_id",
+              "status": "failed"
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.research_results",
+      "Next": "Synthesize"
+    },
+    "Synthesize": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "TimeoutSeconds": 120,
+      "Parameters": {
+        "FunctionName": "${research_worker_arn}",
+        "Payload": {
+          "account_id.$": "$.account_id",
+          "action": "synthesize",
+          "analysis_id.$": "$.analysis_id",
+          "persona.$": "$.persona",
+          "profile.$": "$.profile",
+          "question.$": "$.question",
+          "research_results.$": "$.research_results",
+          "source_ids.$": "$.plan.Payload.source_ids",
+          "tasks.$": "$.plan.Payload.tasks",
+          "thesis.$": "$.plan.Payload.thesis",
+          "x_evidence_id.$": "$.x_evidence_id",
+          "x_text.$": "$.x_text",
+          "x_url.$": "$.x_url"
+        }
+      },
+      "ResultSelector": {
+        "Payload.$": "$.Payload"
+      },
+      "ResultPath": "$.completion",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "MarkFailed"
+        }
+      ],
+      "End": true
+    }
+  }
+}

@@ -4,6 +4,8 @@ InvestorOS est le projet du Datathon Polyfinance 2026 : une expérience d’aide
 
 ## Démarrer le frontend
 
+Prérequis : Node.js 24.x (version utilisée par la CI) et npm 11.x. `.nvmrc` sélectionne Node 24 avec nvm; les `engines` des deux manifestes npm annoncent la version attendue.
+
 ```bash
 npm ci
 npm run dev:local

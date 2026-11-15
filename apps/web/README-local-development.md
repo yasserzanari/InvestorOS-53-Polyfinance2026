@@ -1,5 +1,7 @@
 # Développement local et accès AWS
 
+Node.js 24.x et npm 11.x sont requis, comme dans la CI. À la racine du dépôt, `nvm use` lit `.nvmrc` avant `npm ci`.
+
 ## Démarrage habituel
 
 Depuis la racine du dépôt, une seule commande lance l’interface **et** son API :
