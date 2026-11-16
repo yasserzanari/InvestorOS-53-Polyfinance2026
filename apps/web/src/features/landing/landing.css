@@ -6,21 +6,130 @@
 .investor-landing .animate-fade-slide-in-1,
 .investor-landing .animate-fade-slide-in-2,
 .investor-landing .animate-fade-slide-in-3,
-.investor-landing .animate-fade-slide-in-4 {
-  animation: landing-fade-slide-in 650ms cubic-bezier(.2,.75,.25,1) both;
-}
+.investor-landing .animate-fade-slide-in-4 { animation: landing-fade-slide-in 650ms cubic-bezier(.2,.75,.25,1) both; }
 .investor-landing .animate-fade-slide-in-2 { animation-delay: 100ms; }
 .investor-landing .animate-fade-slide-in-3 { animation-delay: 190ms; }
 .investor-landing .animate-fade-slide-in-4 { animation-delay: 280ms; }
 .investor-landing .investoros-hero > header { display: none; }
 .investor-landing .landing-header { -webkit-backdrop-filter: blur(24px) saturate(145%); backdrop-filter: blur(24px) saturate(145%); }
-.investor-landing .investoros-hero { min-height: min(780px, 100svh); }
+.investor-landing .investoros-hero { min-height: min(780px, 100svh); background: radial-gradient(ellipse at 50% 12%, #36567d 0, #172943 54%, #101c35 100%); }
+.investor-landing .investoros-hero .animate-fade-slide-in-4 a:first-child { background: #fff; color: #16243b; }
+.investor-landing .investoros-hero .animate-fade-slide-in-4 a:nth-child(2) { color: #fff; }
 .investor-landing .investoros-hero > img { object-position: center 58%; }
 .investor-landing .investoros-hero > div:last-child { position: relative; z-index: 2; }
 .investor-landing .investoros-hero .max-w-7xl { padding-top: clamp(132px, 17vh, 180px); }
 .investor-landing .investor-dropdown { min-height: auto; padding: 0; }
 .investor-landing .investor-dropdown ul { gap: .15rem; }
 .investor-landing .investor-dropdown [class*="w-max"] { z-index: 70; box-shadow: 0 24px 64px rgba(15, 35, 72, .12); }
+
+.investor-landing .profile-tour {
+  --tour-ink: #16243b;
+  --tour-muted: #64748b;
+  --tour-blue: #356ce0;
+  --tour-line: #dce4ee;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 52% 0%, #e5efff 0, #f6f9fd 46%);
+  color: var(--tour-ink);
+  padding: clamp(74px, 9vw, 122px) 0 36px;
+}
+.investor-landing .profile-tour__inner { width: min(1320px, calc(100% - 48px)); margin: 0 auto; }
+.investor-landing .profile-tour__intro { display: grid; grid-template-columns: minmax(0,1fr) minmax(280px,.62fr); align-items: end; gap: clamp(34px, 8vw, 110px); padding-bottom: 36px; }
+.investor-landing .profile-tour__eyebrow { display: inline-flex; align-items: center; gap: 10px; color: #3564bb; font-size: 11px; font-weight: 700; letter-spacing: .12em; line-height: 1.5; text-transform: uppercase; }
+.investor-landing .profile-tour__eyebrow > span { width: 7px; height: 7px; border-radius: 50%; background: #28abc0; box-shadow: 0 0 0 4px rgba(40,171,192,.12); }
+.investor-landing .profile-tour__intro h2 { margin: 18px 0 0; color: #16243b; font-size: clamp(38px, 4.7vw, 62px); font-weight: 560; letter-spacing: -.055em; line-height: 1.06; }
+.investor-landing .profile-tour__intro > p { max-width: 450px; margin: 0 0 5px; color: #53647b; font-size: 15px; line-height: 1.8; }
+.investor-landing .profile-tour__tabs { display: flex; gap: 5px; width: fit-content; max-width: 100%; overflow-x: auto; margin: 0 0 18px; border: 1px solid rgba(211,222,237,.94); border-radius: 999px; background: rgba(255,255,255,.83); padding: 6px; box-shadow: 0 8px 32px rgba(25,51,92,.055); backdrop-filter: blur(16px); scrollbar-width: none; }
+.investor-landing .profile-tour__tabs::-webkit-scrollbar { display: none; }
+.investor-landing .profile-tour__tabs button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 8px; border: 0; border-radius: 999px; background: transparent; padding: 9px 14px; color: #41536b; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .2s,color .2s; }
+.investor-landing .profile-tour__tabs button:hover { background: #edf4ff; color: #244c98; }
+.investor-landing .profile-tour__tabs button[aria-selected="true"] { background: #e8f0ff; color: #2559bb; }
+.investor-landing .profile-tour__tabs button:focus-visible,
+.investor-landing .profile-tour__controls button:focus-visible,
+.investor-landing .profile-tour__progress button:focus-visible { outline: 3px solid rgba(53,108,224,.35); outline-offset: 3px; }
+.investor-landing .profile-tour__tabs button span,.investor-landing .profile-tour__step { color: #8a9bb2; font-family: ui-monospace,monospace; font-size: 10px; letter-spacing: .06em; }
+.investor-landing .profile-tour__panel { display: grid; grid-template-columns: minmax(250px,.34fr) minmax(0,1fr); align-items: center; gap: clamp(26px,4.8vw,68px); min-height: 520px; border: 1px solid #dce5f1; border-radius: 22px; background: rgba(255,255,255,.78); padding: clamp(18px,3vw,36px); box-shadow: 0 24px 76px rgba(30,61,110,.075); }
+.investor-landing .profile-tour__explanation { display: flex; min-height: 380px; flex-direction: column; justify-content: space-between; padding: 9px 0; }
+.investor-landing .profile-tour__explanation h3 { margin: 18px 0 0; color: #16243b; font-size: clamp(26px,2.6vw,36px); font-weight: 580; letter-spacing: -.045em; line-height: 1.12; }
+.investor-landing .profile-tour__explanation p { margin: 15px 0 0; color: #53647b; font-size: 14px; line-height: 1.8; }
+.investor-landing .profile-tour__note { display: flex; align-items: flex-start; gap: 10px; margin-top: 17px; border-left: 2px solid #8baeea; background: #f1f6ff; padding: 12px 13px; color: #50627b; font-size: 12px; line-height: 1.65; }
+.investor-landing .profile-tour__note svg { flex: 0 0 auto; margin-top: 1px; color: #4775c5; }
+.investor-landing .profile-tour__controls { display: flex; align-items: center; gap: 15px; margin-top: 24px; }
+.investor-landing .profile-tour__controls > button { display: inline-grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border: 1px solid #d5dfed; border-radius: 50%; background: #fff; color: #344760; cursor: pointer; transition: border-color .2s,color .2s,background .2s; }
+.investor-landing .profile-tour__controls > button:hover { border-color: #9eb8e5; background: #f3f7ff; color: #2457b7; }
+.investor-landing .profile-tour__progress { display: flex; flex: 1; align-items: center; justify-content: center; gap: 8px; }
+.investor-landing .profile-tour__progress button { width: 7px; height: 7px; border: 0; border-radius: 99px; background: #c8d4e5; padding: 0; cursor: pointer; transition: width .2s,background .2s; }
+.investor-landing .profile-tour__progress button[aria-current="step"] { width: 23px; background: #356ce0; }
+.investor-landing .profile-tour__screen { min-width: 0; margin: 0; perspective: 1600px; }
+.investor-landing .profile-tour__screen-bar { display: flex; align-items: center; gap: 6px; height: 34px; border: 1px solid #dce4ee; border-bottom: 0; border-radius: 12px 12px 0 0; background: #fff; padding: 0 12px; color: #91a0b4; font-size: 9px; letter-spacing: .015em; }
+.investor-landing .profile-tour__screen-bar > span { width: 6px; height: 6px; border-radius: 50%; background: #d3dce8; }
+.investor-landing .profile-tour__screen-bar > span:first-child { background: #e9b7af; }
+.investor-landing .profile-tour__screen-bar > span:nth-child(2) { background: #e9d6a7; }
+.investor-landing .profile-tour__screen-bar > span:nth-child(3) { background: #b8d7c6; }
+.investor-landing .profile-tour__screen-bar { padding-left: 14px; }
+.investor-landing .profile-tour__screen img { display: block; width: 100%; height: auto; border: 1px solid #dce4ee; border-radius: 0 0 12px 12px; background: white; box-shadow: 0 18px 52px rgba(26,47,78,.14); }
+.investor-landing .profile-tour__screen figcaption { margin-top: 10px; color: #6b7b91; font-size: 11px; letter-spacing: .025em; }
+.investor-landing .profile-tour__disclaimer { width: fit-content; max-width: 100%; margin: 22px auto 0; color: #7c899b; font-size: 11px; line-height: 1.7; text-align: center; scroll-margin-top: 100px; }
+
+.investor-landing .portfolio-story { position: relative; overflow: hidden; background: linear-gradient(180deg,#fff 0%,#f8fafc 100%); padding: clamp(70px,8vw,108px) 0; color: #16243b; }
+.investor-landing .portfolio-story__inner { width: min(1320px,calc(100% - 48px)); margin: 0 auto; }
+.investor-landing .portfolio-story__intro { max-width: 930px; margin: 0 0 34px; }
+.investor-landing .portfolio-story__eyebrow { display: inline-flex; align-items: center; gap: 10px; color: #3564bb; font-size: 11px; font-weight: 700; letter-spacing: .12em; line-height: 1.5; text-transform: uppercase; }
+.investor-landing .portfolio-story__eyebrow > span { width: 7px; height: 7px; border-radius: 50%; background: #28abc0; box-shadow: 0 0 0 4px rgba(40,171,192,.12); }
+.investor-landing .portfolio-story__intro h2 { max-width: 850px; margin: 18px 0 12px; font-size: clamp(36px,4.5vw,58px); font-weight: 560; letter-spacing: -.05em; line-height: 1.08; }
+.investor-landing .portfolio-story__intro > p { max-width: 760px; margin: 0; color: #53647b; font-size: 15px; line-height: 1.8; }
+.investor-landing .portfolio-story__layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(310px,.8fr); align-items: center; gap: clamp(24px,4vw,50px); }
+.investor-landing .portfolio-story__screen { min-width: 0; margin: 0; }
+.investor-landing .portfolio-story__screen > a { display: block; border: 1px solid #dce4ee; border-radius: 15px; background: #fff; box-shadow: 0 20px 56px rgba(26,47,78,.12); overflow: hidden; }
+.investor-landing .portfolio-story__screen > a:focus-visible { outline: 3px solid rgba(53,108,224,.35); outline-offset: 4px; }
+.investor-landing .portfolio-story__screen img { display: block; width: 100%; height: auto; }
+.investor-landing .portfolio-story__screen figcaption { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 10px; color: #718096; font-size: 11px; line-height: 1.6; }
+.investor-landing .portfolio-story__screen figcaption a,.investor-landing .portfolio-story__news a { color: #2459b8; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.investor-landing .portfolio-story__insights { display: grid; gap: 12px; }
+.investor-landing .portfolio-story__insight { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 12px; border: 1px solid #e0e7f0; border-radius: 14px; background: rgba(255,255,255,.86); padding: 16px; }
+.investor-landing .portfolio-story__icon,.investor-landing .portfolio-story__news-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 11px; background: #eaf1ff; color: #356ce0; }
+.investor-landing .portfolio-story__insight h3 { margin: 0; color: #1e304c; font-size: 14px; font-weight: 700; }
+.investor-landing .portfolio-story__insight p { margin: 7px 0 0; color: #596b83; font-size: 12px; line-height: 1.65; }
+.investor-landing .portfolio-story__news { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 15px; margin-top: 28px; border: 1px solid #d9e5f2; border-radius: 16px; background: #f1f6ff; padding: clamp(17px,2.5vw,25px); }
+.investor-landing .portfolio-story__news-icon { background: #e3efff; }
+.investor-landing .portfolio-story__news h3 { display: flex; align-items: center; gap: 8px; margin: 0; color: #1e304c; font-size: 15px; font-weight: 700; }
+.investor-landing .portfolio-story__news p { max-width: 1050px; margin: 9px 0 0; color: #53647b; font-size: 13px; line-height: 1.75; }
+.investor-landing .portfolio-story__news p.portfolio-story__limit { color: #748198; font-size: 11px; }
+.investor-landing .portfolio-story__news a { display: inline-flex; margin-top: 12px; font-size: 12px; }
+@media (max-width: 860px) {
+  .investor-landing .portfolio-story__inner { width: min(100% - 36px,680px); }
+  .investor-landing .portfolio-story__layout { grid-template-columns: 1fr; }
+  .investor-landing .portfolio-story__insights { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 520px) {
+  .investor-landing .portfolio-story { padding: 68px 0; }
+  .investor-landing .portfolio-story__inner { width: calc(100% - 28px); }
+  .investor-landing .portfolio-story__intro h2 { font-size: clamp(34px,9vw,44px); }
+  .investor-landing .portfolio-story__intro > p { font-size: 14px; }
+  .investor-landing .portfolio-story__insights { grid-template-columns: 1fr; }
+  .investor-landing .portfolio-story__news { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  .investor-landing .profile-tour__inner { width: min(100% - 36px, 680px); }
+  .investor-landing .profile-tour__intro { grid-template-columns: 1fr; gap: 18px; }
+  .investor-landing .profile-tour__intro > p { max-width: 560px; }
+  .investor-landing .profile-tour__panel { grid-template-columns: 1fr; gap: 25px; }
+  .investor-landing .profile-tour__explanation { min-height: 0; }
+  .investor-landing .profile-tour__controls { margin-top: 18px; }
+}
+@media (max-width: 520px) {
+  .investor-landing .profile-tour { padding-top: 68px; }
+  .investor-landing .profile-tour__inner { width: calc(100% - 28px); }
+  .investor-landing .profile-tour__intro { padding-bottom: 25px; }
+  .investor-landing .profile-tour__intro h2 { font-size: clamp(36px,10vw,48px); }
+  .investor-landing .profile-tour__intro > p { font-size: 14px; }
+  .investor-landing .profile-tour__tabs { width: 100%; margin-bottom: 12px; }
+  .investor-landing .profile-tour__tabs button { padding: 8px 11px; }
+  .investor-landing .profile-tour__panel { gap: 21px; border-radius: 16px; padding: 15px; }
+  .investor-landing .profile-tour__explanation h3 { font-size: 29px; }
+  .investor-landing .profile-tour__screen-bar { height: 29px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .investor-landing .animate-fade-slide-in-1,
