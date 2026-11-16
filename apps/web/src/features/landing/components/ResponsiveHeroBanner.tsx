@@ -69,7 +69,7 @@ const ResponsiveHeroBanner: React.FC<ResponsiveHeroBannerProps> = ({
                 alt=""
                 className="w-full h-full object-cover absolute top-0 right-0 bottom-0 left-0"
             />}
-            {backgroundImageUrl && <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/20 via-slate-950/55 to-slate-950/85" />}
+            {backgroundImageUrl && <div className="investoros-hero__veil pointer-events-none absolute inset-0" />}
 
             <header className="z-10 xl:top-4 relative">
                 <div className="mx-6">
