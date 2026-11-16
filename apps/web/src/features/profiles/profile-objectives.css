@@ -472,7 +472,7 @@
   color: #1551ff;
   font-weight: 700;
 }
-.pb-workbench .pdt-tabs button:hover {
+.pb-workbench .pdt-tabs button:hover:not([aria-selected="true"]) {
   border-color: transparent;
   border-bottom-color: #a5baff;
   background: #f0f3ff;
