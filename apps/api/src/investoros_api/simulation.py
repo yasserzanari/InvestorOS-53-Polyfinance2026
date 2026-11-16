@@ -18,6 +18,7 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from investoros_api.research.sources import DEFAULT_SOURCES
 
 router = APIRouter(prefix="/v1/simulation", tags=["simulation"])
 REGULATION_TERMS = {
@@ -1034,36 +1035,53 @@ def regulations(
     }
 
 
-# API Anything exposes documented, read-only public source operations.
-def _anything(*arguments: str):
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["npx", "--yes", "api-anything@0.4.0", *arguments],
-            capture_output=True, text=True, timeout=35, check=False,
-        )
-        payload = json.loads(result.stdout)
-        if result.returncode or (isinstance(payload, dict) and payload.get("ok") is False):
-            raise HTTPException(status_code=502, detail="La source API Anything refuse la requête ou est indisponible.")
-        return payload
-    except (subprocess.TimeoutExpired, OSError, ValueError):
-        raise HTTPException(status_code=503, detail="API Anything est indisponible sur ce serveur.")
-
-
 @router.get("/source-catalog")
 def source_catalog():
-    excluded = set(json.loads(Path(__file__).with_name('source_policy.json').read_text())['excluded_sources'])
-    return {"sites": [site for site in _anything("sites") if site['name'] not in excluded], "provider": "API Anything 0.4.0"}
+    """Return the explicitly enabled InvestorOS research sources without runtime tools."""
+    sites = [{
+        "name": source_id,
+        "description": source["description"],
+        "operations": 1,
+        "baseUrl": source.get("url") or f"https://{source['domain']}/",
+    } for source_id, source in DEFAULT_SOURCES.items() if source.get("enabled") is True]
+    sites.append({
+        "name": "x",
+        "description": "Lecture de profils publics et de publications récentes X; les publications restent des déclarations attribuées.",
+        "operations": 2,
+        "baseUrl": "https://x.com/",
+    })
+    return {"sites": sorted(sites, key=lambda site: (site["name"] != "x", site["name"])), "provider": "InvestorOS · registre des sources autorisées"}
 
 
 @router.get("/source-operations/{site}")
 def source_operations(site: str):
     if not re.fullmatch(r"[a-z0-9-]{1,50}", site):
         raise HTTPException(status_code=422, detail="Source invalide.")
-    excluded = set(json.loads(Path(__file__).with_name('source_policy.json').read_text())['excluded_sources'])
-    if site in excluded:
-        raise HTTPException(404, 'Source retirée du catalogue InvestorOS.')
-    return _anything("ops", site)
+    if site == "x":
+        return {
+            "baseUrl": "https://x.com/",
+            "notes": "Lecture publique uniquement. Les publications X sont des déclarations attribuées; elles ne constituent pas une corroboration indépendante. La visibilité dépend des limites du profil public.",
+            "operations": [
+                {"name": "getUser", "description": "Lire les informations visibles d’un profil public X.", "readOnly": True, "params": ["username"], "returns": ["nom", "biographie", "abonnés", "date d’inscription"]},
+                {"name": "getRecentPosts", "description": "Lire les publications récentes visibles d’un profil public X.", "readOnly": True, "params": ["username"], "returns": ["texte", "date", "lien", "métriques disponibles"]},
+            ],
+        }
+    source = DEFAULT_SOURCES.get(site)
+    if not source or source.get("enabled") is not True:
+        raise HTTPException(404, "Cette source n’est pas autorisée dans InvestorOS.")
+    param = source.get("param")
+    operation = source.get("api_operation") or source.get("collection") or "readOfficialSource"
+    return {
+        "baseUrl": source.get("url") or f"https://{source['domain']}/",
+        "notes": source.get("notes", "Lecture documentaire; la portée dépend des données publiées par la source."),
+        "operations": [{
+            "name": operation,
+            "description": source["description"],
+            "readOnly": True,
+            "params": [param] if param else [],
+            "returns": source.get("allowed_claims", []),
+        }],
+    }
 
 
 @router.get("/x-profile/{username}")
