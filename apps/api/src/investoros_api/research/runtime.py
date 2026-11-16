@@ -6,6 +6,7 @@ import os
 import re
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -848,8 +849,65 @@ def mark_failed(event: dict) -> dict:
     return {"analysis_id": analysis_id, "status": "failed"}
 
 
+def read_public_x_posts(event: dict) -> dict:
+    """Read authorized public X handles through the private API Anything service."""
+    usernames = event.get("usernames")
+    if not isinstance(usernames, list) or not 1 <= len(usernames) <= 8 or any(
+        not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_]{1,15}", name)
+        for name in usernames
+    ):
+        raise ValueError("Une à huit identités X valides sont requises.")
+
+    source = {
+        "id": "x-public-timeline", "name": "X · publications publiques",
+        "domain": "x.com", "url": "https://x.com/",
+        "description": "Lire les publications visibles dans le fil public d'un profil X.",
+        "trust_level": "discovery", "enabled": True, "automation_allowed": True,
+        "api_site": "x-public-timeline", "api_operation": "getRecentPosts",
+        "trigger": "https://x.com/{screen_name}", "param": "screen_name",
+        "examples": ["Nvidia", "bankofcanada", "SECGov"], "api_extract": ".",
+    }
+    from investoros_api.profiles.x_evidence import parse_public_timeline
+
+    results = {}
+    failures = {}
+    unique_usernames = list(dict.fromkeys(usernames))
+    try:
+        # Reuse the research source registry and its DynamoDB learning lease so
+        # concurrent first use creates one API Anything template, then replay it.
+        first_response = _api_anything_fetch(source, unique_usernames[0])
+        results[unique_usernames[0].lower()] = parse_public_timeline(first_response.get("data"), unique_usernames[0])
+    except (ApiAnythingError, TypeError, ValueError, KeyError):
+        failures[unique_usernames[0].lower()] = "Lecture de ce profil X indisponible via API Anything."
+
+    remaining = unique_usernames[1:] if results else []
+    if not results:
+        failures.update({name.lower(): "Lecture de ce profil X indisponible via API Anything."
+                         for name in unique_usernames[1:]})
+    if remaining:
+        client = ApiAnythingClient()
+        def fetch(username):
+            try:
+                response = client.call(source, username)
+                return username, parse_public_timeline(response.get("data"), username), None
+            except (ApiAnythingError, TypeError, ValueError, KeyError):
+                return username, [], "Lecture de ce profil X indisponible via API Anything."
+
+        with ThreadPoolExecutor(max_workers=min(4, len(remaining))) as pool:
+            responses = pool.map(fetch, remaining)
+            for username, posts, error in responses:
+                if error:
+                    failures[username.lower()] = error
+                else:
+                    results[username.lower()] = posts
+
+    return {"ok": True, "results": results, "failures": failures, "source": "API Anything · X getRecentPosts"}
+
+
 def handler(event: dict, _context):
     action = event.get("action")
+    if action == "read_public_x_posts":
+        return read_public_x_posts(event)
     if action == "inspect_source_contract":
         source = DEFAULT_SOURCES[event["source_id"]]
         result = ApiAnythingClient().call(source, str(event["value"]))

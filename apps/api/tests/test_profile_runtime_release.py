@@ -17,7 +17,7 @@ class ReleaseSafetyTests(unittest.TestCase):
             with self.assertRaises(SystemExit):runpy.run_path(str(SCRIPT))
             self.assertEqual(session.return_value.client.call_count,1)
 
-    def test_worker_failure_restores_previously_updated_api(self):
+    def test_api_anything_worker_failure_restores_both_assistant_functions(self):
         previous=b'old artifact';current=b'new artifact';old_hash=b64encode(hashlib.sha256(previous).digest()).decode()
         class Functions:
             calls=[]
@@ -25,7 +25,7 @@ class ReleaseSafetyTests(unittest.TestCase):
                 return {'Code':{'Location':'https://example.org/baseline'},'Configuration':{'CodeSha256':old_hash if not self.calls else b64encode(hashlib.sha256(current).digest()).decode(),'LastUpdateStatus':'Successful'}}
             def update_function_code(self,**kwargs):
                 self.calls.append(kwargs)
-                if len(self.calls)==2:raise RuntimeError('Worker failed')
+                if kwargs['FunctionName']=='investoros-dev-research-worker':raise RuntimeError('API Anything worker failed')
             def get_waiter(self,name):return self
             def wait(self,**kwargs):pass
         functions=Functions()
@@ -40,8 +40,11 @@ class ReleaseSafetyTests(unittest.TestCase):
             previous_cwd=Path.cwd()
             try:
                 os.chdir(root)
-                with self.assertRaisesRegex(RuntimeError,'Worker failed'):runpy.run_path(str(SCRIPT))
+                with self.assertRaisesRegex(RuntimeError,'API Anything worker failed'):runpy.run_path(str(SCRIPT))
             finally:os.chdir(previous_cwd)
-        self.assertEqual(len(functions.calls),3)
-        self.assertEqual(functions.calls[-1]['FunctionName'],'investoros-dev-assistant-simulation')
+        self.assertEqual([call['FunctionName'] for call in functions.calls], [
+            'investoros-dev-assistant-simulation', 'investoros-dev-profile-chat-worker',
+            'investoros-dev-research-worker', 'investoros-dev-profile-chat-worker',
+            'investoros-dev-assistant-simulation',
+        ])
         self.assertIn(hashlib.sha256(previous).hexdigest(),functions.calls[-1]['S3Key'])

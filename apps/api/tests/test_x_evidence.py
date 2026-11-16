@@ -9,6 +9,24 @@ from test_profile_service import RuntimeStub, stream_tool
 POST={'id':'123456789','author':'bankofcanada','text':'Our interest rate decision and inflation outlook.','publishedAt':'2026-11-10T12:00:00+00:00','url':'https://x.com/bankofcanada/status/123456789'}
 
 class AuthorizedXTests(unittest.TestCase):
+    @patch.dict(os.environ, {'API_ANYTHING_PROXY_FUNCTION_NAME': 'investoros-dev-research-worker'})
+    @patch('boto3.client')
+    def test_timeline_uses_vpc_api_anything_worker_in_aws(self, client):
+        invoke = client.return_value.invoke
+        class Payload:
+            def read(self, _limit):
+                import json
+                return json.dumps({'ok': True, 'results': {'bankofcanada': [POST]}, 'failures': {}}).encode()
+        invoke.return_value = {'Payload': Payload()}
+
+        from investoros_api.profiles.x_evidence import read_public_posts
+        result = read_public_posts('bankofcanada')
+
+        self.assertEqual(result, [POST])
+        self.assertEqual(invoke.call_args.kwargs['FunctionName'], 'investoros-dev-research-worker')
+        invoke_payload = __import__('json').loads(invoke.call_args.kwargs['Payload'])
+        self.assertEqual(invoke_payload, {'action': 'read_public_x_posts', 'usernames': ['bankofcanada']})
+
     @patch('investoros_api.profiles.x_evidence.read_workspace')
     @patch('investoros_api.profiles.x_evidence.read_public_posts')
     def test_account_boundary_and_no_request_to_unauthorized_author(self,fetch,read):

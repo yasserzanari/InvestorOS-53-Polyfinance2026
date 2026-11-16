@@ -1143,7 +1143,8 @@ def _read_public_x_posts(username: str) -> dict[str, Any]:
     return {
         'available': True,
         'posts': posts,
-        'source': 'X · fil public (recette versionnée)',
+        'source': ('API Anything · X getRecentPosts' if os.getenv('API_ANYTHING_PROXY_FUNCTION_NAME')
+                   else 'X · fil public (recette versionnée, mode développement)'),
         'observedAt': datetime.now(timezone.utc).isoformat(),
         **({'reason': 'Aucune publication visible sur ce profil public.'} if not posts else {}),
     }
