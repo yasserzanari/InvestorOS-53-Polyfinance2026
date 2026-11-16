@@ -171,7 +171,7 @@ export function ProfileObjectives({
               const Icon = goalIcon(goal);
               return (
                 <div
-                  className={`po-milestone ${index % 2 ? "po-lower" : ""}`}
+                  className={`po-milestone ${index > 0 && Math.abs(goal.horizonYears - goals[index-1].horizonYears) < max * .22 ? "po-lower" : ""}`}
                   key={goal.id}
                   style={{ left: `${14 + (goal.horizonYears / max) * 73}%` }}
                 >
