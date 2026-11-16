@@ -105,6 +105,16 @@ resource "aws_lambda_function" "profile_chat_worker" {
   tags       = local.common_tags
 }
 
+# Keep the former asynchronous Lambda invocation guardrails in state. The
+# worker now consumes SQS, so this config is inactive for current traffic; its
+# declaration prevents the protected deployment workflow from proposing a
+# deletion solely because the transport changed.
+resource "aws_lambda_function_event_invoke_config" "profile_chat_worker" {
+  function_name                = aws_lambda_function.profile_chat_worker.function_name
+  maximum_event_age_in_seconds = 60
+  maximum_retry_attempts       = 0
+}
+
 resource "aws_lambda_event_source_mapping" "profile_chat" {
   event_source_arn                   = aws_sqs_queue.profile_chat.arn
   function_name                      = aws_lambda_function.profile_chat_worker.arn
