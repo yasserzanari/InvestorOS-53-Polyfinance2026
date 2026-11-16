@@ -1,3 +1,4 @@
+import { goalSummary, syncGeneralGoal, detailChanges } from './profile-section-sync';
 import { SupplyChainTab } from './components/SupplyChainTab';
 import { FinancialWidget, WidgetActivity, parseFinancialWidget, type FinancialWidgetData } from './components/financial-widgets';
 import { researchAgents, usedSkills, terminalResearch } from './research-workspace';
@@ -76,7 +77,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const {attachResearch,refreshResearch,workspace,busy,activity,error,activeTab,setActiveTab,send,answerQuestions,stop,update,conversations,conversationId,startNewConversation,openConversation,historyReady,historyError}=useProfileWorkspace(activeAccount.id,assistantMode?'assistant':'profiles');
   const handledAssistantView=useRef(workspace.profileView??'');
   const memory=useProfileMemory(activeAccount.id,{profile:workspace.profile,tabs:workspace.tabs,sources:workspace.sources??[]},(profile,tabs,sources)=>update(w=>assistantMode?({...w,profile}):({...w,profile,tabs,sources})),assistantMode);
-  const changeProfile=(key:import('./profile-model').FieldKey,value:string)=>update(w=>({...w,profile:{...w.profile,[key]:value,confirmed:false,version:(w.profile.version??1)+1,updatedAt:new Date().toISOString(),origins:{...w.profile.origins,[key]:'Modification directe'}}}));
+  const changeProfile=(key:import('./profile-model').FieldKey,value:string)=>update(w=>({...w,tabs:syncGeneralGoal(w.tabs,key,value),profile:{...w.profile,[key]:value,confirmed:false,version:(w.profile.version??1)+1,updatedAt:new Date().toISOString(),origins:{...w.profile.origins,[key]:'Modification directe'}}}));
   useEffect(()=>{const params=new URLSearchParams(location.search);const id=params.get('analysis_id');if(id&&/^[0-9a-f-]{36}$/i.test(id)){attachResearch(id);setTabsOpen(true);params.delete('analysis_id');navigate({pathname:location.pathname,search:params.toString()},{replace:true});}},[location.search,activeAccount.id]);
   const [input,setInput]=useState(''); const [connected,setConnected]=useState<boolean|null>(null); const [model,setModel]=useState('');
   const handledInitialPrompt=useRef<string|null>(null);
@@ -206,7 +207,83 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
           <button className="pw-add-tab" type="button" onClick={addTab} disabled={workspace.tabs.length>=12||busy} aria-label="Ajouter une note" title="Ajouter une note"><Plus size={15}/><span>Notes</span></button>
         </div>}
         <div className={`pw-inspector-content${tab?.id==='research-results'?' is-research-results':''}${tab?.kind==='network'?' is-supply-chain':''}`} role="tabpanel" aria-label={tab?.title}>
-          {!assistantMode?<ProfileWorkbench onErase={()=>update(w=>({...w,profile:{...w.profile,...Object.fromEntries(['objective','horizon','riskTolerance','lossCapacity','liquidity','constraints','preferences','knowledge'].map(key=>[key,''])),origins:Object.fromEntries(['objective','horizon','riskTolerance','lossCapacity','liquidity','constraints','preferences','knowledge'].map(key=>[key,'Informations effacées'])) as typeof w.profile.origins,confirmed:false,situation:{incomeRange:'',liquidities:'',financialAssets:'',obligations:'',personalContext:''}},tabs:[...w.tabs.filter(tab=>!['profile-objectives','profile-controls'].includes(tab.id)),{id:'profile-objectives',title:'Objectifs du profil',kind:'profile' as const,content:JSON.stringify({goals:[]})}]}))} accountId={activeAccount.id} profile={workspace.profile} onChange={changeProfile} onConfirm={()=>update(w=>({...w,profile:{...w.profile,confirmed:true,version:w.profile.version+1,updatedAt:new Date().toISOString()}}))} onDiscuss={prompt=>submit(prompt)} tabs={workspace.tabs} onTab={newTab=>update(w=>({...w,tabs:[...w.tabs.filter(t=>t.id!==newTab.id),newTab]}))} busy={busy||!memory.ready} memory={memory} expanded={profileExpanded} onExpand={()=>setProfileExpanded(v=>!v)} requestedView={workspace.profileView}/>:<>
+          {!assistantMode?<ProfileWorkbench onSituation={(fields) =>
+                    update((w) => ({
+                      ...w,
+                      profile: {
+                        ...w.profile,
+                        situation: {
+                          incomeRange: "",
+                          liquidities: "",
+                          financialAssets: "",
+                          obligations: "",
+                          personalContext: "",
+                          ...w.profile.situation,
+                          ...fields,
+                        },
+                        confirmed: false,
+                        detailOrigins: {
+                          ...w.profile.detailOrigins,
+                          ...Object.fromEntries(
+                            Object.keys(fields).map((key) => [
+                              "situation." + key,
+                              "Modification directe",
+                            ]),
+                          ),
+                        },
+                      },
+                    }))
+                  } onErase={()=>update(w=>({...w,profile:{...w.profile,...Object.fromEntries(['objective','horizon','riskTolerance','lossCapacity','liquidity','constraints','preferences','knowledge'].map(key=>[key,''])),origins:Object.fromEntries(['objective','horizon','riskTolerance','lossCapacity','liquidity','constraints','preferences','knowledge'].map(key=>[key,'Informations effacées'])) as typeof w.profile.origins,confirmed:false,detailOrigins:{},situation:{incomeRange:'',liquidities:'',financialAssets:'',obligations:'',personalContext:''}},tabs:[...w.tabs.filter(tab=>!['profile-objectives','profile-controls'].includes(tab.id)),{id:'profile-objectives',title:'Objectifs du profil',kind:'profile' as const,content:JSON.stringify({goals:[]})}]}))} accountId={activeAccount.id} profile={workspace.profile} onChange={changeProfile} onConfirm={()=>update(w=>({...w,profile:{...w.profile,confirmed:true,version:w.profile.version+1,updatedAt:new Date().toISOString()}}))} onDiscuss={prompt=>submit(prompt)} tabs={workspace.tabs} onTab={(newTab, syncSummary = true) =>
+                    update((w) => {
+                      let profile = w.profile;
+                      if (syncSummary && newTab.id === "profile-objectives") {
+                        try {
+                          profile = goalSummary(
+                            profile,
+                            JSON.parse(newTab.content).goals,
+                          );
+                        } catch {
+                          return w;
+                        }
+                      }
+                      if (
+                        syncSummary &&
+                        ["profile-objectives", "profile-controls"].includes(
+                          newTab.id,
+                        )
+                      ) {
+                        profile = {
+                          ...profile,
+                          confirmed: false,
+                          detailOrigins: {
+                            ...profile.detailOrigins,
+                            ...detailChanges(
+                              w.tabs,
+                              [newTab],
+                              "Modification directe",
+                            ),
+                          },
+                          origins: {
+                            ...profile.origins,
+                            ...(newTab.id === "profile-objectives"
+                              ? {
+                                  objective: "Modification directe",
+                                  horizon: "Modification directe",
+                                }
+                              : {}),
+                          },
+                        };
+                      }
+                      return {
+                        ...w,
+                        profile,
+                        tabs: [
+                          ...w.tabs.filter((t) => t.id !== newTab.id),
+                          newTab,
+                        ],
+                      };
+                    })
+                  } busy={busy||!memory.ready} memory={memory} expanded={profileExpanded} onExpand={()=>setProfileExpanded(v=>!v)} requestedView={workspace.profileView}/>:<>
           {!tab&&<div className="pw-empty"><FileText size={28}/><h2>Les onglets de cette conversation</h2><p>Ajoutez des notes ou demandez une analyse dans ce chat.</p><div><button type="button" onClick={addTab}>Ajouter des notes<Plus size={14}/></button><button type="button" onClick={()=>{update(w=>({...w,tabs:[...w.tabs,{id:'profile',title:'Profil',kind:'profile',content:''}]}));setActiveTab('profile');setTabsOpen(true);}}>Ouvrir le profil<FileText size={14}/></button></div></div>}
           {tab&&renderWorkspaceTab()}
           </>}

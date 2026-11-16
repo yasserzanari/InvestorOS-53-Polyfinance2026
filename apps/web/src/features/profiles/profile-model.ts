@@ -1,6 +1,7 @@
 export type FieldKey = 'objective' | 'horizon' | 'riskTolerance' | 'lossCapacity' | 'liquidity' | 'constraints' | 'preferences' | 'knowledge';
 export type Profile = Record<FieldKey, string> & {
   origins: Record<FieldKey, string>;
+  detailOrigins?: Record<string,string>;
   confirmed: boolean;
   version: number;
   updatedAt: string | null;

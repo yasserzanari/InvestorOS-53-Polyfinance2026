@@ -1,3 +1,4 @@
+import { detailChanges } from './profile-section-sync';
 import { createConversationWriter } from './conversation-writer';
 import { parseFinancialWidget, type FinancialWidgetData } from './components/financial-widgets';
 import { authenticatedFetch } from '../../shared/auth';
@@ -140,7 +141,7 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     if(regenerateId&&history.at(-1)?.role==='user')history.pop();
     update(w=>({...w,messages:regenerateId?w.messages.map(m=>m.id===id?{...m,text:'',plan:undefined,widgets:[],tools:[],agents:[],citations:[],followUps:[],error:undefined,questionRequest:undefined,questionAnswer:undefined,questionDismissed:false}:m):[...w.messages.map(m=>!questionReply&&m.questionRequest&&!m.questionAnswer?{...m,questionDismissed:true}:m),{id:createLocalId(),role:'user',text,citations:[],followUps:[],tools:[],agents:[],versions:[],version:0},{id,role:'assistant',text:'',citations:[],followUps:[],tools:[],agents:[],versions:[],version:0}]}));
     const patch=(fn:(m:ChatMessage)=>ChatMessage)=>{if(currentAccount.current===owner)update(w=>({...w,messages:w.messages.map(m=>m.id===id?fn(m):m)}));};
-    try {await streamProfile({message:text,workspaceMode:view,history,widgetContext:[...source.flatMap(m=>(m.widgetVersions?.[m.version]??m.widgets??[]).filter(widget=>widget.persona===owner).map(({view,period})=>({view,period}))),...(workspace.widgetSelection?[workspace.widgetSelection]:[])].slice(-5),profile:Object.fromEntries(fieldOrder.map(key=>[key,workspace.profile[key]])),tabs:workspace.tabs,accountId,...(questionReply?{questionRequest:questionReply.request,questionAnswer:questionReply.answer}:{})},controller.signal,event=>{
+    try {await streamProfile({message:text,workspaceMode:view,history,widgetContext:[...source.flatMap(m=>(m.widgetVersions?.[m.version]??m.widgets??[]).filter(widget=>widget.persona===owner).map(({view,period})=>({view,period}))),...(workspace.widgetSelection?[workspace.widgetSelection]:[])].slice(-5),profile:Object.fromEntries(fieldOrder.map(key=>[key,workspace.profile[key]])),situation:workspace.profile.situation??{},tabs:workspace.tabs,accountId,...(questionReply?{questionRequest:questionReply.request,questionAnswer:questionReply.answer}:{})},controller.signal,event=>{
       if(currentAccount.current!==owner)return;
       if(event.type==='status')setActivity(String(event.label));
       if(event.type==='text')patch(m=>({...m,text:m.text+String(event.delta||'')}));
@@ -196,7 +197,9 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
       if(event.type==='workspace') {update(w=>{
         const fields=event.profile as Record<string,string>;
         const changed=fieldOrder.filter(key=>fields[key]!==undefined&&fields[key]!==w.profile[key]);
-        const profile=changed.length?{...w.profile,...fields,confirmed:false,version:(w.profile.version??1)+1,updatedAt:new Date().toISOString(),origins:{...w.profile.origins,...Object.fromEntries(changed.map(key=>[key,'Conversation avec l’assistant']))}}:w.profile;
+        const situationChanged=event.situation!==undefined&&JSON.stringify(event.situation)!==JSON.stringify(w.profile.situation);
+        const structuredChanged=JSON.stringify((event.tabs as WorkspaceTab[]).filter(tab=>['profile-objectives','profile-controls'].includes(tab.id)))!==JSON.stringify(w.tabs.filter(tab=>['profile-objectives','profile-controls'].includes(tab.id)));
+        const profile=changed.length||situationChanged||structuredChanged?{...w.profile,...fields,...(event.situation!==undefined?{situation:event.situation as Profile['situation']}:{ }),detailOrigins:{...w.profile.detailOrigins,...(situationChanged?Object.fromEntries(Object.keys(event.situation as object).filter(key=>(event.situation as Record<string,string>)[key]!==w.profile.situation?.[key as keyof NonNullable<Profile['situation']>]).map(key=>['situation.'+key,'Conversation avec l’assistant'])):{}),...detailChanges(w.tabs,event.tabs as WorkspaceTab[],'Conversation avec l’assistant')},confirmed:false,version:(w.profile.version??1)+1,updatedAt:new Date().toISOString(),origins:{...w.profile.origins,...Object.fromEntries(changed.map(key=>[key,'Conversation avec l’assistant']))}}:w.profile;
         return {...w,profile,tabs:w.researchRuns?.length?researchTabs(event.tabs as WorkspaceTab[]):event.tabs as WorkspaceTab[]};
       });}
       if(event.type==='error'){const message=String(event.message);setError(message);patch(m=>({...m,error:message}));}

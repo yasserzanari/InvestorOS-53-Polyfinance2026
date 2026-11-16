@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from investoros_api.demo_contexts import context_for
 from .models import PROFILE_FIELDS, WorkspaceTab
+from .profile_sections import SituationPatch, ControlsPatch, validate_goals
 
 router=APIRouter(prefix='/v1/profiles/memory',tags=['profiles'])
 Account=Literal['amira','mateo','robert']
@@ -30,7 +31,7 @@ class MemoryWrite(BaseModel):
 
     @model_validator(mode='after')
     def validate_profile(self):
-        if not set(self.profile)<=PROFILE_FIELDS|{'origins','confirmed','version','updatedAt','situation'}:
+        if not set(self.profile)<=PROFILE_FIELDS|{'origins','confirmed','version','updatedAt','situation','detailOrigins'}:
             raise ValueError('Champ de mémoire inconnu.')
         for k in PROFILE_FIELDS:
             if k in self.profile and (not isinstance(self.profile[k],str) or len(self.profile[k])>2000):
@@ -45,6 +46,18 @@ class MemoryWrite(BaseModel):
         situation=self.profile.get('situation')
         if situation is not None and (not isinstance(situation,dict) or not set(situation)<={'incomeRange','liquidities','financialAssets','obligations','personalContext'} or any(not isinstance(value,str) or len(value)>500 for value in situation.values())):
             raise ValueError('Situation de démonstration invalide.')
+        details=self.profile.get('detailOrigins',{})
+        if not isinstance(details,dict) or len(details)>100 or any(not isinstance(k,str) or len(k)>100 or not isinstance(v,str) or len(v)>500 for k,v in details.items()):
+            raise ValueError('Provenance détaillée invalide.')
+        if situation is not None:SituationPatch.model_validate(situation)
+        for tab in self.tabs:
+            if tab.id in {'profile-objectives','profile-controls'}:
+                if tab.kind!='profile':raise ValueError('Document réservé aux paramètres de profil.')
+                try:content=json.loads(tab.content)
+                except (ValueError,TypeError):raise ValueError('Document de profil JSON invalide.')
+                if not isinstance(content,dict):raise ValueError('Objet JSON de profil attendu.')
+                if tab.id=='profile-objectives':validate_goals(content.get('goals',[]))
+                else:ControlsPatch.model_validate(content)
         if len(json.dumps(self.profile,ensure_ascii=False))>24000:
             raise ValueError('Mémoire de profil trop volumineuse.')
         return self

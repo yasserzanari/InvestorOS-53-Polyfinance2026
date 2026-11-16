@@ -4,8 +4,11 @@ export type DemoGoal = {
   id: string;
   title: string;
   description: string;
+  anchorYear?: number;
+  targetDate?: string | null;
   targetAmount?: string;
-  horizonYears: number;
+  horizonYears: number | null;
+  horizonLabel?: string;
   role: 'Principal' | 'Secondaire';
 };
 
@@ -44,7 +47,7 @@ export function demoGoalsTab(accountId: string): WorkspaceTab {
     id: 'profile-objectives',
     title: 'Objectifs du profil',
     kind: 'profile',
-    content: JSON.stringify({ schema: 1, persona: accountId, goals: DEMO_GOALS[accountId] ?? DEMO_GOALS.mateo }),
+    content: JSON.stringify({ schema: 1, persona: accountId, goals: (DEMO_GOALS[accountId] ?? DEMO_GOALS.mateo).map(goal=>({...goal,anchorYear:new Date().getFullYear()})) }),
   };
 }
 
@@ -52,7 +55,7 @@ export function goalsFromTab(tab: WorkspaceTab | undefined, accountId: string): 
   if (tab) {
     try {
       const parsed = JSON.parse(tab.content) as { goals?: DemoGoal[] };
-      if (Array.isArray(parsed.goals) && parsed.goals.every(goal => goal && typeof goal.id === 'string' && typeof goal.title === 'string' && Number.isFinite(goal.horizonYears))) return parsed.goals;
+      if (Array.isArray(parsed.goals) && parsed.goals.every(goal => goal && typeof goal.id === 'string' && typeof goal.title === 'string' && (goal.horizonYears===null||Number.isFinite(goal.horizonYears)))) return parsed.goals;
     } catch { /* Use the safe persona fixture when an older document is malformed. */ }
   }
   return DEMO_GOALS[accountId] ?? DEMO_GOALS.mateo;
