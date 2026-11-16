@@ -32,7 +32,7 @@ from .sources import SOURCES, citations
 from .x_evidence import authorized_profiles, collect_authorized_posts
 
 from .response_policy import validate_response_policy
-from .profile_sections import SituationPatch, ControlsPatch, GoalsUpdate, apply_goals, apply_controls, sync_general, snapshot
+from .profile_sections import SituationPatch, ControlsPatch, GoalsUpdate, apply_goals, apply_controls, sync_general, snapshot, control_tool_changes
 from .tools import TOOLS, RESEARCH_TOOLS
 from .skill_agent import run_skill_agent
 from .skills import search_skills, load_skill, catalog_summary, catalog_version
@@ -943,9 +943,10 @@ Réponds impérativement en français, avec une réponse concise.
                             next_situation.update(changes)
                         elif name == 'update_profile_controls':
                             if not args:raise ValueError('Aucune déclaration fournie.')
-                            apply_controls(next_profile,next_tabs,next_situation,args)
+                            apply_controls(next_profile,next_tabs,next_situation,control_tool_changes(args))
                         else:
                             parsed=GoalsUpdate.model_validate(args)
+                            if not parsed.goals and not parsed.deleteIds:raise ValueError('Aucun projet à modifier ou supprimer explicitement.')
                             apply_goals(next_profile,next_tabs,[g.model_dump(mode='json') for g in parsed.goals],request.accountId,parsed.deleteIds)
                         profile.clear();profile.update(next_profile)
                         tabs[:]=next_tabs

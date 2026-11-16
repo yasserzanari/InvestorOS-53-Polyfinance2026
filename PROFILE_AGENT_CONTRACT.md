@@ -39,3 +39,5 @@ Après fusion sur main, les workflows distincts reconstruisent le frontend et le
 ### Publication limitée au runtime
 
 Le workflow assistant-simulation propose un mode manuel `runtime_only`. Il reconstruit le package contrôlé, vérifie le compte AWS, sauvegarde les deux codes existants avec contrôle SHA-256, publie uniquement le code de l’API et du worker déjà présents et vérifie leurs empreintes. En cas d’échec, il restaure les codes modifiés. Les variables, permissions et ressources d’infrastructure restent celles du déploiement existant. Ce mode sert notamment lorsque le plan global est bloqué par une autre intégration; il ne corrige pas ses permissions SSM ni ne prouve le déploiement de ces ressources. Le prochain apply Terraform réussi réconciliera les empreintes du code.
+
+Noms compatibles Bedrock : Fonds (OPC) utilise `experience-fonds-opc` / `years-fonds-opc`; ETF utilise `experience-etf` / `years-etf`. Les noms avec espaces/parenthèses restent réservés au stockage historique de l’interface, pas aux schémas d’outils.
