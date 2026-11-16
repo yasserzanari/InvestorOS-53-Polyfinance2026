@@ -301,13 +301,33 @@ def _api_anything_fetch(source: dict, value: str) -> dict:
         site = {}
     operations = site.get("operations", []) if isinstance(site, dict) else []
     found = any(isinstance(item, dict) and item.get("name") == source["api_operation"] for item in operations)
+
+    def learn(fresh: bool = False) -> dict:
+        prepared = {**source, **({"api_fresh": True} if fresh else {})}
+        result = client.learn(prepared, value)
+        if result.get("ok") is False:
+            raise ApiAnythingError(str(result.get("reason") or "L’apprentissage API Anything a échoué."),
+                                  str(result.get("class", "learn")))
+        return result
+
     if not found:
         with learning_lease(_table("RESEARCH_SOURCES_TABLE_NAME"), source["id"]):
-            learned = client.learn(source, value)
-            if learned.get("ok") is False:
-                raise ApiAnythingError(str(learned.get("reason") or "Apprentissage de l'opération refusé."),
-                                      str(learned.get("class", "learn")))
-    result = client.call(source, value)
+            try:
+                learn()
+            except ApiAnythingError:
+                if not source.get("api_relearn_after_failure"):
+                    raise
+                learn(fresh=True)
+    try:
+        result = client.call(source, value)
+    except ApiAnythingError:
+        if not source.get("api_relearn_after_failure"):
+            raise
+        # Refresh a stale or malformed API Anything template once, under the
+        # shared source lease, then retry the original public read once.
+        with learning_lease(_table("RESEARCH_SOURCES_TABLE_NAME"), source["id"]):
+            learn(fresh=True)
+        result = client.call(source, value)
     if source["id"] == "sec-edgar":
         data = result.get("data")
         if not isinstance(data, dict) or not isinstance(data.get("filings", {}).get("recent"), dict):
@@ -865,8 +885,12 @@ def read_public_x_posts(event: dict) -> dict:
         "trust_level": "discovery", "enabled": True, "automation_allowed": True,
         "api_site": "x-public-timeline", "api_operation": "getRecentPosts",
         "trigger": "https://x.com/{screen_name}", "param": "screen_name",
-        "examples": ["Nvidia", "bankofcanada", "SECGov"], "api_extract": ".",
+        "examples": ["Nvidia", "bankofcanada", "SECGov"],
+        "api_relearn_after_failure": True,
     }
+    source_spec_path = os.path.join(os.path.dirname(__file__), "..", "source_specs", "x-public-timeline.json")
+    with open(source_spec_path, encoding="utf-8") as stream:
+        source["api_embedded"] = json.load(stream)["operations"][0]["response"]["embedded"]["regex"]
     from investoros_api.profiles.x_evidence import parse_public_timeline
 
     results = {}
