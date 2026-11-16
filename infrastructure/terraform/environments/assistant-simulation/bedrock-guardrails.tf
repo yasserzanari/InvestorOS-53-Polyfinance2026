@@ -44,9 +44,9 @@ resource "aws_bedrock_guardrail" "assistant" {
     filters_config {
       type            = "PROMPT_ATTACK"
       input_strength  = "HIGH"
-      output_strength = "HIGH"
+      output_strength = "NONE"
       input_enabled   = true
-      output_enabled  = true
+      output_enabled  = false
     }
     tier_config {
       tier_name = "STANDARD"
