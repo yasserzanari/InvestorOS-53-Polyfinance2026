@@ -1,7 +1,7 @@
 {
   "profile": "product-admin",
   "sourceRoots": ["apps/web/src"],
-  "canonicalMap": "UX-CONTRACT.md",
+  "canonicalMap": "docs/design/ux-contract.md",
   "ownership": {
     "Select/Listbox": "native"
   }

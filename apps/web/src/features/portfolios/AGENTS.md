@@ -1,6 +1,6 @@
 # Consignes du module Portefeuilles
 
-- Lire `README.md` et `UX-CONTRACT.md` à la racine du dépôt avant de modifier ce module.
+- Lire le [README du dépôt](../../../../../README.md) et le [contrat UX](../../../../../docs/design/ux-contract.md) avant de modifier ce module.
 - Garder ce module sous `features/portfolios/`; `index.ts` est son entrée de route publique.
 - Garder `PortfolioPage.tsx` comme composition. Mettre la présentation dans `components/`, l’état d’interaction dans `hooks/`, les calculs purs et fixtures dans `model/`, les adaptateurs de format/export dans `utils/`, et les styles dans `styles/`.
 - Les composants de `components/` reçoivent leurs données par props. Ils ne lisent pas le contexte du compte et ne reconstruisent pas les fixtures.
