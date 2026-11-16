@@ -35,6 +35,57 @@ const assert = require("node:assert/strict");
   await p.goto(
     `${process.env.PROFILE_WEB_URL || "http://127.0.0.1:5185"}/app/profiles`,
   );
+  await p.getByRole("tab", { name: "Objectifs", exact: true }).click();
+  if (process.env.PROFILE_CAPTURE)
+    console.log(
+      await require("./browser-capture.cjs").capture(
+        p,
+        "profile-objectives-reference",
+      ),
+    );
+  await p
+    .getByRole("button", { name: "Modifier", exact: true })
+    .first()
+    .click();
+  await p
+    .getByLabel("Titre", { exact: true })
+    .fill("Projet long terme de test");
+  await p.getByLabel("Horizon en années").fill("12");
+  await p.getByLabel("Montant cible · facultatif").fill("50 000 $");
+  await p.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await p.waitForTimeout(950);
+  const savedGoals = JSON.parse(
+    memory.tabs.find((t) => t.id === "profile-objectives").content,
+  ).goals;
+  assert.equal(savedGoals[0].horizonYears, 12);
+  assert.equal(savedGoals[0].targetAmount, "50 000 $");
+  await p
+    .getByRole("button", { name: "Ajouter un objectif", exact: true })
+    .click();
+  await p.getByLabel("Titre", { exact: true }).fill("Projet immobilier");
+  await p
+    .getByLabel("Objectif", { exact: true })
+    .fill("Préparer un achat immobilier.");
+  await p.getByLabel("Horizon en années").fill("5");
+  await p.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await p.waitForTimeout(950);
+  assert.equal(
+    JSON.parse(memory.tabs.find((t) => t.id === "profile-objectives").content)
+      .goals.length,
+    3,
+  );
+  if (process.env.PROFILE_CAPTURE)
+    console.log(
+      await require("./browser-capture.cjs").capture(
+        p,
+        "profile-objectives-polish",
+      ),
+    );
+  await p.reload();
+  await p.getByRole("tab", { name: "Objectifs", exact: true }).click();
+  await p
+    .getByRole("heading", { name: "Projet immobilier", exact: true })
+    .waitFor();
   await p.getByRole("tab", { name: "Risque", exact: true }).click();
   await p.getByRole("radio", { name: /Élevée — J’accepte/ }).check();
   await p.waitForTimeout(950);

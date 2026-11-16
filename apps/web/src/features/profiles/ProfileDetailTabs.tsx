@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  BookOpen, UserRound, Database, Activity, ArrowRight, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, CircleHelp,
+  BookOpen, UserRound, Database, Activity, ArrowRight, BadgeCheck, BriefcaseBusiness, Check, CircleHelp,
   Clock3, GraduationCap, Info, Landmark, Leaf, LockKeyhole, Pencil,
   SlidersHorizontal, Sparkles, Target, WalletCards,
 } from 'lucide-react';
 import { fieldLabels, fieldOrder, type FieldKey, type Profile } from './profile-model';
 import { isProfileFieldMissing } from './profile-consistency';
-import { goalsFromTab, type DemoGoal, type DemoSituation } from './profile-demo-data';
+import { goalsFromTab, type DemoSituation } from './profile-demo-data';
 import type { WorkspaceTab } from './profile-api';
 import './profile-detail-tabs.css';
+import { ProfileObjectives } from './ProfileObjectives';
 import { ProfileAdvancedTabs } from './ProfileAdvancedTabs';
 
 export type ProfileDetailTabId = 'overview' | 'objectives' | 'situation' | 'risk' | 'preferences' | 'memory';
@@ -36,34 +37,6 @@ function ProfileField({ field, profile, onChange, compact = false }: {
   </label>;
 }
 
-function Timeline({ goals }: { goals: DemoGoal[] }) {
-  const now = useMemo(() => new Date(), []);
-  const year = now.getFullYear();
-  const markers = (goal: DemoGoal) => [
-    { year, label: 'Départ', type: 'start' },
-    { year: year + Math.max(1, Math.round(goal.horizonYears * .25)), label: 'Revue', type: 'review' },
-    { year: year + Math.max(2, Math.round(goal.horizonYears * .6)), label: 'Point d’étape', type: 'review' },
-    { year: year + goal.horizonYears, label: 'Horizon indicatif', type: 'target' },
-  ].filter((item, index, all) => all.findIndex(other => other.year === item.year) === index);
-
-  return <section className="pdt-timeline" aria-labelledby="pdt-timeline-title">
-    <header className="pdt-section-heading"><div><span className="pdt-icon-tile"><CalendarDays size={19}/></span><div><h3 id="pdt-timeline-title">Chronologie des projets</h3><p>Repères proposés, à confirmer par la personne.</p></div></div><span className="pdt-demo-badge">Jalons de démonstration</span></header>
-    <div className="pdt-timeline-lanes">{goals.map(goal => <div className="pdt-timeline-lane" key={goal.id}>
-      <div className="pdt-lane-title"><strong>{goal.title}</strong><span>{goal.role} · {goal.horizonYears} ans</span></div>
-      <div className="pdt-track" role="img" aria-label={`Chronologie fictive pour ${goal.title}, de ${year} à ${year + goal.horizonYears}`}>
-        <div className="pdt-track-line"/>
-        {markers(goal).map((marker, index, list) => {
-          const position = list.length === 1 ? 0 : index / (list.length - 1) * 100;
-          return <div className={`pdt-marker is-${marker.type}`} key={`${marker.year}-${marker.label}`} style={{ left: `${position}%` }}>
-            <span className="pdt-marker-dot"/><span className="pdt-marker-date">{marker.year}</span><span className="pdt-marker-label">{marker.label}</span>
-          </div>;
-        })}
-      </div>
-    </div>)}</div>
-    <p className="pdt-footnote"><Info size={14}/>Les jalons intermédiaires sont des exemples d’organisation, pas des échéances déclarées ni des rendements prévus.</p>
-  </section>;
-}
-
 function SituationPanel({ situation }: { situation: DemoSituation }) {
   const rows = [
     { label: 'Revenu et stabilité', value: situation.incomeRange, icon: BriefcaseBusiness },
@@ -89,9 +62,7 @@ export function ProfileDetailTabs({ accountId, profile, onChange, onConfirm, onD
   const total = completion(profile);
   const goalTab = tabs.find(tab => tab.id === 'profile-objectives');
   const storedGoals = goalsFromTab(goalTab, accountId);
-  const horizonMatch = profile.horizon.match(/\d+/);
-  const declaredHorizon = horizonMatch ? Number(horizonMatch[0]) : undefined;
-  const goals = storedGoals.map((goal, index) => index === 0 && declaredHorizon ? { ...goal, horizonYears: declaredHorizon } : goal);
+  const goals = storedGoals;
   const canEditGoals = Boolean(goalTab) || tabs.length < 12;
   const situation = (profile.situation ?? {}) as DemoSituation;
   const missing = fieldOrder.filter(key => isProfileFieldMissing(profile[key]));
@@ -106,11 +77,6 @@ export function ProfileDetailTabs({ accountId, profile, onChange, onConfirm, onD
     setView(next);
     handledRequest.current = requestedView;
   }, [requestedView]);
-  const updateGoal = (goal: DemoGoal, field: 'title' | 'description', value: string) => {
-    if (!canEditGoals) return;
-    const next = goals.map(item => item.id === goal.id ? { ...item, [field]: value } : item);
-    onTab({ ...(goalTab ?? { id: 'profile-objectives', title: 'Objectifs du profil', kind: 'profile' as const, content: '' }), content: JSON.stringify({ schema: 1, persona: accountId, goals: next }) });
-  };
 
   return <div className="pdt-root" data-profile-detail-tab={view}>
     <nav className="pdt-tabs" role="tablist" aria-label="Sections du profil investisseur">
@@ -129,13 +95,7 @@ export function ProfileDetailTabs({ accountId, profile, onChange, onConfirm, onD
         <section className="pdt-missing"><span className="pdt-small-icon"><CircleHelp size={17}/></span><div><strong>À préciser avec la personne</strong><p>{missing.length ? missing.map(key => fieldLabels[key]).join(' · ') : 'Aucune rubrique obligatoire à compléter.'}</p></div><span className="pdt-optional-pill">Aucune pression à compléter</span></section>
       </>}
 
-      {view === 'objectives' && <>
-        <header className="pdt-page-title"><div><span className="pdt-icon-tile pdt-large"><Target size={22}/></span><div><h2>Objectifs et échéances</h2><p>Chaque projet a son propre horizon; les jalons d’exemple peuvent être adaptés.</p></div></div><button type="button" className="pdt-button" disabled={busy} onClick={() => onDiscuss('Aide-moi à préciser un objectif d’investissement distinct. Demande le but, la priorité, l’horizon, le montant cible et l’échéance si la personne les connaît; n’invente aucune réponse.')}><Sparkles size={15}/>Ajouter un objectif</button></header>
-        <div className="pdt-objective-fields"><ProfileField field="objective" profile={profile} onChange={onChange}/><ProfileField field="horizon" profile={profile} onChange={onChange}/></div>
-        <section className="pdt-goals">{goals.map((goal, index) => <article className="pdt-goal-card" key={goal.id}><header><span className="pdt-goal-number">{index + 1}</span><div className="pdt-goal-title"><input aria-label={`Titre de l’objectif ${index + 1}`} disabled={!canEditGoals} value={goal.title} onChange={event => updateGoal(goal, 'title', event.currentTarget.value)}/><p><span className="pdt-demo-badge">{goal.role}</span><span className="pdt-demo-badge">Exemple fictif</span></p></div><span className="pdt-horizon-pill"><Clock3 size={14}/>{goal.horizonYears} ans</span></header><label className="pdt-goal-description"><span>Description du projet</span><textarea disabled={!canEditGoals} value={goal.description} onChange={event => updateGoal(goal, 'description', event.currentTarget.value)} rows={2}/></label></article>)}</section>
-        <Timeline goals={goals}/>
-        <p className="pdt-legal-note">L’objectif, le montant et l’horizon sont des informations de contexte; cette interface ne recommande pas de placement et ne lance aucune transaction.</p>
-      </>}
+      {view === 'objectives' && <ProfileObjectives goals={goals} busy={busy||!canEditGoals} onSave={next=>onTab({...(goalTab??{id:'profile-objectives',title:'Objectifs du profil',kind:'profile' as const,content:''}),content:JSON.stringify({schema:1,persona:accountId,goals:next})})}/>}
 
       {view === 'situation' && <SituationPanel situation={situation}/>}
 

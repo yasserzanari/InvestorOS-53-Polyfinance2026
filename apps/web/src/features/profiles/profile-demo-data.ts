@@ -4,6 +4,7 @@ export type DemoGoal = {
   id: string;
   title: string;
   description: string;
+  targetAmount?: string;
   horizonYears: number;
   role: 'Principal' | 'Secondaire';
 };
