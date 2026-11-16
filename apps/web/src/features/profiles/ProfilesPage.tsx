@@ -143,7 +143,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const landing=assistantMode&&workspace.messages.length===0;
   const promptComposer=<motion.div layout layoutId={assistantMode?"assistant-prompt":undefined} transition={{duration:reduceMotion?0:0.48,ease:[0.22,1,0.36,1]}} style={{width:"100%"}}>
     {pendingQuestion?.questionRequest&&pendingQuestion.questionRequest.purpose!=='plan_approval'&&<div className="pw-question-dock"><div className="pw-question-waiting" role="status">L’assistant attend votre réponse</div><AskUserCard key={pendingQuestion.questionRequest.id} request={pendingQuestion.questionRequest} disabled={busy||!memory.ready||!historyReady} onSubmit={answer=>void answerQuestions(pendingQuestion.id,pendingQuestion.questionRequest!,answer)}/></div>}
-    <PromptBar value={input} onChange={setInput} onSend={()=>submit()} disabled={!memory.ready||!historyReady} busy={busy} onStop={stop} placeholder={pendingQuestion?'Ou répondez librement ici…':'Posez votre question…'}/>
+    <PromptBar value={input} onChange={setInput} onSend={()=>submit()} disabled={busy} sendDisabled={!memory.ready||!historyReady} onRetry={()=>{void memory.reload();}} busy={busy} onStop={stop} placeholder={pendingQuestion?'Ou répondez librement ici…':'Posez votre question…'}/>
   </motion.div>;
   const renderWorkspaceTab=():ReactNode=>{
     if(!tab)return null;

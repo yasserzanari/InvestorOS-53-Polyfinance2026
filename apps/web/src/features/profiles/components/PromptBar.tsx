@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Square } from 'lucide-react';
+import { LockKeyhole, Mic, MicOff, RotateCw, Square } from 'lucide-react';
 import { AdvancedChatInput } from '../../../shared/ui/advanced-ai-chat-input';
 import { VoiceOrb } from './VoiceOrb';
 
 /** Prompt bar with a live Amazon Transcribe socket and reactive voice orb. */
-export function PromptBar({ value, onChange, onSend, busy = false, disabled = false, onStop, placeholder = 'Décrivez vos objectifs, posez une question…' }: {
-  value: string; onChange: (value: string) => void; onSend: () => void; busy?: boolean; disabled?: boolean; onStop?: () => void; placeholder?: string;
+export function PromptBar({ value, onChange, onSend, busy = false, disabled = false, sendDisabled = disabled, onRetry, onStop, placeholder = 'Décrivez vos objectifs, posez une question…' }: {
+  value: string; onChange: (value: string) => void; onSend: () => void; busy?: boolean; disabled?: boolean; sendDisabled?: boolean; onRetry?: () => void; onStop?: () => void; placeholder?: string;
 }) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -25,7 +25,7 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
   }, [busy]);
   const stopVoice = () => { setVoiceOpen(false); setRecording(false); };
   const send = () => {
-    if (busy || disabled || !value.trim()) return;
+    if (busy || disabled || sendDisabled || !value.trim()) return;
     restoreFocus.current = Boolean(rootRef.current?.contains(document.activeElement));
     if (!voiceOpen) stopVoice();
     onSend();
@@ -56,13 +56,14 @@ export function PromptBar({ value, onChange, onSend, busy = false, disabled = fa
       }}
       onSend={send}
       hideSendButton={busy}
-      sendButtonProps={{disabled:disabled||!value.trim(), 'aria-label':'Envoyer le message'}}
+      sendButtonProps={{disabled:disabled||sendDisabled||!value.trim(), 'aria-label':'Envoyer le message'}}
       actionIcons={[
-        <button key="microphone" type="button" className={`pw-prompt-mic-toggle${voiceOpen&&recording?' is-active':''}`} disabled={disabled} aria-label={micToggleLabel} title={micToggleLabel} aria-pressed={voiceOpen} onClick={()=>{setNotice('');if(voiceOpen)stopVoice();else setVoiceOpen(true);}}>{voiceOpen?<MicOff size={15}/>:<Mic size={15}/>}<span>{micToggleLabel}</span></button>,
+        <button key="microphone" type="button" className={`pw-prompt-mic-toggle${voiceOpen&&recording?' is-active':''}`} disabled={disabled||sendDisabled} aria-label={micToggleLabel} title={micToggleLabel} aria-pressed={voiceOpen} onClick={()=>{setNotice('');if(voiceOpen)stopVoice();else setVoiceOpen(true);}}>{voiceOpen?<MicOff size={15}/>:<Mic size={15}/>}<span>{micToggleLabel}</span></button>,
         <span key="hint" className="pw-prompt-hint">{recording?'Écoute en direct · Amazon Transcribe':'Entrée pour envoyer'}</span>,
         ...(busy?[<button key="stop" type="button" className="pw-prompt-mic" onClick={onStop} aria-label="Arrêter la réponse"><Square size={16}/></button>]:[]),
       ]}
     />
+    {sendDisabled&&!disabled&&<p role="status" className="pw-prompt-notice"><LockKeyhole size={13}/> La mémoire de l’assistant se reconnecte. Votre texte reste disponible.{onRetry&&<button type="button" onClick={onRetry}><RotateCw size={13}/> Réessayer</button>}</p>}
     {notice&&<p role="status" className="pw-prompt-notice">{notice}</p>}
   </div>;
 }

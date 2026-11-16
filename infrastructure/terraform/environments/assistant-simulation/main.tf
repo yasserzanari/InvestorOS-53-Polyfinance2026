@@ -141,17 +141,19 @@ import {
 }
 
 resource "aws_lambda_function" "api" {
-  function_name                  = local.name_prefix
-  description                    = "Amazon Bedrock chat and evidence-backed Simulation API routes."
-  role                           = aws_iam_role.api.arn
-  runtime                        = "python3.12"
-  handler                        = "investoros_api.main.handler"
-  s3_bucket                      = aws_s3_object.api_package.bucket
-  s3_key                         = aws_s3_object.api_package.key
-  source_code_hash               = filebase64sha256(local.package_path)
-  timeout                        = 120
-  memory_size                    = 512
-  reserved_concurrent_executions = 2
+  function_name    = local.name_prefix
+  description      = "Amazon Bedrock chat and evidence-backed Simulation API routes."
+  role             = aws_iam_role.api.arn
+  runtime          = "python3.12"
+  handler          = "investoros_api.main.handler"
+  s3_bucket        = aws_s3_object.api_package.bucket
+  s3_key           = aws_s3_object.api_package.key
+  source_code_hash = filebase64sha256(local.package_path)
+  timeout          = 120
+  memory_size      = 512
+  # Chat jobs spend several seconds in Bedrock. Two reserved executions caused
+  # unrelated profile reads and job polling to be throttled under normal use.
+  reserved_concurrent_executions = 12
 
   environment {
     variables = {
