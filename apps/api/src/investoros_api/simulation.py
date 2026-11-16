@@ -1089,58 +1089,61 @@ def public_x_profile(username: str):
     username = username.removeprefix("@")
     if not re.fullmatch(r"[A-Za-z0-9_]{1,15}", username):
         raise HTTPException(status_code=422, detail="Saisissez un nom d’utilisateur X valide (sans URL).")
-    import subprocess
-    root = Path(__file__).resolve().parents[4]
-    try:
-        response = subprocess.run(['node', str(root/'scripts/read-x-profile.mjs'), username], cwd=root,
-            env={**os.environ, 'API_ANYTHING_LOCAL_ONLY':'1'}, capture_output=True, text=True, timeout=20)
-        payload = json.loads(response.stdout)
-        if response.returncode or not payload.get('ok'):
-            raise ValueError()
-    except (OSError, ValueError, subprocess.TimeoutExpired):
-        raise HTTPException(502, 'Le profil X est temporairement indisponible via API Anything.')
-    data = payload.get("data", {})
-    if not data.get("rest_id") or not data.get("core.screen_name"):
-        raise HTTPException(status_code=404, detail="Profil introuvable ou réponse incomplète.")
-    links = data.get('profile_bio.entities.url.urls') or []
-    website = next((item.get('expanded_url') for item in links if isinstance(item, dict) and isinstance(item.get('expanded_url'), str) and urlsplit(item['expanded_url']).scheme in ('http', 'https')), None)
-    profile = {
+    recent = _read_public_x_posts(username)
+    posts = recent['posts']
+    profile = next((post.get('profile') for post in posts if isinstance(post.get('profile'), dict)), None)
+    if not profile:
+        raise HTTPException(502, recent.get('reason') or 'Le profil X ne fournit aucune publication publique exploitable.')
+    return {
+        **profile,
         'detailsVersion': 1,
-        'following': data.get('relationship_counts.following'),
-        'joinedAt': datetime.fromtimestamp(data['core.created_at_ms']/1000, tz=timezone.utc).isoformat() if isinstance(data.get('core.created_at_ms'), (int, float)) else None,
-        'website': website,
-        'location': data.get('location.location'),
-        "id": data["rest_id"], "username": data["core.screen_name"],
-        "name": data.get("core.name"), "image": data.get("avatar.image_url"),
-        "bio": data.get("profile_bio.description"),
-        "followers": data.get("relationship_counts.followers"),
-        "verified": bool(data.get("verification.is_blue_verified") or data.get("verification.verified_type") in ("Government", "Business")),
-        "verifiedType": data.get("verification.verified_type"),
-        "source": "API Anything · X getUser", "latestPost": None,
-        "latestPostReason": None,
+        'username': username,
+        'source': recent['source'],
+        'latestPost': {
+            **{key: posts[0][key] for key in ('id', 'text', 'url') if key in posts[0]},
+            'created_at': posts[0].get('created_at') or posts[0].get('publishedAt'),
+        } if posts else None,
+        'recentPosts': [{
+            **{key: post[key] for key in ('id', 'text', 'metrics', 'url', 'images') if key in post},
+            'created_at': post.get('created_at') or post.get('publishedAt'),
+        } for post in posts],
+        'postsObservedAt': recent['observedAt'],
+        'postsSource': recent['source'],
+        'latestPostReason': None if posts else 'Aucune publication visible sur ce profil public.',
     }
-    recent = public_x_posts(username)
-    profile['recentPosts'] = recent.get('posts', [])
-    profile['latestPost'] = next(iter(profile['recentPosts']), None)
-    profile['latestPostReason'] = recent.get('reason') if not recent.get('available') else ('Aucune publication visible sur ce profil public.' if not profile['recentPosts'] else None)
-    profile['postsObservedAt'] = recent.get('observedAt')
-    profile['postsSource'] = recent.get('source', 'API Anything · X getRecentPosts')
-    return profile
 
 
 @router.get('/x-posts/{username}')
 def public_x_posts(username: str):
-    import subprocess
     username = username.removeprefix('@')
     if not re.fullmatch(r'[A-Za-z0-9_]{1,15}', username):
         raise HTTPException(422, 'Nom d’utilisateur X invalide.')
-    root = Path(__file__).resolve().parents[4]
     try:
-        result = subprocess.run(['node', str(root/'scripts/read-x-posts.mjs'), username], cwd=root,
-            env={**os.environ, 'API_ANYTHING_LOCAL_ONLY':'1'}, capture_output=True, text=True, timeout=25)
-        payload = json.loads(result.stdout)
-        if result.returncode or not isinstance(payload, dict):
-            raise ValueError()
-        return payload
-    except (subprocess.TimeoutExpired, OSError, ValueError):
-        return {'available':False, 'posts':[], 'reason':'La lecture publique X via API Anything est temporairement indisponible.'}
+        result = _read_public_x_posts(username)
+        return {key: result[key] for key in ('available', 'posts', 'reason', 'source', 'observedAt') if key in result}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {'available':False, 'posts':[], 'reason':'La lecture publique du fil X est temporairement indisponible.'}
+
+
+def _read_public_x_posts(username: str) -> dict[str, Any]:
+    """Read the versioned public timeline recipe without repository-only Node paths.
+
+    The API Lambda ZIP contains Python application code, not the repository's Node
+    scripts or workspace package. Calling those scripts via ``parents[4]`` crashes
+    in Lambda because its shallow ``/var/task`` layout has no such parent.
+    """
+    from .profiles.x_evidence import read_public_posts
+
+    source_posts = read_public_posts(username)
+    posts = [{
+        **post,
+        'author': post.get('author') or username,
+        'created_at': post.get('publishedAt') or post.get('created_at'),
+    } for post in source_posts]
+    return {
+        'available': True,
+        'posts': posts,
+        'source': 'X · fil public (recette versionnée)',
+        'observedAt': datetime.now(timezone.utc).isoformat(),
+        **({'reason': 'Aucune publication visible sur ce profil public.'} if not posts else {}),
+    }
