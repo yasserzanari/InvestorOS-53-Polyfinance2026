@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, ArrowRight, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, CircleHelp,
-  Clock3, GraduationCap, Info, Landmark, Leaf, LockKeyhole, Pencil, ShieldCheck,
+  BookOpen, UserRound, Database, Activity, ArrowRight, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, CircleHelp,
+  Clock3, GraduationCap, Info, Landmark, Leaf, LockKeyhole, Pencil,
   SlidersHorizontal, Sparkles, Target, WalletCards,
 } from 'lucide-react';
 import { fieldLabels, fieldOrder, type FieldKey, type Profile } from './profile-model';
@@ -9,15 +9,16 @@ import { isProfileFieldMissing } from './profile-consistency';
 import { goalsFromTab, type DemoGoal, type DemoSituation } from './profile-demo-data';
 import type { WorkspaceTab } from './profile-api';
 import './profile-detail-tabs.css';
+import { ProfileAdvancedTabs } from './ProfileAdvancedTabs';
 
 export type ProfileDetailTabId = 'overview' | 'objectives' | 'situation' | 'risk' | 'preferences' | 'memory';
 const sectionTabs: { id: ProfileDetailTabId; label: string; icon: typeof Target }[] = [
-  { id: 'overview', label: 'Aperçu', icon: Landmark },
+  { id: 'overview', label: 'Aperçu', icon: BookOpen },
   { id: 'objectives', label: 'Objectifs', icon: Target },
-  { id: 'situation', label: 'Situation', icon: BriefcaseBusiness },
+  { id: 'situation', label: 'Situation', icon: UserRound },
   { id: 'risk', label: 'Risque', icon: Activity },
   { id: 'preferences', label: 'Préférences', icon: SlidersHorizontal },
-  { id: 'memory', label: 'Mémoire', icon: WalletCards },
+  { id: 'memory', label: 'Mémoire', icon: Database },
 ];
 
 function completion(profile: Profile) {
@@ -80,9 +81,9 @@ function SituationPanel({ situation }: { situation: DemoSituation }) {
   </>;
 }
 
-export function ProfileDetailTabs({ accountId, profile, onChange, onConfirm, onDiscuss, busy, tabs, onTab, requestedView }: {
+export function ProfileDetailTabs({ accountId, profile, onChange, onConfirm, onDiscuss, busy, tabs, onTab, requestedView, onErase, memory }: {
   accountId: string; profile: Profile; onChange: (key: FieldKey, value: string) => void; onConfirm: () => void; onDiscuss: (prompt: string) => void; busy: boolean;
-  tabs: WorkspaceTab[]; onTab: (tab: WorkspaceTab) => void; requestedView?: string;
+  onErase: () => void; memory: {status:string;reload:()=>void}; tabs: WorkspaceTab[]; onTab: (tab: WorkspaceTab) => void; requestedView?: string;
 }) {
   const [view, setView] = useState<ProfileDetailTabId>('overview');
   const total = completion(profile);
@@ -138,25 +139,7 @@ export function ProfileDetailTabs({ accountId, profile, onChange, onConfirm, onD
 
       {view === 'situation' && <SituationPanel situation={situation}/>}
 
-      {view === 'risk' && <>
-        <header className="pdt-page-title"><div><span className="pdt-icon-tile pdt-large"><Activity size={22}/></span><div><h2>Risque et capacité à absorber une perte</h2><p>La réaction émotionnelle et la capacité financière ne sont pas interchangeables.</p></div></div><span className="pdt-demo-badge">Aucune note automatique</span></header>
-        <div className="pdt-risk-grid"><ProfileField field="riskTolerance" profile={profile} onChange={onChange}/><ProfileField field="lossCapacity" profile={profile} onChange={onChange}/></div>
-        <section className="pdt-risk-explainer"><article><span className="pdt-icon-tile"><Activity size={18}/></span><div><h3>Tolérance au risque</h3><p>Comment la personne vit les variations et l’incertitude sur la valeur de ses placements.</p><strong>{profile.riskTolerance}</strong></div></article><article><span className="pdt-icon-tile"><ShieldCheck size={18}/></span><div><h3>Capacité financière à prendre un risque</h3><p>Quelles pertes pourraient compromettre les objectifs, les dépenses ou les besoins de liquidités?</p><strong>{profile.lossCapacity}</strong></div></article></section>
-        <p className="pdt-footnote"><Info size={14}/>Le profil global doit être contextualisé et confirmé par la personne; cet écran ne constitue pas une évaluation réglementaire de convenance.</p>
-      </>}
-
-      {view === 'preferences' && <>
-        <header className="pdt-page-title"><div><span className="pdt-icon-tile pdt-large"><SlidersHorizontal size={22}/></span><div><h2>Préférences et connaissances</h2><p>Déclarations personnelles, contraintes et familiarité avec les placements.</p></div></div></header>
-        <div className="pdt-preference-grid"><ProfileField field="preferences" profile={profile} onChange={onChange}/><ProfileField field="constraints" profile={profile} onChange={onChange}/><ProfileField field="knowledge" profile={profile} onChange={onChange}/></div>
-        <section className="pdt-preference-note"><span className="pdt-icon-tile"><Leaf size={19}/></span><div><strong>Préférences responsables</strong><p>Les intérêts ESG exprimés par la personne sont conservés comme préférence. Ils ne démontrent pas qu’un titre respecte un critère ESG.</p></div><BadgeCheck size={18}/></section>
-      </>}
-
-      {view === 'memory' && <>
-        <header className="pdt-page-title"><div><span className="pdt-icon-tile pdt-large"><WalletCards size={22}/></span><div><h2>Mémoire du profil</h2><p>Les éléments retenus, leur origine et ce qui demeure à confirmer.</p></div></div></header>
-        <section className="pdt-memory-callout"><span className="pdt-icon-tile"><LockKeyhole size={19}/></span><div><strong>Contrôlée par la personne</strong><p>Les déclarations viennent de la personne ou d’un exemple fictif. Les informations inconnues restent explicitement inconnues.</p></div></section>
-        <div className="pdt-memory-list">{fieldOrder.map(key => <article key={key}><span className="pdt-memory-icon">{isProfileFieldMissing(profile[key]) ? <CircleHelp size={17}/> : <Check size={17}/>}</span><div><strong>{fieldLabels[key]}</strong><p>{isProfileFieldMissing(profile[key]) ? 'À préciser — aucune valeur déduite' : profile[key]}</p></div><span className="pdt-origin-pill">{profile.origins[key] || 'Déclaration'}</span><button type="button" aria-label={`Corriger ${fieldLabels[key]}`} disabled={busy} onClick={() => onDiscuss(`Je veux corriger ou préciser ma réponse « ${fieldLabels[key]} ». Demande-moi la nouvelle information au lieu de la déduire.`)}><Pencil size={15}/></button></article>)}</div>
-        <p className="pdt-legal-note">Pour cette démonstration, les données sont des exemples fictifs séparés par persona. Aucune date de modification ni version technique n’est affichée ici.</p>
-      </>}
+      {(['risk','preferences','memory'] as string[]).includes(view) && <ProfileAdvancedTabs view={view} profile={profile} onChange={onChange} onDiscuss={onDiscuss} busy={busy} tabs={tabs} onTab={onTab} onErase={onErase} memory={memory}/>}
     </div>
   </div>;
 }
