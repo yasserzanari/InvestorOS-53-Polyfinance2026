@@ -877,7 +877,12 @@ def read_public_x_posts(event: dict) -> dict:
         # concurrent first use creates one API Anything template, then replay it.
         first_response = _api_anything_fetch(source, unique_usernames[0])
         results[unique_usernames[0].lower()] = parse_public_timeline(first_response.get("data"), unique_usernames[0])
-    except (ApiAnythingError, TypeError, ValueError, KeyError):
+    except ApiAnythingError as error:
+        print(json.dumps({"event": "api_anything_x_timeline_failed", "failure_class": error.failure_class,
+                          "status_code": error.status_code}, separators=(",", ":")))
+        failures[unique_usernames[0].lower()] = "Lecture de ce profil X indisponible via API Anything."
+    except (TypeError, ValueError, KeyError):
+        print(json.dumps({"event": "api_anything_x_timeline_failed", "failure_class": "schema"}, separators=(",", ":")))
         failures[unique_usernames[0].lower()] = "Lecture de ce profil X indisponible via API Anything."
 
     remaining = unique_usernames[1:] if results else []
@@ -890,7 +895,12 @@ def read_public_x_posts(event: dict) -> dict:
             try:
                 response = client.call(source, username)
                 return username, parse_public_timeline(response.get("data"), username), None
-            except (ApiAnythingError, TypeError, ValueError, KeyError):
+            except ApiAnythingError as error:
+                print(json.dumps({"event": "api_anything_x_timeline_failed", "failure_class": error.failure_class,
+                                  "status_code": error.status_code}, separators=(",", ":")))
+                return username, [], "Lecture de ce profil X indisponible via API Anything."
+            except (TypeError, ValueError, KeyError):
+                print(json.dumps({"event": "api_anything_x_timeline_failed", "failure_class": "schema"}, separators=(",", ":")))
                 return username, [], "Lecture de ce profil X indisponible via API Anything."
 
         with ThreadPoolExecutor(max_workers=min(4, len(remaining))) as pool:
