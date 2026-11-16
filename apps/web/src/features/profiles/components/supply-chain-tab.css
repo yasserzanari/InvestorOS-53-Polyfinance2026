@@ -8,3 +8,6 @@
 @container(max-width:480px){.sc-node{flex-direction:column}.sc-node .sc-logo{width:22px;height:22px}.sc-node strong{font-size:10px}.sc-node small{font-size:8px}.sc-tabs{width:100%;justify-content:space-between}.sc-tabs button{padding:9px 7px;font-size:10px;gap:4px}.sc-tabs svg{width:13px}.sc-focal strong{font-size:14px}.sc-verified{white-space:normal}.sc-event-heading{flex-direction:column}.sc-context{gap:8px}.sc-header{gap:12px}}
 
 .sc-graph.is-dense{min-height:550px;height:550px}.sc-focal:hover{transform:translateY(-50%)}.pw-inspector-content.is-supply-chain{padding:0}.sc-node.is-selected .sc-logo{color:#225fff;background:#e8f0ff}
+
+.sc-node strong{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.sc-graph-layout.has-inspector .sc-graph{height:620px;min-height:620px}
+@container(max-width:480px){.sc-graph,.sc-graph.is-dense,.sc-graph-layout.has-inspector .sc-graph{height:800px;min-height:800px}}
