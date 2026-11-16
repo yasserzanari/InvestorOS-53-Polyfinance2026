@@ -86,7 +86,7 @@ export function AssistantChatPanel({
       {activity && <div className="pw-current-activity">{activity}</div>}
       {!landing&&<div className={`pw-composer ${composerClassName}`}>
         {composer}
-        <span>Conversations synchronisées avec le compte actif. Les messages sont envoyés à Amazon Bedrock.</span>
+        <span>L’IA peut se tromper. Vérifiez chaque information importante auprès des sources.</span>
         {error && <p className="pw-error" role="alert">{error}</p>}
       </div>}
     </section>
