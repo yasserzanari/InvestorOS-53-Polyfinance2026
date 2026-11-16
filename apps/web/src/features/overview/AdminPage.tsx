@@ -1,8 +1,10 @@
 import { authenticatedFetch, useAuth } from '../../shared/auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, AlertTriangle, ArrowUpRight, BookOpen, Boxes, Check, ChevronRight, CircleHelp, Cloud, DollarSign, ExternalLink, Gauge, LogOut, Maximize, Minus, Plus, RefreshCw, Search, ShieldCheck, Workflow, X } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowUpRight, BookOpen, Boxes, Check, ChevronRight, CircleHelp, Cloud, DollarSign, ExternalLink, Gauge, Globe2, LogOut, Maximize, Minus, Plus, RefreshCw, Search, ShieldCheck, Workflow, X } from 'lucide-react';
 import { VoiceVocabularyPanel, type VoiceVocabulary } from './VoiceVocabularyPanel';
+import { SourceExplorer } from '../evidence/SourceExplorer';
+import '../evidence/evidence.css';
 import './admin.css';
 
 type Metric = { points?: Array<{ at: string; value: number }>; total: number | null; latest: number | null; peak: number | null; available: boolean };
@@ -15,10 +17,10 @@ type ActivityData = { runs: Array<{ id: string; name: string; workflow: string; 
 type Costs = { available: boolean; total?: number; currency?: string; attribution?: string; services?: Array<{ name: string; amount: number; unit: string }>; daily?: Array<{ start: string; amount: number }> ; message?: string };
 type Quotas = { available: boolean; region?: string; quotas: Array<{ name: string; value: number; unit?: string; adjustable: boolean }> };
 type Security = { adminConsole: { authentication: string; browserSession: string; additionalSecretRequired: boolean }; apis: Array<{ name: string; endpoint: string; gatewayAuthentication: { protected: boolean; unprotectedRoutes: number; totalRoutes: number }; corsOrigins: string[] }>; notes: string[] };
-type Tab = 'Vue d’ensemble' | 'Architecture' | 'Activité' | 'Services' | 'Coûts & quotas' | 'Sécurité' | 'Vocabulaire vocal';
+type Tab = 'Vue d’ensemble' | 'Architecture' | 'Activité' | 'Services' | 'Coûts & quotas' | 'Sécurité' | 'Vocabulaire vocal' | 'Sources autorisées';
 const tabs: Array<{ name: Tab; icon: typeof Activity }> = [
   { name: 'Vue d’ensemble', icon: Gauge }, { name: 'Architecture', icon: Workflow }, { name: 'Activité', icon: Activity },
-  { name: 'Services', icon: Boxes }, { name: 'Coûts & quotas', icon: DollarSign }, { name: 'Sécurité', icon: ShieldCheck }, { name: 'Vocabulaire vocal', icon: BookOpen },
+  { name: 'Services', icon: Boxes }, { name: 'Coûts & quotas', icon: DollarSign }, { name: 'Sécurité', icon: ShieldCheck }, { name: 'Vocabulaire vocal', icon: BookOpen }, { name: 'Sources autorisées', icon: Globe2 },
 ];
 const awsIcons: Record<string, string> = { 'api-gateway': 'Arch_Amazon-API-Gateway_48.svg', lambda: 'Arch_AWS-Lambda_48.svg', dynamodb: 'Arch_Amazon-DynamoDB_48.svg', s3: 'Arch_Amazon-Simple-Storage-Service_48.svg', 'step-functions': 'Arch_AWS-Step-Functions_48.svg', cloudwatch: 'Arch_Amazon-CloudWatch_48.svg', bedrock: 'Arch_Amazon-Bedrock_48.svg', cloudfront: 'Arch_Amazon-CloudFront_48.svg', 'secrets-manager': 'Arch_AWS-Secrets-Manager_48.svg', ecs: 'Arch_Amazon-Elastic-Container-Service_48.svg', elb: 'Arch_Elastic-Load-Balancing_48.svg' };
 const base = import.meta.env.DEV && import.meta.env.VITE_API_TARGET
@@ -97,6 +99,7 @@ export function AdminPage() {
       {tab === 'Coûts & quotas' && <CostsPanel costs={costs} quotas={quotas} />}
       {tab === 'Sécurité' && <SecurityPanel data={security} />}
       {tab === 'Vocabulaire vocal' && <VoiceVocabularyPanel vocabulary={vocabulary} onSave={saveVocabulary} onError={setError} />}
+      {tab === 'Sources autorisées' && <SourceExplorer />}
     </section>
   </div>;
 }
