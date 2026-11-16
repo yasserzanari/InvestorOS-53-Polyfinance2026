@@ -49,7 +49,9 @@ resource "aws_bedrock_guardrail" "assistant" {
       output_enabled  = false
     }
     tier_config {
-      tier_name = "STANDARD"
+      # STANDARD requires a cross-Region guardrail profile. This stack invokes
+      # guardrails in-region, so use the compatible CLASSIC tier.
+      tier_name = "CLASSIC"
     }
   }
 
