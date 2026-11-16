@@ -32,7 +32,7 @@ import { SimulationResultTab } from '../assistant/SimulationResultTab';
 import { DecisionPanel } from './components/decision-panels/DecisionPanel';
 import './profiles.css';
 
-type ProfilesWorkspaceProps = { assistantMode?: boolean; initialPrompt?: string };
+type ProfilesWorkspaceProps = { assistantMode?: boolean; initialPrompt?: string; newConversation?: boolean };
 
 function ConversationOverview({ tabs, activeTab, sources, agents, tabsOpen, onToggleTabs, onOpenWorkspace, onSelectTab }: {
   tabs: WorkspaceTab[]; activeTab: string; sources: Citation[]; agents: AgentEvent[]; tabsOpen: boolean; onToggleTabs: () => void; onOpenWorkspace: () => void; onSelectTab: (id: string) => void;
@@ -62,7 +62,7 @@ function ConversationOverview({ tabs, activeTab, sources, agents, tabsOpen, onTo
   </div>;
 }
 
-function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWorkspaceProps) {
+function ProfilesWorkspace({ assistantMode = false, initialPrompt, newConversation = false }: ProfilesWorkspaceProps) {
   const [tabsOpen,setTabsOpen]=useState(false);
   const [profileExpanded,setProfileExpanded]=useState(false);
   const [mobilePane,setMobilePane]=useState<'chat'|'profile'>('profile');
@@ -81,13 +81,25 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   useEffect(()=>{const params=new URLSearchParams(location.search);const id=params.get('analysis_id');if(id&&/^[0-9a-f-]{36}$/i.test(id)){attachResearch(id);setTabsOpen(true);params.delete('analysis_id');navigate({pathname:location.pathname,search:params.toString()},{replace:true});}},[location.search,activeAccount.id]);
   const [input,setInput]=useState(''); const [connected,setConnected]=useState<boolean|null>(null); const [model,setModel]=useState('');
   const handledInitialPrompt=useRef<string|null>(null);
+  const [freshPromptReadyKey,setFreshPromptReadyKey]=useState<string|null>(null);
   useEffect(()=>{
     if(!initialPrompt||busy||!memory.ready||!historyReady||handledInitialPrompt.current===location.key)return;
     handledInitialPrompt.current=location.key;
+    if(newConversation){
+      void startNewConversation().then(started=>{if(started)setFreshPromptReadyKey(location.key);});
+      return;
+    }
     setInput('');
     navigate({pathname:location.pathname,search:location.search},{replace:true,state:null});
     void send(initialPrompt);
-  },[initialPrompt,busy,memory.ready,historyReady,location.key]);
+  },[initialPrompt,newConversation,busy,memory.ready,historyReady,location.key,startNewConversation]);
+  useEffect(()=>{
+    if(!initialPrompt||!newConversation||freshPromptReadyKey!==location.key||busy||!memory.ready||!historyReady)return;
+    setFreshPromptReadyKey(null);
+    setInput('');
+    navigate({pathname:location.pathname,search:location.search},{replace:true,state:null});
+    void send(initialPrompt);
+  },[initialPrompt,newConversation,freshPromptReadyKey,busy,memory.ready,historyReady,location.key,location.pathname,location.search,navigate,send]);
   useEffect(()=>{const controller=new AbortController();readProfileApi(`${profileApiBase}/v1/profiles/status`,{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(data=>{setConnected(data.configured);setModel(data.modelId||'');}).catch(()=>{if(!controller.signal.aborted)setConnected(false)});return()=>controller.abort();},[]);
   const submit=(text=input)=>{if(!text.trim()||busy||!memory.ready||!historyReady)return;setMobilePane('chat');void send(text);setInput('');};
   const answerPlan=(messageId:string,request:AskUserRequest,label:string)=>{
@@ -300,6 +312,6 @@ export function ProfilesPage() {
 
 export function AssistantPage() {
   const location = useLocation();
-  const state = location.state as { initialPrompt?: unknown } | null;
-  return <ProfilesWorkspace assistantMode initialPrompt={typeof state?.initialPrompt === 'string' ? state.initialPrompt : undefined} />;
+  const state = location.state as { initialPrompt?: unknown; newConversation?: unknown } | null;
+  return <ProfilesWorkspace assistantMode initialPrompt={typeof state?.initialPrompt === 'string' ? state.initialPrompt : undefined} newConversation={state?.newConversation === true} />;
 }

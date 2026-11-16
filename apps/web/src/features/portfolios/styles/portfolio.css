@@ -157,7 +157,16 @@
 .portfolio-risk-dialog-columns ul { display: grid; gap: 6px; margin: 0; padding-left: 17px; }
 .portfolio-risk-dialog-source { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #f6f8f9; color: #718188; }
 .portfolio-risk-dialog-source svg { flex: 0 0 auto; margin-top: 1px; }
-.portfolio-risk-dialog-source p { margin: 0; font-size: 9px; line-height: 1.55; }
+.portfolio-risk-dialog-footer { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; }
+.portfolio-risk-dialog-footer .portfolio-risk-dialog-source { flex: 0 1 540px; max-width: calc(100% - 250px); margin-top: 0; }
+.portfolio-risk-dialog-source p { margin: 0; font-size: 9px; line-height: 1.55; overflow-wrap: anywhere; }
+.portfolio-risk-disclaimer { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 12px; border: 1px solid #f0e2ca; border-radius: 8px; background: #fffaf2; color: #80633e; }
+.portfolio-risk-disclaimer svg { flex: 0 0 auto; margin-top: 1px; color: #aa7739; }
+.portfolio-risk-disclaimer p { margin: 0; font-size: 10px; line-height: 1.55; }
+.portfolio-risk-disclaimer strong { color: #73552f; font-weight: 700; }
+.portfolio-risk-discuss-button { display: inline-flex; min-height: 36px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; margin: 0 0 0 auto; padding: 0 12px; border: 1px solid #cbdedc; border-radius: 7px; background: #f7fbfa; color: #286d70; font-size: 11px; font-weight: 680; cursor: pointer; transition: background-color .16s ease, border-color .16s ease, transform .16s ease; }
+.portfolio-risk-discuss-button:hover { transform: translateY(-1px); border-color: #a8c8c4; background: #eef7f5; }
+.portfolio-risk-discuss-button:focus-visible { outline: 2px solid #397d84; outline-offset: 2px; }
 .portfolio-risk-spinner { width: 15px; height: 15px; flex: 0 0 auto; border: 2px solid #dce8e6; border-top-color: #367c78; border-radius: 50%; animation: portfolio-spin .8s linear infinite; }
 @keyframes portfolio-spin { to { transform: rotate(360deg); } }
 .portfolio-empty-state { grid-column: 1 / -1; grid-row: 1 / -1; flex-direction: row; align-items: center; justify-content: center; gap: 12px; color: #6e7f86; }
@@ -194,6 +203,9 @@
   .portfolio-risk-dialog-body { padding: 13px 14px 16px; }
   .portfolio-risk-dialog-columns { grid-template-columns: minmax(0, 1fr); }
   .portfolio-risk-dialog-columns dd { max-width: 60%; }
+  .portfolio-risk-dialog-footer { align-items: stretch; flex-direction: column; }
+  .portfolio-risk-dialog-footer .portfolio-risk-dialog-source { width: 100%; max-width: 100%; flex-basis: auto; }
+  .portfolio-risk-discuss-button { align-self: flex-end; }
 }
 @media (max-width: 420px) {
   .portfolio-watchlist-columns, .portfolio-position-row { grid-template-columns: minmax(0, 1fr) 58px 78px; gap: 6px; }

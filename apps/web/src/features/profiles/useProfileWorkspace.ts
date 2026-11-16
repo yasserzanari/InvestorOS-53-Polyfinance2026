@@ -111,10 +111,19 @@ export function useProfileWorkspace(accountId:string,view:'assistant'|'profiles'
     if(!response.ok)throw new Error(`Sauvegarde de l’historique impossible (${response.status}).`);
     setConversations(previous=>[item,...previous.filter(entry=>entry.id!==conversationId)].slice(0,30));
   };
-  const startNewConversation=useCallback(()=>{
-    if(requestBusy.current||!historyReady)return;
+  const startNewConversation=useCallback(async()=>{
+    if(requestBusy.current||!historyReady)return false;
     const owner=accountId;requestBusy.current=true;setBusy(true);setActivity('Préparation de la nouvelle conversation');
-    void (async()=>{try{await saveCurrentConversation();if(currentAccount.current!==owner)return;const nextId=createLocalId();setConversationId(nextId);currentConversation.current=nextId;forcedResearch.current.clear();update(w=>({...w,messages:[],tabs:view==='profiles'?w.tabs:[],sources:view==='profiles'?w.sources:[],researchRuns:[],activeTab:view==='profiles'?w.activeTab:'',widgetSelection:undefined}));setActiveTabState(view==='profiles'?activeTab:'');setError('');setHistoryError('');}catch(e){if(currentAccount.current===owner){setHistoryError(e instanceof Error?e.message:'Sauvegarde du compte impossible.');setHistoryReady(false);}}finally{if(currentAccount.current===owner){requestBusy.current=false;setBusy(false);setActivity('');}}})();
+    let started=false;
+    try{
+      await saveCurrentConversation();
+      if(currentAccount.current!==owner)return false;
+      const nextId=createLocalId();setConversationId(nextId);currentConversation.current=nextId;forcedResearch.current.clear();
+      update(w=>({...w,messages:[],tabs:view==='profiles'?w.tabs:[],sources:view==='profiles'?w.sources:[],researchRuns:[],activeTab:view==='profiles'?w.activeTab:'',widgetSelection:undefined}));
+      setActiveTabState(view==='profiles'?activeTab:'');setError('');setHistoryError('');started=true;
+    }catch(e){if(currentAccount.current===owner){setHistoryError(e instanceof Error?e.message:'Sauvegarde du compte impossible.');setHistoryReady(false);}}
+    finally{if(currentAccount.current===owner){requestBusy.current=false;setBusy(false);setActivity('');}}
+    return started;
   },[conversationId,workspace,activeTab,accountId,historyReady,view]);
   const openConversation=useCallback((id:string)=>{
     if(requestBusy.current||id===conversationId||!historyReady)return;
