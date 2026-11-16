@@ -30,7 +30,6 @@ export function AnalysisProductTour() {
       <div className="profile-tour__inner">
         <header className="profile-tour__intro">
           <div>
-            <span className="profile-tour__eyebrow"><span aria-hidden="true" />Du portefeuille à l’analyse</span>
             <h2 id="analysis-tour-title">Pourquoi une action a-t-elle baissé&nbsp;?</h2>
           </div>
           <p>Un exemple dans InvestorOS : explorer le recul de NVIDIA, examiner les annonces proches et remonter aux sources utilisées.</p>

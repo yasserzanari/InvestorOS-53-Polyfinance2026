@@ -23,7 +23,6 @@ export function PortfolioProductTour() {
     <section id="portefeuille" className="portfolio-story" aria-labelledby="portfolio-story-title">
       <div className="portfolio-story__inner">
         <header className="portfolio-story__intro">
-          <span className="portfolio-story__eyebrow"><span aria-hidden="true" />Portefeuille · diversification et risques</span>
           <h2 id="portfolio-story-title">Comprendre les expositions avant de tirer une conclusion.</h2>
           <p>Une vue d’ensemble relie la répartition, les sensibilités calculées, le profil investisseur et la couverture des données. L’assistant peut ensuite aider à expliquer les signaux et à examiner l’actualité sourcée.</p>
         </header>
@@ -46,7 +45,7 @@ export function PortfolioProductTour() {
           </div>
         </div>
 
-        <aside className="portfolio-story__news" aria-label="Veille assistée par IA et actualités sourcées">
+        <aside id="transparence" className="portfolio-story__news" aria-label="Veille assistée par IA et actualités sourcées">
           <span className="portfolio-story__news-icon"><Sparkles size={19} aria-hidden="true" /></span>
           <div>
             <h3><Newspaper size={16} aria-hidden="true" /> Actualités et analyse assistée par IA</h3>

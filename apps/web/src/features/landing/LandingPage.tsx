@@ -7,6 +7,7 @@ import { ProfileProductTour } from "./ProfileProductTour";
 import { PortfolioProductTour } from "./PortfolioProductTour";
 import { AnalysisProductTour } from "./AnalysisProductTour";
 import { SupplyChainProductTour } from "./SupplyChainProductTour";
+import { Features } from "./components/Features";
 import BeamWordmarkFooter from "./components/BeamWordmarkFooter";
 import "./landing.css";
 
@@ -62,7 +63,7 @@ export function LandingPage() {
           className="investoros-hero"
           onNavigate={navigate}
           logoUrl="/brand/investoros-logo.png"
-          backgroundImageUrl=""
+          backgroundImageUrl="/landing/hero-investoros.png"
           navLinks={[]}
           ctaButtonText="Connexion"
           ctaButtonHref={appRoutes.login}
@@ -80,12 +81,20 @@ export function LandingPage() {
         />
       </div>
 
+      <section className="landing-features" aria-labelledby="landing-features-title">
+        <div className="landing-features__intro">
+          <h2 id="landing-features-title">Comprendre les liens avant de choisir une direction.</h2>
+          <p>Les cartes ci-dessous décrivent l’approche produit visée pour le hackathon. Elles ne représentent pas des résultats de marché mesurés.</p>
+        </div>
+        <Features />
+      </section>
+
       <ProfileProductTour />
       <PortfolioProductTour />
       <AnalysisProductTour />
       <SupplyChainProductTour />
 
-      <section className="bg-[#f1f7f9] py-16 sm:py-20">
+      <section className="landing-cta">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-7 px-5 sm:px-8 md:flex-row md:items-center">
           <div>
             <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-.035em] text-[#101c35]">Préparez votre prochaine décision avec plus de recul.</h2>
