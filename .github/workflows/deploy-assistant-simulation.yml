@@ -84,7 +84,7 @@ jobs:
             curl --fail --silent --show-error "$code_url" --output apps/api/build/investoros-api.zip
           fi
 
-      - name: Publish profile runtime only
+      - name: Publish assistant and API Anything worker runtime only
         if: github.event_name == 'workflow_dispatch' && inputs.runtime_only
         env:
           EXPECTED_AWS_ACCOUNT_ID: '010928221556'

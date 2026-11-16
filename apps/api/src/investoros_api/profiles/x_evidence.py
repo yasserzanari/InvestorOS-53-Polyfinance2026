@@ -1,6 +1,7 @@
 """Read account-scoped public X evidence; never accept an account or author from the browser."""
 import json
 import re
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,7 +21,50 @@ def authorized_profiles(persona):
 
 
 def read_public_posts(username):
-    """Replay the versioned API Anything public HTML recipe without a Node/browser dependency."""
+    """Read a public X timeline through the VPC API Anything proxy in AWS."""
+    results, failures = read_public_posts_batch([username])
+    posts = results.get(username.lower())
+    if not isinstance(posts, list):
+        raise ValueError(failures.get(username.lower(), 'Lecture publique X indisponible.'))
+    return posts
+
+
+def read_public_posts_batch(usernames):
+    function = os.getenv('API_ANYTHING_PROXY_FUNCTION_NAME', '').strip()
+    if function:
+        import boto3
+        from botocore.config import Config
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            response = boto3.client('lambda', region_name=os.getenv('AWS_REGION', 'us-east-1'),
+                config=Config(connect_timeout=3, read_timeout=90, retries={'total_max_attempts': 1})).invoke(
+                    FunctionName=function, InvocationType='RequestResponse',
+                    Payload=json.dumps({'action': 'read_public_x_posts', 'usernames': usernames}).encode())
+            raw = response['Payload'].read(1048577)
+            if response.get('FunctionError') or len(raw) > 1048576:
+                raise ValueError('Le proxy API Anything a renvoyé une réponse invalide.')
+            payload = json.loads(raw)
+            if not isinstance(payload, dict) or payload.get('ok') is not True:
+                raise ValueError('Le proxy API Anything ne peut pas lire ce fil X.')
+            results = payload.get('results')
+            failures = payload.get('failures', {})
+            if not isinstance(results, dict) or not isinstance(failures, dict):
+                raise ValueError('Réponse de fil X invalide.')
+            for username in usernames:
+                if not isinstance(results.get(username.lower()), list) and username.lower() not in failures:
+                    raise ValueError('Réponse de fil X invalide.')
+            return results, failures
+        except (BotoCoreError, ClientError) as error:
+            raise ValueError('Le proxy API Anything est temporairement indisponible.') from error
+
+    # Development fallback for environments without the private proxy. Lambda
+    # always receives API_ANYTHING_PROXY_FUNCTION_NAME from Terraform.
+    return ({name.lower(): _read_public_posts_direct(name) for name in usernames}, {})
+
+
+def _read_public_posts_direct(username):
+    """Development-only HTTP fallback, parsed with the versioned API Anything recipe."""
     recipe = json.loads((Path(__file__).parents[1]/'source_specs/x-public-timeline.json').read_text())
     request = Request(f'https://x.com/{username}', headers={'Accept':'text/html','User-Agent':'Mozilla/5.0'})
     with urlopen(request, timeout=8) as response:
@@ -33,6 +77,23 @@ def read_public_posts(username):
         raise ValueError('Les publications publiques ne sont pas lisibles sur ce profil.')
     embedded, _ = json.JSONDecoder().raw_decode(html[match.start(1):])
     data = json.loads(embedded) if isinstance(embedded,str) else embedded
+    return parse_public_timeline(data, username)
+
+
+def parse_public_timeline(data, username):
+    """Normalize API Anything's extracted public X timeline into attributed posts."""
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except ValueError:
+            recipe = json.loads((Path(__file__).parents[1]/'source_specs/x-public-timeline.json').read_text())
+            match = re.search(recipe['operations'][0]['response']['embedded']['regex'], data)
+            if not match:
+                raise ValueError('Les publications publiques ne sont pas lisibles dans la réponse API Anything.')
+            embedded, _ = json.JSONDecoder().raw_decode(data[match.start(1):])
+            data = json.loads(embedded) if isinstance(embedded, str) else embedded
+    if not isinstance(data, dict):
+        raise ValueError('Réponse API Anything du fil X invalide.')
     user = data.get('data',{}).get('user_result_by_screen_name',{}).get('result',{})
     instructions = user.get('profile_user_originals_timeline',{}).get('timeline',{}).get('instructions')
     if not isinstance(instructions,list):
@@ -92,10 +153,21 @@ def collect_authorized_posts(persona, query, usernames=None):
         try:return name,read_public_posts(name),None
         except Exception:return name,[],f'Lecture publique de @{name} indisponible.'
     rows=[]
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        for name,posts,error in pool.map(fetch,selected):
-            rows.extend(posts)
-            if error:failures.append({'username':name,'reason':error})
+    if os.getenv('API_ANYTHING_PROXY_FUNCTION_NAME', '').strip():
+        try:
+            proxied, proxy_failures = read_public_posts_batch(selected)
+            for name in selected:
+                posts = proxied.get(name.lower(), [])
+                rows.extend(posts)
+                if name.lower() in proxy_failures:
+                    failures.append({'username': name, 'reason': proxy_failures[name.lower()]})
+        except Exception:
+            failures.extend({'username': name, 'reason': f'Lecture publique de @{name} indisponible via API Anything.'} for name in selected)
+    else:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for name,posts,error in pool.map(fetch,selected):
+                rows.extend(posts)
+                if error:failures.append({'username':name,'reason':error})
     # Deterministic multilingual topic matching. The model assesses the returned context further.
     stop={'les','des','une','dans','pour','avec','sur','the','and','from','what','that','this','quels','quelles','analyse','analyser','tweets','publications','autorisés','comptes'}
     terms=set(re.findall(r'[\w$-]{3,}',query.lower()))-stop

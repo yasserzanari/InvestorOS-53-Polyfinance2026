@@ -68,7 +68,10 @@ resource "aws_iam_role_policy" "profile_chat_worker" {
       { Effect = "Allow", Action = ["bedrock:ApplyGuardrail"], Resource = local.bedrock_guardrail_resource_arn },
       { Effect = "Allow", Action = ["ssm:GetParameter"], Resource = local.bedrock_guardrail_parameter_arn },
       { Effect = "Allow", Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"], Resource = aws_sqs_queue.profile_chat.arn },
-      { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = "arn:${data.aws_partition.current.partition}:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:investoros-${var.environment}-api" }
+      { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = [
+        "arn:${data.aws_partition.current.partition}:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:investoros-${var.environment}-api",
+        "arn:${data.aws_partition.current.partition}:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:investoros-${var.environment}-research-worker"
+      ] }
     ]
   })
 }
@@ -97,6 +100,7 @@ resource "aws_lambda_function" "profile_chat_worker" {
       BEDROCK_GUARDRAIL_CONFIG_PARAMETER = local.bedrock_guardrail_parameter_name
       BEDROCK_GUARDRAIL_ID               = aws_bedrock_guardrail.assistant.guardrail_id
       RESEARCH_LAMBDA_FUNCTION           = "investoros-${var.environment}-api"
+      API_ANYTHING_PROXY_FUNCTION_NAME   = "investoros-${var.environment}-research-worker"
       REQUIRE_ADMIN_AUTH                 = "true"
       SIMULATION_X_SEARCH_ENABLED        = "false"
     }

@@ -103,6 +103,12 @@ resource "aws_iam_role_policy" "api" {
         Resource = [local.profile_arn, local.model_arn]
       },
       {
+        Sid      = "InvokePrivateApiAnythingProxyWorker"
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = "arn:${data.aws_partition.current.partition}:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:investoros-${var.environment}-research-worker"
+      },
+      {
         Sid      = "StartFrenchLiveTranscription"
         Effect   = "Allow"
         Action   = ["transcribe:StartStreamTranscriptionWebSocket"]
@@ -168,6 +174,7 @@ resource "aws_lambda_function" "api" {
       KNOWLEDGE_DOCUMENTS_BUCKET         = data.aws_s3_bucket.knowledge_documents.id
       CORS_ALLOWED_ORIGINS               = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
       RESEARCH_API_URL                   = data.aws_apigatewayv2_api.application.api_endpoint
+      API_ANYTHING_PROXY_FUNCTION_NAME   = "investoros-${var.environment}-research-worker"
       DEMO_CONTEXTS                      = jsonencode(local.demo_contexts)
       DEMO_PORTFOLIO_MODE                = "dynamodb"
       ENVIRONMENT                        = var.environment
