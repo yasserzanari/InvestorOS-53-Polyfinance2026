@@ -59,7 +59,7 @@ const { chromium } = require("playwright");
         await fetch(api + "/v1/profiles/status", { headers })
       ).json();
       if (
-        status.skillsVersion !== "1.9.0" ||
+        status.skillsVersion !== "1.9.1" ||
         status.profileContractVersion !== "1.0"
       )
         throw Error("The expected profile contract is not deployed.");

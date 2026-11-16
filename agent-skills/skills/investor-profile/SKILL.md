@@ -38,3 +38,5 @@ Sources officielles de ce cadre (consultées le 16 novembre 2026) :
 - Québec, Loi sur la protection des renseignements personnels dans le secteur privé, notamment finalité et nécessité de la collecte : https://www.legisquebec.gouv.qc.ca/fr/pdf/lc/P-39.1.pdf
 
 Ces sources fondent les limites et pratiques de la démo; leur citation n’est pas une certification juridique ni un avis personnalisé.
+
+Noms compatibles Bedrock : Fonds (OPC) utilise `experience-fonds-opc` / `years-fonds-opc`; ETF utilise `experience-etf` / `years-etf`. Les noms avec espaces/parenthèses restent réservés au stockage historique de l’interface, pas aux schémas d’outils.

@@ -82,6 +82,33 @@ ControlsPatch = create_model(
 )
 
 
+# Bedrock model schemas restrict property names to ASCII letters/digits/_.-.
+# Persisted UI keys remain backwards compatible; only the tool-facing aliases change.
+CONTROL_TOOL_ALIASES = {
+    "experience-fonds-opc": "experience-Fonds (OPC)",
+    "years-fonds-opc": "years-Fonds (OPC)",
+    "experience-etf": "experience-ETF (trackers)",
+    "years-etf": "years-ETF (trackers)",
+}
+_tool_keys = {value: key for key, value in CONTROL_TOOL_ALIASES.items()}
+ControlsToolPatch = create_model(
+    "ControlsToolPatch",
+    __config__=ConfigDict(extra="forbid"),
+    **{
+        _tool_keys.get(name, name): (
+            Literal[options] if options else str,
+            Field(default=None, max_length=1000) if not options else Field(default=None),
+        )
+        for name, options in CONTROL_OPTIONS.items()
+    },
+)
+
+
+def control_tool_changes(args):
+    values = ControlsToolPatch.model_validate(args).model_dump(exclude_unset=True)
+    return {CONTROL_TOOL_ALIASES.get(key, key): value for key, value in values.items()}
+
+
 def document(tabs, identifier, default):
     tab = next((t for t in tabs if t["id"] == identifier), None)
     if not tab:

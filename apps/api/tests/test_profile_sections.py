@@ -45,6 +45,29 @@ class ProfileSectionTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 ControlsPatch.model_validate(invalid)
 
+    def test_all_bedrock_schema_property_names_are_model_compatible(self):
+        import re
+        from investoros_api.profiles.tools import TOOLS, RESEARCH_TOOLS
+
+        def check(node):
+            if isinstance(node, dict):
+                for key in node.get("properties", {}):
+                    self.assertRegex(key, r"^[a-zA-Z0-9_.-]{1,64}$")
+                for value in node.values():
+                    check(value)
+            elif isinstance(node, list):
+                for value in node:
+                    check(value)
+
+        for tool in TOOLS + RESEARCH_TOOLS:
+            check(tool["toolSpec"]["inputSchema"]["json"])
+        from investoros_api.profiles.profile_sections import control_tool_changes
+
+        self.assertEqual(
+            control_tool_changes({"experience-fonds-opc": "Régulière", "years-etf": "5–10 ans"}),
+            {"experience-Fonds (OPC)": "Régulière", "years-ETF (trackers)": "5–10 ans"},
+        )
+
     def test_goals_sync_summary_and_horizon_without_losing_secondary(self):
         profile = {}
         tabs = []
