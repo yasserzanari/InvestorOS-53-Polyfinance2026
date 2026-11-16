@@ -32,7 +32,15 @@ export function ProfileObjectives({
 }) {
   const [draft, setDraft] = useState<DemoGoal | null>(null);
   const year = new Date().getFullYear();
-  const max = Math.max(1, ...goals.map((goal) => goal.horizonYears));
+  const endpoint = (goal: DemoGoal) =>
+    goal.targetDate
+      ? Number(goal.targetDate.slice(0, 4))
+      : goal.horizonYears !== null
+        ? (goal.anchorYear ?? year) + goal.horizonYears
+        : null;
+  const datedGoals = goals.filter((goal) => endpoint(goal) !== null);
+  const max = Math.max(1, ...datedGoals.map((goal) => endpoint(goal)! - year));
+  const [editorError, setEditorError] = useState("");
   const edit = (goal?: DemoGoal) =>
     setDraft(
       goal
@@ -42,6 +50,7 @@ export function ProfileObjectives({
             title: "",
             description: "",
             horizonYears: 5,
+            anchorYear: year,
             role: goals.length ? "Secondaire" : "Principal",
           },
     );
@@ -124,21 +133,32 @@ export function ProfileObjectives({
                 <CalendarDays />
                 <div>
                   <strong>Échéance indicative</strong>
-                  <p>{year + goal.horizonYears}</p>
-                  <small>Dans {goal.horizonYears} ans</small>
+                  <p>{endpoint(goal) ?? "À préciser"}</p>
+                  <small>
+                    {goal.horizonYears
+                      ? `Dans ${goal.horizonYears} ans`
+                      : "Aucune date déduite"}
+                  </small>
                 </div>
               </div>
               <div>
                 <Hourglass />
                 <div>
                   <strong>Horizon</strong>
-                  <p>{goal.horizonYears} ans</p>
+                  <p>
+                    {goal.horizonLabel ||
+                      (goal.horizonYears
+                        ? `${goal.horizonYears} ans`
+                        : "À préciser")}
+                  </p>
                   <span className="po-pill">
-                    {goal.horizonYears >= 8
-                      ? "Long terme"
-                      : goal.horizonYears >= 3
-                        ? "Moyen terme"
-                        : "Court terme"}
+                    {goal.horizonYears === null
+                      ? "À préciser"
+                      : goal.horizonYears >= 8
+                        ? "Long terme"
+                        : goal.horizonYears >= 3
+                          ? "Moyen terme"
+                          : "Court terme"}
                   </span>
                 </div>
               </div>
@@ -152,7 +172,7 @@ export function ProfileObjectives({
           <p>Ajoutez votre premier projet pour construire sa chronologie.</p>
         </div>
       )}
-      {!!goals.length && (
+      {!!datedGoals.length && (
         <section className="po-timeline">
           <header>
             <CalendarDays />
@@ -167,18 +187,20 @@ export function ProfileObjectives({
               <i />
               Aujourd’hui<small>{year}</small>
             </span>
-            {goals.map((goal, index) => {
+            {datedGoals.map((goal, index) => {
               const Icon = goalIcon(goal);
               return (
                 <div
-                  className={`po-milestone ${index > 0 && Math.abs(goal.horizonYears - goals[index-1].horizonYears) < max * .22 ? "po-lower" : ""}`}
+                  className={`po-milestone ${index > 0 && Math.abs(endpoint(goal)! - endpoint(datedGoals[index - 1])!) < max * 0.22 ? "po-lower" : ""}`}
                   key={goal.id}
-                  style={{ left: `${14 + (goal.horizonYears / max) * 73}%` }}
+                  style={{
+                    left: `${14 + (Math.max(0, endpoint(goal)! - year) / max) * 73}%`,
+                  }}
                 >
                   <div className="po-bubble">
                     <strong>{goal.title}</strong>
                     <span>
-                      {year + goal.horizonYears} · {goal.horizonYears} ans
+                      {endpoint(goal)} · {goal.horizonYears} ans
                     </span>
                   </div>
                   <span className="po-node">
@@ -216,12 +238,22 @@ export function ProfileObjectives({
             aria-label="Modifier un objectif"
             onSubmit={(e) => {
               e.preventDefault();
+              setEditorError("");
               const clean = {
                 ...draft,
                 title: draft.title.trim(),
                 description: draft.description.trim(),
               };
               if (!clean.title) return;
+              const next = goals.some((g) => g.id === clean.id)
+                ? goals.map((g) => (g.id === clean.id ? clean : g))
+                : [...goals, clean];
+              if (next.filter((g) => g.role === "Principal").length > 1) {
+                setEditorError(
+                  "Un seul projet principal est possible. Modifiez la priorité de l’autre projet.",
+                );
+                return;
+              }
               onSave(
                 goals.some((g) => g.id === clean.id)
                   ? goals.map((g) => (g.id === clean.id ? clean : g))
@@ -265,10 +297,17 @@ export function ProfileObjectives({
                   type="number"
                   min={1}
                   max={50}
-                  required
-                  value={draft.horizonYears}
+                  value={draft.horizonYears ?? ""}
                   onChange={(e) =>
-                    setDraft({ ...draft, horizonYears: Number(e.target.value) })
+                    setDraft({
+                      ...draft,
+                      horizonYears: e.target.value
+                        ? Number(e.target.value)
+                        : null,
+                      horizonLabel: "",
+                      anchorYear: year,
+                      targetDate: null,
+                    })
                   }
                 />
               </label>
@@ -301,6 +340,18 @@ export function ProfileObjectives({
                 <option>Secondaire</option>
               </select>
             </label>
+            <label>
+              Date cible précise · facultatif
+              <input
+                type="date"
+                aria-label="Date cible précise"
+                value={draft.targetDate ?? ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, targetDate: e.target.value || null })
+                }
+              />
+            </label>
+            {editorError && <p role="alert">{editorError}</p>}
             <footer>
               {goals.some((g) => g.id === draft.id) && (
                 <button

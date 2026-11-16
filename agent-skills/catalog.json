@@ -1,5 +1,5 @@
 {
-  "version": "1.8.26",
+  "version": "1.9.0",
   "skills": [
     {
       "id": "investor-profile",
@@ -14,7 +14,11 @@
       ],
       "required_tools": [
         "ask_user",
-        "update_profile"
+        "update_profile",
+        "get_profile_details",
+        "update_profile_goals",
+        "update_profile_controls",
+        "update_profile_situation"
       ],
       "path": "skills/investor-profile/SKILL.md"
     },
@@ -341,7 +345,7 @@
     },
     {
       "id": "profile-workspace",
-      "description": "Piloter les sous-onglets Profil, Alignement, Comparer, Scénarios, Preuves et Mémoire.",
+      "description": "Piloter Aperçu, Objectifs, Situation facultative, Risque, Préférences et Mémoire avec les outils typés du profil.",
       "tags": [
         "profil",
         "onglet",

@@ -3,6 +3,7 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .profile_sections import SituationPatch
 
 PROFILE_FIELDS = frozenset(('objective', 'horizon', 'riskTolerance', 'lossCapacity', 'liquidity', 'constraints', 'preferences', 'knowledge'))
 
@@ -129,6 +130,7 @@ class ChatRequest(BaseModel):
     workspaceMode: Literal['profiles','assistant'] = 'assistant'
     history: list[HistoryMessage] = Field(default_factory=list, max_length=30)
     profile: dict[str, str] = Field(default_factory=dict, max_length=8)
+    situation: SituationPatch = Field(default_factory=SituationPatch)
     tabs: list[WorkspaceTab] = Field(default_factory=list, max_length=12)
     accountId: Literal['amira', 'mateo', 'robert'] = 'mateo'
     widgetContext: list[PortfolioWidgetInput] = Field(default_factory=list, max_length=5)

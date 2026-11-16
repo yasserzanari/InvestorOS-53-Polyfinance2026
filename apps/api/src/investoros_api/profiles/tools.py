@@ -103,3 +103,16 @@ TOOLS.append(spec('render_portfolio_widget',
     'ne jamais inventer des titres, des rendements ou une composition de fonds. Ne crée pas un onglet.',
     {'view': {'type': 'string', 'enum': ['portfolio', 'heatmap', 'allocation', 'contributions', 'sectors']},
      'period': {'type': 'string', 'enum': ['1D', '1W', '1M', '1Y']}}, ['view']))
+
+# Typed section contracts. Never ask the model to invent a JSON document schema.
+from .profile_sections import SituationPatch, ControlsPatch, GoalsUpdate
+TOOLS.append(spec('get_profile_details', 'Lire les valeurs actuelles du profil, des projets, de la situation facultative et des préférences avant une correction. Les inconnues restent inconnues.', {}, []))
+for name,model,description in [
+ ('update_profile_situation',SituationPatch,'Enregistrer uniquement les informations facultatives explicitement fournies : revenu et stabilité, liquidités, actifs, dettes, contexte personnel. Ne jamais les exiger pour accéder à la démonstration.'),
+ ('update_profile_controls',ControlsPatch,'Modifier seulement les contrôles explicitement déclarés : expérience par produit, ancienneté, ESG, secteurs séparés par |, complexité, apprentissage, liquidité minimale. Fusion partielle : préserver les autres valeurs et les précisions ESG. horizon et withdrawals sont des alias des champs généraux; income et debt de la situation.'),
+ ('update_profile_goals',GoalsUpdate,'Enregistrer les projets structurés dans la carte Objectifs. Lire get_profile_details avant modification; goals fusionne les projets par id stable et conserve les autres. deleteIds supprime uniquement les identifiants explicitement demandés par la personne. Un seul Principal, horizons de 1 à 50 ans ou horizonYears null avec horizonLabel qualitatif, montants facultatifs. Ne rien inventer; le projet principal synchronise objectif et horizon généraux. targetDate est facultative et ne doit pas être inventée.'),
+]:
+ schema=model.model_json_schema()
+ tool=spec(name,description,schema['properties'],schema.get('required',[]))
+ if '$defs' in schema:tool['toolSpec']['inputSchema']['json']['$defs']=schema['$defs']
+ TOOLS.append(tool)

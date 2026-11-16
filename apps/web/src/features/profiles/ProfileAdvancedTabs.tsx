@@ -41,10 +41,30 @@ type Props = {
   busy: boolean;
   tabs: WorkspaceTab[];
   onTab: (tab: WorkspaceTab) => void;
+  onSituation: (fields: Partial<NonNullable<Profile["situation"]>>) => void;
   onErase: () => void;
   memory: { status: string; reload: () => void };
 };
 type Values = Record<string, string>;
+const detailLabels: Record<string, string> = {
+  "situation.incomeRange": "Revenu et stabilité",
+  "situation.liquidities": "Réserve de liquidités",
+  "situation.financialAssets": "Actifs financiers",
+  "situation.obligations": "Dettes et engagements",
+  "situation.personalContext": "Contexte personnel",
+  available: "Liquidité disponible",
+  minimum: "Liquidité minimale",
+  complexity: "Tolérance à la complexité",
+  learning: "Souhait d’apprentissage",
+  esg: "Approche ESG",
+  favoured: "Secteurs privilégiés",
+  excluded: "Secteurs exclus",
+};
+const detailLabel = (key: string) =>
+  detailLabels[key] ??
+  key
+    .replace("experience-", "Expérience · ")
+    .replace("years-", "Ancienneté · ");
 const productNames = [
   "Actions",
   "Obligations",
@@ -87,7 +107,10 @@ function Radios({
 }) {
   return (
     <div className="pat-radio-list" role="radiogroup" aria-label={label}>
-      {options.map((option) => (
+      {(value && !options.some((option) => option.value === value)
+        ? [...options, { value, detail: "Réponse déclarée" }]
+        : options
+      ).map((option) => (
         <label
           key={option.value}
           className={value === option.value ? "selected" : ""}
@@ -164,6 +187,7 @@ export function ProfileAdvancedTabs({
   tabs,
   onTab,
   onErase,
+  onSituation,
   memory,
 }: Props) {
   const [erasing, setErasing] = useState(false);
@@ -182,7 +206,14 @@ export function ProfileAdvancedTabs({
       id: "profile-controls",
       title: "Détails du profil",
       kind: "profile",
-      content: JSON.stringify({ ...values, [key]: value }),
+      content: JSON.stringify(
+        Object.fromEntries(
+          Object.entries({ ...values, [key]: value }).filter(
+            ([key]) =>
+              !["horizon", "withdrawals", "income", "debt"].includes(key),
+          ),
+        ),
+      ),
     });
   };
   const get = (key: string) => values[key] ?? "";
@@ -204,6 +235,9 @@ export function ProfileAdvancedTabs({
         }
       >
         <option value="">À préciser</option>
+        {(current ?? get(key)) && !options.includes(current ?? get(key)) && (
+          <option value={current ?? get(key)}>{current ?? get(key)}</option>
+        )}
         {options.map((option) => (
           <option key={option}>{option}</option>
         ))}
@@ -288,7 +322,20 @@ export function ProfileAdvancedTabs({
                 </div>
                 <Radios
                   label="Tolérance aux fluctuations"
-                  options={toleranceOptions}
+                  options={
+                    profile.riskTolerance &&
+                    !toleranceOptions.some(
+                      (option) => option.value === profile.riskTolerance,
+                    )
+                      ? [
+                          ...toleranceOptions,
+                          {
+                            value: profile.riskTolerance,
+                            detail: "Réponse déclarée",
+                          },
+                        ]
+                      : toleranceOptions
+                  }
                   value={profile.riskTolerance}
                   onChange={(v) => onChange("riskTolerance", v)}
                 />
@@ -298,38 +345,51 @@ export function ProfileAdvancedTabs({
                   Les pertes que vous pourriez supporter sans compromettre vos
                   projets ni vos dépenses essentielles.
                 </p>
-                {select(
-                  "capacity",
-                  "Capacité de perte",
-                  ["Faible", "Modérée", "Élevée", "À préciser"],
-                  profile.lossCapacity,
-                  (v) => onChange("lossCapacity", v),
-                )}
-                {select("horizon", "Objectifs et horizon", [
-                  "Court terme",
-                  "Moyen terme",
-                  "Long terme",
-                ])}
-                {select("withdrawals", "Besoins de retraits", [
-                  "Aucun prévu",
-                  "Occasionnels",
-                  "Réguliers",
-                ])}
+                <label className="pat-text">
+                  <span>Capacité de perte</span>
+                  <textarea
+                    aria-label="Capacité de perte"
+                    rows={3}
+                    maxLength={2000}
+                    value={profile.lossCapacity}
+                    onChange={(e) => onChange("lossCapacity", e.target.value)}
+                  />
+                </label>
+                <label className="pat-text">
+                  <span>Objectifs et horizon</span>
+                  <input
+                    aria-label="Objectifs et horizon"
+                    value={profile.horizon}
+                    onChange={(e) => onChange("horizon", e.target.value)}
+                  />
+                </label>
+                <label className="pat-text">
+                  <span>Besoins de retraits</span>
+                  <input
+                    aria-label="Besoins de retraits"
+                    value={profile.liquidity}
+                    onChange={(e) => onChange("liquidity", e.target.value)}
+                  />
+                </label>
                 {select("available", "Liquidité disponible", [
                   "Faible",
                   "Modérée",
                   "Élevée",
                 ])}
-                {select("income", "Stabilité des revenus", [
-                  "Stable",
-                  "Variable",
-                  "Incertaine",
-                ])}
-                {select("debt", "Dettes et engagements", [
-                  "Faibles",
-                  "Modérés",
-                  "Élevés",
-                ])}
+                {select(
+                  "income",
+                  "Stabilité des revenus",
+                  ["Stable", "Variable", "Incertaine"],
+                  profile.situation?.incomeRange ?? "",
+                  (value) => onSituation({ incomeRange: value }),
+                )}
+                {select(
+                  "debt",
+                  "Dettes et engagements",
+                  ["Faibles", "Modérés", "Élevés"],
+                  profile.situation?.obligations ?? "",
+                  (value) => onSituation({ obligations: value }),
+                )}
                 <small>Ces précisions sont facultatives.</small>
               </Card>
               <Card
@@ -648,7 +708,6 @@ export function ProfileAdvancedTabs({
                         checked={get("esg") === option.name}
                         onChange={() => {
                           set("esg", option.name);
-                          onChange("preferences", option.name);
                         }}
                       />
                       <strong>{option.name}</strong>
@@ -733,6 +792,49 @@ export function ProfileAdvancedTabs({
                 <Database size={17} />
                 <span>{memory.status}</span>
               </div>
+            </Card>
+            <Card title="Paramètres détaillés conservés" icon={Database}>
+              <div className="pat-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Paramètre</th>
+                      <th>Valeur déclarée</th>
+                      <th>Origine</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries({
+                      ...Object.fromEntries(
+                        Object.entries(profile.situation ?? {}).map(
+                          ([key, value]) => ["situation." + key, value],
+                        ),
+                      ),
+                      ...values,
+                    })
+                      .filter(([, value]) => value)
+                      .map(([key, value]) => (
+                        <tr key={key}>
+                          <th>{detailLabel(key)}</th>
+                          <td>{value}</td>
+                          <td>
+                            {profile.detailOrigins?.[key] ??
+                              profile.detailOrigins?.[
+                                key.startsWith("situation.")
+                                  ? key
+                                  : "profile-controls"
+                              ] ??
+                              "Origine non précisée"}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                Les projets sont conservés dans Objectifs. Les renseignements
+                facultatifs peuvent rester vides.
+              </p>
             </Card>
             <div className="pat-actions">
               <button type="button" onClick={memory.reload}>

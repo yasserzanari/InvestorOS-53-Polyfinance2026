@@ -31,12 +31,15 @@ from .financial_widgets import render_portfolio_widget, widget_caption
 from .sources import SOURCES, citations
 from .x_evidence import authorized_profiles, collect_authorized_posts
 
+from .response_policy import validate_response_policy
+from .profile_sections import SituationPatch, ControlsPatch, GoalsUpdate, apply_goals, apply_controls, sync_general, snapshot
 from .tools import TOOLS, RESEARCH_TOOLS
 from .skill_agent import run_skill_agent
 from .skills import search_skills, load_skill, catalog_summary, catalog_version
 from .research_bridge import research_configured, research_tool
 
-SYSTEM = '''Dans l’espace Profile, le chat reste à gauche et les sous-onglets sont pilotables à droite. `compare_profile_instruments` sert uniquement à une comparaison explicitement historique de rendements ou de prix. Ne l’utilise pas pour décider si un titre convient au persona, correspond à ses objectifs ou préserverait la diversification; pour ces demandes, charge `portfolio-exposures` puis appelle `analyze_demo_portfolio`. Si la personne demande à la fois adéquation et historique, traite l’adéquation d’abord et ne lance la comparaison historique que si elle est aussi explicitement demandée. Un échec de comparaison n’autorise aucune recommandation ni substitution par des rendements mémorisés. Pour expliciter une tension ou une inconnue liée au profil, utilise publish_profile_insight et cite uniquement des evidenceIds réellement reçus; tu peux laisser cette liste vide si tu relies seulement les déclarations du profil. Une simple curiosité sur un actif ne prouve pas une intention d’achat. Ouvre la vue utile avec open_profile_view. Lorsqu’une échéance explicite est donnée pour le même projet, mets aussi à jour horizon; ne laisse pas l’ancien horizon contredire l’objectif nouveau. Pour une demande d’incohérence, examine d’abord la tension entre la tolérance élevée et la faible capacité de perte, au lieu de demander d’autres objectifs sans nécessité. Après toute nouvelle précision utile, enregistre-la avec update_profile avant de poser la question suivante. Réutilise le profil mémorisé et l’historique; ne redemande pas ce qui y figure. Les champs du profil et leurs inconnues ne doivent jamais bloquer une comparaison historique indépendante.
+SYSTEM = '''Les paramètres détaillés se lisent avec get_profile_details. Utilise update_profile_goals pour les projets, update_profile_controls pour expérience/ESG/secteurs/apprentissage, update_profile_situation pour la situation facultative. Ne remplace pas ces outils par une note ou upsert_tab. Ne prétends pas avoir enregistré un fait après un échec d’outil. Ne confonds jamais tolérance émotionnelle et capacité financière; conserve les réponses qualitatives sans les convertir en pourcentage ou en niveau inventé. Le profil appartient à une persona fictive du hackathon; ne demande pas de données privées réelles. Ne promets jamais une conformité juridique complète, une performance future ou une garantie. Le contexte réglementaire dépend du service; les obligations de connaissance client d’une personne inscrite ne sont pas supprimées par le caractère facultatif de ce prototype. Pour une décision financière réelle, orienter vers un représentant autorisé. Les hypothèses, déclarations, données observées et simulations doivent être distinguées; les critères ESG déclarés ne sont pas un score vérifié. Ne manipule pas une réponse de risque pour justifier un produit.
+Dans l’espace Profile, le chat reste à gauche et les sous-onglets sont pilotables à droite. `compare_profile_instruments` sert uniquement à une comparaison explicitement historique de rendements ou de prix. Ne l’utilise pas pour décider si un titre convient au persona, correspond à ses objectifs ou préserverait la diversification; pour ces demandes, charge `portfolio-exposures` puis appelle `analyze_demo_portfolio`. Si la personne demande à la fois adéquation et historique, traite l’adéquation d’abord et ne lance la comparaison historique que si elle est aussi explicitement demandée. Un échec de comparaison n’autorise aucune recommandation ni substitution par des rendements mémorisés. Pour expliciter une tension ou une inconnue liée au profil, utilise publish_profile_insight et cite uniquement des evidenceIds réellement reçus; tu peux laisser cette liste vide si tu relies seulement les déclarations du profil. Une simple curiosité sur un actif ne prouve pas une intention d’achat. Ouvre la vue utile avec open_profile_view. Lorsqu’une échéance explicite est donnée pour le même projet, mets aussi à jour horizon; ne laisse pas l’ancien horizon contredire l’objectif nouveau. Pour une demande d’incohérence, examine d’abord la tension entre la tolérance élevée et la faible capacité de perte, au lieu de demander d’autres objectifs sans nécessité. Après toute nouvelle précision utile, enregistre-la avec update_profile avant de poser la question suivante. Réutilise le profil mémorisé et l’historique; ne redemande pas ce qui y figure. Les champs du profil et leurs inconnues ne doivent jamais bloquer une comparaison historique indépendante.
 Tu es l’assistant partagé InvestorOS. Réponds en français, de façon naturelle et concise. Après publication d’une comparaison ou d’un scénario dans le panneau, donne deux à quatre phrases sur le message principal et les limites utiles; ne recopie pas tous les prix, quantiles ou lignes du tableau déjà visibles à droite.
 Quand la personne demande un plan ou qu’une opération importante nécessite une approbation, crée la carte avec publish_plan avant de demander une validation. Fournis un titre explicite, le contexte utile et trois à six étapes concrètes, adaptées aux capacités et sources disponibles. publish_plan affiche le plan sans l’exécuter. Pour une recherche importante, appelle ask_user seulement après la carte; pour une liste de tâches persistante, utilise upsert_tab avec kind="tasks" après le consentement pertinent.
 Les comptes et profils sont fictifs. Accompagne la construction du profil sans conseiller des achats.
@@ -106,7 +109,7 @@ def _explicit_document_closure(request: ChatRequest) -> str | None:
 
 
 def configuration() -> dict:
-    return {'configured': bool(os.getenv('BEDROCK_MODEL_ID')), 'provider': 'aws-bedrock', 'skillsVersion': catalog_version(), 'researchConfigured': research_configured(),
+    return {'configured': bool(os.getenv('BEDROCK_MODEL_ID')), 'provider': 'aws-bedrock', 'skillsVersion': catalog_version(), 'profileContractVersion':'1.0', 'profileTools':['get_profile_details','update_profile','update_profile_goals','update_profile_situation','update_profile_controls'], 'researchConfigured': research_configured(),
             'modelId': os.getenv('BEDROCK_MODEL_ID', ''), 'region': os.getenv('AWS_REGION', 'us-east-1'),
             'chatTransport': 'async' if os.getenv('PROFILE_CHAT_JOBS_TABLE') and os.getenv('PROFILE_CHAT_WORKER_FUNCTION') else 'stream'}
 
@@ -285,6 +288,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     model_id = config['modelId']
     profile = {key: value[:2000] for key, value in request.profile.items() if key in PROFILE_FIELDS}
     tabs = [tab.model_dump() for tab in request.tabs]
+    situation = request.situation.model_dump(exclude_unset=True)
     alignment_text = request.message.casefold()
     refresh_alignment = request.workspaceMode == 'profiles' and any(
         action in alignment_text for action in ('actualise', 'réévalue', 'mets à jour', 'publie')
@@ -358,6 +362,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
         tools = [tool for tool in tools if tool['toolSpec']['name'] in {'compare_profile_instruments','inspect_simulation_history','get_simulation_capabilities','search_skills','load_skill','read_sources','ask_user','open_profile_view'}]
     available_names = {tool["toolSpec"]["name"] for tool in tools}
     usage = {'inputTokens': 0, 'outputTokens': 0}
+    profile_write_failed = False
     last_tool_failed = False
     projection_requested = _scenario_calculation_requested(request) and 'project_market_scenarios' in available_names
     projection_complete = False
@@ -397,6 +402,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
             'available_tools': sorted(available_names),
             'platform_available_tools': sorted(platform_available_names),
             'profile': profile,
+            'situation': situation,
             'simulation_capabilities': scenario_readiness,
             'tabs': tabs,
             'modules': [
@@ -615,6 +621,7 @@ Réponds impérativement en français, avec une réponse concise.
                         turn_visible_text = 'La note demandée est enregistrée dans Documents.'
                 if request.workspaceMode == 'profiles' and turn_visible_text.strip():
                     try:
+                        validate_response_policy(turn_visible_text,profile_write_failed)
                         validate_profile_claims([turn_visible_text], profile)
                     except ValueError as error:
                         if final_claim_repairs >= 2:
@@ -911,8 +918,33 @@ Réponds impérativement en français, avec une réponse concise.
                             raise ValueError('Champs de profil non autorisés.')
                         if any(not isinstance(v, str) or len(v) > 2000 for v in fields.values()):
                             raise ValueError('Valeur de profil invalide.')
+                        copied_tabs=json.loads(json.dumps(tabs))
+                        sync_general(profile,copied_tabs,fields)
+                        tabs[:]=copied_tabs
                         profile.update(fields)
                         output = {'updated': fields}
+                    elif name == 'get_profile_details':
+                        output = snapshot(profile,tabs,situation)
+                    elif name in {'update_profile_situation','update_profile_controls','update_profile_goals'}:
+                        next_profile=dict(profile)
+                        next_tabs=json.loads(json.dumps(tabs))
+                        next_situation=dict(situation)
+                        if name == 'update_profile_situation':
+                            changes=SituationPatch.model_validate(args).model_dump(exclude_unset=True)
+                            if not changes:raise ValueError('Aucune déclaration fournie.')
+                            next_situation.update(changes)
+                        elif name == 'update_profile_controls':
+                            if not args:raise ValueError('Aucune déclaration fournie.')
+                            apply_controls(next_profile,next_tabs,next_situation,args)
+                        else:
+                            parsed=GoalsUpdate.model_validate(args)
+                            apply_goals(next_profile,next_tabs,[g.model_dump(mode='json') for g in parsed.goals],request.accountId,parsed.deleteIds)
+                        profile.clear();profile.update(next_profile)
+                        tabs[:]=next_tabs
+                        situation.clear();situation.update(next_situation)
+                        output=snapshot(profile,tabs,situation)
+                        yield {'type':'workspace','profile':profile,'tabs':tabs,'situation':situation}
+                        yield {'type':'profile_view','view':{'update_profile_situation':'situation','update_profile_controls':'preferences','update_profile_goals':'objectives'}[name]}
                     elif name == 'publish_plan':
                         plan_input = AssistantPlanInput.model_validate(args)
                         output = plan_input.model_dump()
@@ -941,6 +973,8 @@ Réponds impérativement en français, avec une réponse concise.
                     elif name == 'upsert_tab':
                         if args.get('kind') == 'network' or any(tab['id'] == args.get('id') and tab['kind'] == 'network' for tab in tabs):
                             raise ValueError('Le dossier de chaîne est publié et actualisé par inspect_supply_chain. Ne recopie pas ses données avec upsert_tab.')
+                        if args.get('id') in {'profile-objectives','profile-controls'}:
+                            raise ValueError('Utilisez les outils typés update_profile_goals ou update_profile_controls pour ces paramètres.')
                         if args.get('id') in {'profile-comparison','profile-alignment'}:
                             raise ValueError('Utilisez compare_profile_instruments ou publish_profile_insight pour ce document structuré.')
                         tab = WorkspaceTab.model_validate(args).model_dump()
@@ -1003,7 +1037,7 @@ Réponds impérativement en français, avec une réponse concise.
                         try:
                             consultation = run_skill_agent(runtime, model_id=model_id,
                                 system='Tu es spécialiste de profil investisseur fictif. Tu remets un rapport au coordinateur, pas une réponse directe au client. En 150 mots maximum, utilise les rubriques Faits, Inconnues, Point à clarifier. Ne salue pas le client et ne lui pose pas de question directement : propose au coordinateur une clarification à envoyer avec ask_user. Une capacité de perte renseignée seulement par oui ou non reste inconnue; indique explicitement cette ambiguïté. Sépare tolérance émotionnelle et capacité financière. Aucun conseil d’achat, recommandation de placement, pourcentage inventé ni raisonnement interne.',
-                                prompt=json.dumps({'task': args['task'], 'profile': profile}, ensure_ascii=False),
+                                prompt=json.dumps({'task': args['task'], 'profile': profile, 'details':snapshot(profile,tabs,situation)}, ensure_ascii=False),
                                 required_skills=('goals-horizon' if args['name'] == 'Objectifs et horizon' else 'risk-liquidity',), max_tokens=700, role=args['name'])
                             output = {'summary': VisibleText().push(consultation['text'], final=True),
                                       'skills': consultation['skills'], 'skill_trace': consultation['skill_trace']}
@@ -1031,6 +1065,7 @@ Réponds impérativement en français, avec une réponse concise.
                             projection_complete=True
                     if name == 'publish_profile_insight':
                         insight_recovery = ''
+                    if name in {'update_profile','update_profile_situation','update_profile_controls','update_profile_goals'}:profile_write_failed=False
                     last_tool_failed = False
                     yield {'type': 'tool', 'id': tool_id, 'name': name, 'status': 'done', 'input': args, 'output': output}
                     if name in ('update_profile', 'upsert_tab', 'close_profile_document'):
@@ -1039,6 +1074,7 @@ Réponds impérativement en français, avec une réponse concise.
                         yield {'type': 'workspace', 'profile': profile, 'tabs': tabs}
                     results.append({'toolResult': {'toolUseId': tool_id, 'content': [{'json': output if isinstance(output, dict) else {'items': output}}], 'status': 'success'}})
                 except (ValueError, ValidationError) as error:
+                    if name in {'update_profile','update_profile_situation','update_profile_controls','update_profile_goals'}:profile_write_failed=True
                     last_tool_failed = True
                     if isinstance(error, ValidationError):
                         details = []

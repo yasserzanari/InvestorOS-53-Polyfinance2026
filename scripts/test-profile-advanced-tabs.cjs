@@ -92,12 +92,18 @@ const assert = require("node:assert/strict");
   assert.equal(memory.profile.riskTolerance, "Élevée");
   await p.getByRole("tab", { name: "Préférences", exact: true }).click();
   await p.getByRole("radio", { name: /Intermédiaire — Connaissance/ }).check();
+  const preferenceNotes = memory.profile.preferences;
   await p
     .getByRole("radio", { name: "Impact Rechercher un impact mesurable" })
     .check();
   await p.waitForTimeout(950);
   assert.equal(memory.profile.knowledge, "Intermédiaire");
-  assert.equal(memory.profile.preferences, "Impact");
+  assert.equal(memory.profile.preferences, preferenceNotes);
+  assert.equal(
+    JSON.parse(memory.tabs.find((t) => t.id === "profile-controls").content)
+      .esg,
+    "Impact",
+  );
   await p.getByRole("tab", { name: "Mémoire", exact: true }).click();
   await p.getByRole("button", { name: "Tout effacer", exact: true }).click();
   await p
