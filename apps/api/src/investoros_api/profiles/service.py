@@ -36,6 +36,7 @@ from .profile_sections import SituationPatch, ControlsPatch, GoalsUpdate, apply_
 from .tools import TOOLS, RESEARCH_TOOLS
 from .skill_agent import run_skill_agent
 from .skills import search_skills, load_skill, catalog_summary, catalog_version
+from ..bedrock_guardrails import active_guardrail
 from .research_bridge import research_configured, research_tool
 
 SYSTEM = '''Les paramètres détaillés se lisent avec get_profile_details. Utilise update_profile_goals pour les projets, update_profile_controls pour expérience/ESG/secteurs/apprentissage, update_profile_situation pour la situation facultative. Ne remplace pas ces outils par une note ou upsert_tab. Ne prétends pas avoir enregistré un fait après un échec d’outil. Ne confonds jamais tolérance émotionnelle et capacité financière; conserve les réponses qualitatives sans les convertir en pourcentage ou en niveau inventé. Le profil appartient à une persona fictive du hackathon; ne demande pas de données privées réelles. Ne promets jamais une conformité juridique complète, une performance future ou une garantie. Le contexte réglementaire dépend du service; les obligations de connaissance client d’une personne inscrite ne sont pas supprimées par le caractère facultatif de ce prototype. Pour une décision financière réelle, orienter vers un représentant autorisé. Les hypothèses, déclarations, données observées et simulations doivent être distinguées; les critères ESG déclarés ne sont pas un score vérifié. Ne manipule pas une réponse de risque pour justifier un produit.
@@ -111,7 +112,7 @@ def _explicit_document_closure(request: ChatRequest) -> str | None:
 def configuration() -> dict:
     return {'configured': bool(os.getenv('BEDROCK_MODEL_ID')), 'provider': 'aws-bedrock', 'skillsVersion': catalog_version(), 'profileContractVersion':'1.0', 'profileTools':['get_profile_details','update_profile','update_profile_goals','update_profile_situation','update_profile_controls'], 'researchConfigured': research_configured(),
             'modelId': os.getenv('BEDROCK_MODEL_ID', ''), 'region': os.getenv('AWS_REGION', 'us-east-1'),
-            'chatTransport': 'async' if os.getenv('PROFILE_CHAT_JOBS_TABLE') and os.getenv('PROFILE_CHAT_WORKER_FUNCTION') else 'stream'}
+            'chatTransport': 'async' if os.getenv('PROFILE_CHAT_JOBS_TABLE') and os.getenv('PROFILE_CHAT_QUEUE_URL') else 'stream'}
 
 
 def _visible_plan_has_steps(text: str) -> bool:
@@ -371,6 +372,12 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     requested_closure = _explicit_document_closure(request)
     closure_complete = False
     try:
+        try:
+            guardrail = active_guardrail()
+        except (BotoCoreError, ClientError, RuntimeError):
+            yield {'type': 'error', 'code': 'guardrail_configuration_unavailable',
+                   'message': 'Les garde-fous Bedrock sont configurés mais momentanément inaccessibles. Réessayez plus tard.'}
+            return
         runtime = client or bedrock_client()
         yield {'type': 'status', 'label': 'Consultation du profil avec Amazon Bedrock'}
         profile_procedures=[]
@@ -515,6 +522,7 @@ Réponds impérativement en français, avec une réponse concise.
                 modelId=model_id,
                 system=system_blocks,
                 messages=messages, **({'toolConfig': tool_config} if tool_config else {}),
+                **({'guardrailConfig': {**guardrail, 'trace': 'disabled', 'streamProcessingMode': 'sync'}} if guardrail else {}),
                 inferenceConfig={'maxTokens': 1800, 'temperature': 0.3},
             )
             blocks: dict[int, dict] = {}

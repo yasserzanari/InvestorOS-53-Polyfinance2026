@@ -1,11 +1,11 @@
 """Bounded, short-lived chat jobs for API Gateway's buffered Lambda integration."""
+from contextlib import contextmanager
+from functools import lru_cache
 import hashlib
 import json
 import os
 import re
 import time
-from contextlib import contextmanager
-from functools import lru_cache
 from uuid import UUID, uuid4
 
 import boto3
@@ -15,7 +15,6 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from investoros_api.demo_contexts import PersonaId
-
 from .models import ChatRequest
 from .research_bridge import forward_research_authorization
 from .service import run_chat
@@ -24,7 +23,8 @@ router = APIRouter(prefix='/v1/profiles/chat/jobs', tags=['profiles'])
 MAX_REQUEST_BYTES = 200_000
 MAX_EVENT_BYTES = 378_000
 JOB_TTL_SECONDS = 3600
-JOB_DEADLINE_SECONDS = 360
+JOB_DEADLINE_SECONDS = 900
+WORKER_LEASE_SECONDS = 330
 WORKER_SOURCE = 'investoros.profile-chat-job'
 _UNAVAILABLE = 'Le suivi de la réponse est temporairement indisponible. Réessayez.'
 _FAILED = 'La réponse n’a pas pu être terminée. Les résultats déjà reçus restent disponibles.'
@@ -35,12 +35,12 @@ def _json(value):
     return json.dumps(value, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
 
 
-def _settings(require_worker=False):
+def _settings(require_queue=False):
     table = os.getenv('PROFILE_CHAT_JOBS_TABLE', '')
-    worker = os.getenv('PROFILE_CHAT_WORKER_FUNCTION', '')
-    if not table or (require_worker and not worker):
+    queue_url = os.getenv('PROFILE_CHAT_QUEUE_URL', '')
+    if not table or (require_queue and not queue_url):
         raise HTTPException(503, 'Les réponses asynchrones ne sont pas configurées sur ce serveur.')
-    return table, worker
+    return table, queue_url
 
 
 @lru_cache(maxsize=4)
@@ -52,17 +52,17 @@ def _table(name, region):
 
 
 @lru_cache(maxsize=4)
-def _lambda(region):
-    return boto3.Session().client('lambda', region_name=region, config=Config(
+def _sqs(region):
+    return boto3.Session().client('sqs', region_name=region, config=Config(
         connect_timeout=5, read_timeout=10,
         retries={'total_max_attempts': 2, 'mode': 'standard'},
     ))
 
 
-def _storage(require_worker=False):
-    name, worker = _settings(require_worker)
+def _storage(require_queue=False):
+    name, queue_url = _settings(require_queue)
     region = os.getenv('AWS_REGION', 'us-east-1')
-    return _table(name, region), worker, region
+    return _table(name, region), queue_url, region
 
 
 def _error(code, message):
@@ -89,14 +89,11 @@ def start_job(request: ChatRequest, http_request: Request):
     payload = _json(request.model_dump(mode='json'))
     if len(payload.encode('utf-8')) > MAX_REQUEST_BYTES:
         raise HTTPException(413, 'Le contexte est trop volumineux. Fermez certains documents avant de réessayer.')
-    table, worker, region = _storage(require_worker=True)
-    event = http_request.scope.get('aws.event', {})
-    claims = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {})
+    table, queue_url, region = _storage(require_queue=True)
+    gateway_event = http_request.scope.get('aws.event', {})
+    claims = gateway_event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {})
     subject = claims.get('sub') if isinstance(claims, dict) else None
-    if isinstance(subject, str) and subject.strip():
-        principal_hash = hashlib.sha256(subject.encode('utf-8')).hexdigest()
-    else:
-        principal_hash = ''
+    principal_hash = hashlib.sha256(subject.encode('utf-8')).hexdigest() if isinstance(subject, str) and subject.strip() else ''
     job_id, now = str(uuid4()), int(time.time())
     item = {'job_id': job_id, 'accountId': request.accountId, 'status': 'queued',
             'eventsJson': '[]', 'eventCount': 0, 'createdAt': now, 'updatedAt': now,
@@ -104,13 +101,13 @@ def start_job(request: ChatRequest, http_request: Request):
     try:
         table.put_item(Item=item, ConditionExpression=Attr('job_id').not_exists())
         try:
-            response = _lambda(region).invoke(
-                FunctionName=worker, InvocationType='Event',
-                Payload=_json({'source': WORKER_SOURCE, 'jobId': job_id,
-                               'request': json.loads(payload), 'principalHash': principal_hash}).encode('utf-8'),
+            response = _sqs(region).send_message(
+                QueueUrl=queue_url,
+                MessageBody=_json({'source': WORKER_SOURCE, 'jobId': job_id,
+                                   'request': json.loads(payload), 'principalHash': principal_hash}),
             )
-            if response.get('StatusCode') != 202:
-                raise RuntimeError('Worker did not acknowledge the job')
+            if not response.get('MessageId'):
+                raise RuntimeError('Queue did not acknowledge the job')
         except (BotoCoreError, ClientError, RuntimeError):
             table.update_item(
                 Key={'job_id': job_id},
@@ -203,10 +200,10 @@ def _event_stream(request, principal_hash=''):
 
 
 def execute_job(event):
-    """Called only by the dedicated IAM-invoked worker, never a browser route.
+    """Called only by the dedicated SQS-backed worker, never a browser route.
 
-    The conditional claim makes Lambda asynchronous retries idempotent. No JWT,
-    password, or request body is persisted in the job table or progress payload.
+    The conditional claim prevents duplicate SQS deliveries from replaying a
+    conversation. No JWT, password, or request body is persisted in DynamoDB.
     """
     if event.get('source') != WORKER_SOURCE:
         raise ValueError('Unknown worker event')
@@ -219,10 +216,11 @@ def execute_job(event):
     try:
         table.update_item(
             Key={'job_id': job_id},
-            UpdateExpression='SET #status = :running, workerToken = :token, updatedAt = :now',
+            UpdateExpression='SET #status = :running, workerToken = :token, workerLeaseUntil = :lease, updatedAt = :now',
             ConditionExpression=Attr('status').eq('queued'),
             ExpressionAttributeNames={'#status': 'status'},
-            ExpressionAttributeValues={':running': 'running', ':token': token, ':now': now},
+            ExpressionAttributeValues={':running': 'running', ':token': token,
+                                       ':lease': now + WORKER_LEASE_SECONDS, ':now': now},
         )
     except table.meta.client.exceptions.ConditionalCheckFailedException:
         return {'jobId': job_id, 'status': 'ignored'}
@@ -280,3 +278,62 @@ def execute_job(event):
         except table.meta.client.exceptions.ConditionalCheckFailedException:
             return {'jobId': job_id, 'status': 'superseded'}
         return {'jobId': job_id, 'status': 'failed'}
+
+
+def _retry_stalled_delivery(job_id):
+    """Keep an expired worker message unacknowledged so SQS can redrive it."""
+    table, _, _ = _storage()
+    now = int(time.time())
+    item = table.get_item(Key={'job_id': job_id}, ConsistentRead=True).get('Item')
+    if not item:
+        return True
+    if item.get('status') == 'failed':
+        events = json.loads(item.get('eventsJson', '[]'))
+        error = next((entry for entry in reversed(events) if entry.get('type') == 'error'), {})
+        return error.get('code') in {'job_timeout', 'worker_interrupted'}
+    if item.get('status') not in {'queued', 'running'}:
+        return False
+
+    lease_expired = item.get('status') == 'running' and int(item.get('workerLeaseUntil', 0)) <= now
+    deadline_expired = int(item.get('deadlineAt', 0)) <= now
+    if not (lease_expired or deadline_expired):
+        return True
+
+    events = json.loads(item.get('eventsJson', '[]'))
+    code = 'worker_interrupted' if lease_expired else 'job_timeout'
+    message = 'Le traitement a été interrompu. Les éléments déjà reçus sont conservés.' if lease_expired else _EXPIRED
+    events.append(_error(code, message))
+    try:
+        table.update_item(
+            Key={'job_id': job_id},
+            UpdateExpression='SET #status = :failed, eventsJson = :events, updatedAt = :now, eventCount = :count',
+            ConditionExpression=Attr('status').is_in(['queued', 'running']) & Attr('eventCount').eq(item['eventCount']),
+            ExpressionAttributeNames={'#status': 'status'},
+            ExpressionAttributeValues={':failed': 'failed', ':events': _json(events), ':now': now,
+                                       ':count': len(events)},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return True
+    return True
+
+
+def handle_sqs_event(event):
+    """Run SQS records and return partial failures for retry/DLQ redrive."""
+    failures = []
+    for record in event.get('Records', []):
+        message_id = record.get('messageId')
+        try:
+            if record.get('eventSource') != 'aws:sqs' or not message_id:
+                raise ValueError('Invalid SQS record')
+            payload = json.loads(record.get('body', ''))
+            if not isinstance(payload, dict) or payload.get('source') != WORKER_SOURCE:
+                raise ValueError('Unknown SQS message')
+            result = execute_job(payload)
+            if result.get('status') == 'ignored' and _retry_stalled_delivery(str(UUID(payload['jobId']))):
+                failures.append({'itemIdentifier': message_id})
+        except Exception:
+            # The message remains in SQS and is retried. After maxReceiveCount,
+            # SQS moves it to the configured dead-letter queue.
+            if message_id:
+                failures.append({'itemIdentifier': message_id})
+    return {'batchItemFailures': failures}

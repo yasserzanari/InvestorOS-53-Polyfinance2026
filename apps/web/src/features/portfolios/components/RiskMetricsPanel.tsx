@@ -1,80 +1,184 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Bot, RotateCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowUpRight, Database, PieChart, RefreshCw, UserRound, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { authenticatedFetch } from '../../../shared/auth';
 import type { DemoOverview } from '../../../shared/api';
-import { fieldOrder, initialProfiles, type FieldKey, type Profile } from '../../profiles/profile-model';
-import { profileApiBase, streamProfile, type ProfileEvent } from '../../profiles/profile-api';
+import { profileApiBase } from '../../profiles/profile-api';
+import { initialProfiles, type Profile } from '../../profiles/profile-model';
+import { buildPortfolioRiskInsights, type PortfolioRiskInsight } from '../model/portfolio-observations';
 
-type RiskState = { status: 'loading' | 'ready' | 'error'; text: string; message?: string };
-type MemoryPayload = { profile?: Profile | null; tabs?: unknown[] };
+type ProfileState = 'loading' | 'saved' | 'demo-default' | 'unavailable';
+
+const insightIcons: Record<PortfolioRiskInsight['id'], LucideIcon> = {
+  concentration: PieChart,
+  sensitivity: ArrowUpRight,
+  profile: UserRound,
+  coverage: Database,
+};
+
+function formatMoney(value: number, currency: string) {
+  return new Intl.NumberFormat('fr-CA', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+}
+
+function formatFact(value: string | number, format: 'percent' | 'money' | 'number' | undefined, currency: string) {
+  if (typeof value !== 'number') return value;
+  if (format === 'money') return formatMoney(value, currency);
+  if (format === 'percent') return `${value.toLocaleString('fr-CA', { maximumFractionDigits: 2 })} %`;
+  return value.toLocaleString('fr-CA');
+}
+
+function isProfile(value: unknown): value is Profile {
+  if (!value || typeof value !== 'object') return false;
+  const profile = value as Partial<Profile>;
+  return typeof profile.objective === 'string'
+    && typeof profile.horizon === 'string'
+    && typeof profile.riskTolerance === 'string'
+    && typeof profile.lossCapacity === 'string'
+    && typeof profile.liquidity === 'string'
+    && typeof profile.constraints === 'string';
+}
 
 export function RiskMetricsPanel({ accountId, accountName, portfolio }: {
   accountId: DemoOverview['persona'];
   accountName: string;
   portfolio: DemoOverview['portfolio'];
 }) {
-  const [risk, setRisk] = useState<RiskState>({ status: 'loading', text: '' });
-  const [reload, setReload] = useState(0);
+  const defaultProfile = initialProfiles[accountId];
+  const [profile, setProfile] = useState<Profile>(defaultProfile);
+  const [profileState, setProfileState] = useState<ProfileState>('loading');
+  const [profileError, setProfileError] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedInsightId, setSelectedInsightId] = useState<PortfolioRiskInsight['id'] | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const analyze = useCallback(async (signal: AbortSignal) => {
-    setRisk({ status: 'loading', text: '' });
+  const loadProfile = useCallback(async (signal: AbortSignal) => {
+    setProfileState('loading');
+    setProfileError('');
     try {
-      const response = await authenticatedFetch(`${profileApiBase}/v1/profiles/memory/${accountId}`, { headers: { Accept: 'application/json' }, signal });
-      if (!response.ok) throw new Error('Le profil mémorisé est indisponible.');
-      const memory = await response.json() as MemoryPayload;
-      const profile = memory.profile ?? initialProfiles[accountId];
-      const profileFacts = Object.fromEntries(fieldOrder.map((key) => [key, profile[key]])) as Record<FieldKey, string>;
-      const body = {
-        accountId,
-        workspaceMode: 'profiles',
-        profile: profileFacts,
-        tabs: Array.isArray(memory.tabs) ? memory.tabs : [],
-        history: [],
-        message: `Analyse les risques précis du portefeuille de ${accountName} et indique ce qui correspond à son profil, ses objectifs, son horizon, sa tolérance au risque, sa capacité à absorber une perte et ses besoins de liquidité. Appelle analyze_demo_portfolio avant toute conclusion. Réponds en français en 3 ou 4 puces maximum : pour chaque risque, indique l'exposition ou le poids réellement retourné, le lien explicite avec le profil, puis ce qui reste inconnu. Termine par les limites. Ne fabrique aucun risque chiffré, aucune donnée de marché ou titre sous-jacent, ne recommande ni achat, ni vente, ni réallocation, et ne modifie pas le profil. Si les données ne soutiennent pas plusieurs risques précis, dis-le clairement.`,
-      };
-      let text = '';
-      let portfolioToolCompleted = false;
-      await streamProfile(body, signal, (event: ProfileEvent) => {
-        if (event.type === 'text' && typeof event.delta === 'string') text += event.delta;
-        if (event.type === 'tool' && event.name === 'analyze_demo_portfolio' && event.status === 'done') {
-          portfolioToolCompleted = true;
-        }
-        if (event.type === 'error') throw new Error('portfolio-analysis-failed');
-        if (text) setRisk({ status: 'loading', text });
-      });
-      if (!signal.aborted) {
-        if (!portfolioToolCompleted) {
-          setRisk({
-            status: 'error',
-            text: '',
-            message: 'Le calcul requis n’a pas été exécuté pour cette session. Aucune conclusion de risque n’est affichée.',
-          });
-          return;
-        }
-        if (!text.trim()) throw new Error('L’assistant n’a pas fourni de risques analysables.');
-        setRisk({ status: 'ready', text: text.trim() });
+      const response = await authenticatedFetch(`${profileApiBase}/v1/profiles/memory/${accountId}`, { signal });
+      if (!response.ok) throw new Error(`Lecture du profil impossible (${response.status}).`);
+      const payload: unknown = await response.json();
+      const savedProfile = payload && typeof payload === 'object' ? (payload as { profile?: unknown }).profile : undefined;
+      if (isProfile(savedProfile)) {
+        setProfile(savedProfile);
+        setProfileState('saved');
+      } else {
+        setProfile(defaultProfile);
+        setProfileState('demo-default');
       }
-    } catch {
-      if (!signal.aborted) setRisk({ status: 'error', text: '', message: 'L’analyse des risques est indisponible pour le moment. Aucune conclusion n’est affichée.' });
+    } catch (error) {
+      if (signal.aborted) return;
+      setProfile(defaultProfile);
+      setProfileState('unavailable');
+      setProfileError(error instanceof Error ? error.message : 'Lecture du profil mémorisé impossible.');
     }
-  }, [accountId, accountName]);
+  }, [accountId, defaultProfile]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void analyze(controller.signal);
+    void loadProfile(controller.signal);
     return () => controller.abort();
-  }, [analyze, reload, portfolio.total_value]);
+  }, [loadProfile, refreshKey]);
+
+  const analysis = useMemo(() => buildPortfolioRiskInsights(portfolio, profile), [portfolio, profile]);
+  const selectedInsight = analysis.insights.find((insight) => insight.id === selectedInsightId) ?? null;
+  const profileSource = profileState === 'saved'
+    ? 'le profil mémorisé du compte'
+    : profileState === 'unavailable'
+      ? 'les valeurs initiales du profil de démonstration (mémoire indisponible)'
+      : 'les valeurs initiales du profil de démonstration';
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (selectedInsight && dialog && !dialog.open) dialog.showModal();
+    if (!selectedInsight && dialog?.open) dialog.close();
+  }, [selectedInsight]);
 
   return (
-    <section className="portfolio-panel portfolio-risk-panel" aria-labelledby="risk-heading" aria-busy={risk.status === 'loading'}>
+    <section className="portfolio-panel portfolio-risk-panel" aria-labelledby="portfolio-risk-heading" aria-busy={profileState === 'loading'}>
       <header className="portfolio-panel-heading">
-        <div><span className="portfolio-section-icon is-risk"><AlertTriangle size={16} /></span><div><h2 id="risk-heading">Risques liés à votre profil</h2><p><Bot size={12} /> Analyse IA · profil mémorisé et expositions déclarées</p></div></div>
-        <button type="button" className="portfolio-refresh-button" onClick={() => setReload((value) => value + 1)} disabled={risk.status === 'loading'} aria-label="Régénérer l’analyse des risques" title="Régénérer l’analyse"><RotateCw size={15} /></button>
+        <div>
+          <span className="portfolio-section-icon is-risk"><PieChart size={16} aria-hidden="true" /></span>
+          <div>
+            <h2 id="portfolio-risk-heading">Risques à examiner</h2>
+            <p>Lectures calculées depuis les positions et le profil de {accountName}</p>
+          </div>
+        </div>
+        <div className="portfolio-risk-header-actions">
+          <span className={`portfolio-profile-source is-${profileState}`}>
+            {profileState === 'saved' ? 'Profil mémorisé' : profileState === 'loading' ? 'Lecture du profil…' : 'Valeurs démo'}
+          </span>
+          <button className="portfolio-refresh-button" type="button" onClick={() => setRefreshKey((key) => key + 1)} disabled={profileState === 'loading'} aria-label="Actualiser le profil mémorisé" title="Actualiser le profil mémorisé">
+            <RefreshCw size={15} aria-hidden="true" className={profileState === 'loading' ? 'is-spinning' : undefined} />
+          </button>
+        </div>
       </header>
-      {risk.status === 'loading' && !risk.text && <div className="portfolio-risk-state"><span className="portfolio-risk-spinner" />Analyse des positions selon le profil de {accountName}…</div>}
-      {risk.status === 'error' && <div className="portfolio-risk-state is-error" role="alert"><AlertTriangle size={16} /><span>{risk.message}</span><button type="button" onClick={() => setReload((value) => value + 1)}>Réessayer</button></div>}
-      {risk.text && <div className={`portfolio-risk-answer${risk.status === 'loading' ? ' is-streaming' : ''}`} aria-live="polite">{risk.text}</div>}
-      <footer className="portfolio-panel-footnote">Lecture qualitative des déclarations et pondérations disponibles. Aucun historique de cours ni détail des sous-jacents n’est fourni; ce résultat n’est pas un conseil financier.</footer>
+
+      {profileState === 'unavailable' && <p className="portfolio-risk-profile-warning" role="status">
+        <AlertTriangle size={14} aria-hidden="true" />
+        {profileError} Les cartes utilisent les valeurs initiales du profil de démonstration.
+      </p>}
+
+      <div className="portfolio-risk-research-grid" aria-label="Observations de risque du portefeuille">
+        {analysis.insights.map((insight) => {
+          const Icon = insightIcons[insight.id];
+          return <article className={`portfolio-risk-research-item is-${insight.id}`} key={insight.id}>
+            <button type="button" className="portfolio-risk-research-card" onClick={() => setSelectedInsightId(insight.id)} aria-haspopup="dialog" aria-label={`Ouvrir le détail : ${insight.title}`}>
+              <span className="portfolio-risk-research-topline">
+                <span className="portfolio-risk-research-icon"><Icon size={17} aria-hidden="true" /></span>
+                <span className="portfolio-risk-research-category">{insight.category}</span>
+              </span>
+              <strong className="portfolio-risk-research-metric">{insight.metric}</strong>
+              <span className="portfolio-risk-research-title">{insight.title}</span>
+              <span className="portfolio-risk-research-summary">{insight.summary}</span>
+              <span className="portfolio-risk-research-link">Lire l’analyse <ArrowUpRight size={13} aria-hidden="true" /></span>
+            </button>
+          </article>;
+        })}
+      </div>
+
+      <p className="portfolio-risk-method-note">
+        Les cartes distinguent les pondérations observées, les hypothèses arithmétiques et les données manquantes. Aucun seuil de risque ni verdict d’adéquation n’est inventé.
+      </p>
+
+      <dialog ref={dialogRef} className="portfolio-risk-dialog" aria-labelledby="portfolio-risk-dialog-title" onClose={() => setSelectedInsightId(null)} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+        {selectedInsight && <>
+          <header className="portfolio-risk-dialog-header">
+            <div>
+              <span className="portfolio-risk-dialog-category">{selectedInsight.category}</span>
+              <h2 id="portfolio-risk-dialog-title">{selectedInsight.title}</h2>
+            </div>
+            <button type="button" className="portfolio-risk-dialog-close" onClick={() => dialogRef.current?.close()} aria-label="Fermer le détail"><X size={18} /></button>
+          </header>
+          <div className="portfolio-risk-dialog-body">
+            <div className="portfolio-risk-dialog-summary">
+              <strong>{selectedInsight.metric}</strong>
+              <p>{selectedInsight.summary}</p>
+            </div>
+            <div className="portfolio-risk-dialog-columns">
+              <section>
+                <h3>Données prises en compte</h3>
+                <dl>
+                  {selectedInsight.facts.map((fact) => <div key={fact.label}>
+                    <dt>{fact.label}</dt>
+                    <dd>{formatFact(fact.value, fact.format, portfolio.currency)}</dd>
+                  </div>)}
+                </dl>
+              </section>
+              <section>
+                <h3>Comment lire ce résultat</h3>
+                <p>{selectedInsight.explanation}</p>
+                <h3 className="portfolio-risk-dialog-limit-heading">Limites</h3>
+                <ul>{selectedInsight.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
+              </section>
+            </div>
+            <div className="portfolio-risk-dialog-source">
+              <Database size={14} aria-hidden="true" />
+              <p>Base de cette lecture : les positions et pondérations du portefeuille chargé, et {profileSource}. Ces données de démonstration ne sont pas des positions de courtage.</p>
+            </div>
+          </div>
+        </>}
+      </dialog>
     </section>
   );
 }

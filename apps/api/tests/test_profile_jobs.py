@@ -72,23 +72,24 @@ class Table:
 class ProfileJobTests(unittest.TestCase):
     def setUp(self):
         self.table = Table()
-        self.invoker = Mock()
-        self.invoker.invoke.return_value = {'StatusCode': 202}
+        self.queue = Mock()
+        self.queue.send_message.return_value = {'MessageId': 'message-1'}
         self.env = patch.dict(os.environ, {'PROFILE_CHAT_JOBS_TABLE': 'jobs',
-                                         'PROFILE_CHAT_WORKER_FUNCTION': 'worker', 'AWS_REGION': 'us-east-1'})
+                                         'PROFILE_CHAT_QUEUE_URL': 'https://sqs.us-east-1.amazonaws.com/123/jobs',
+                                         'AWS_REGION': 'us-east-1'})
         self.env.start()
         self.table_patch = patch.object(jobs, '_table', return_value=self.table)
-        self.lambda_patch = patch.object(jobs, '_lambda', return_value=self.invoker)
+        self.sqs_patch = patch.object(jobs, '_sqs', return_value=self.queue)
         self.table_patch.start()
-        self.lambda_patch.start()
+        self.sqs_patch.start()
         self.addCleanup(self.env.stop)
         self.addCleanup(self.table_patch.stop)
-        self.addCleanup(self.lambda_patch.stop)
+        self.addCleanup(self.sqs_patch.stop)
 
     def start(self, **kwargs):
         http_request = types.SimpleNamespace(scope={'aws.event': {'requestContext': {'authorizer': {'jwt': {'claims': {'sub': 'test-user'}}}}}})
         result = jobs.start_job(ChatRequest(message='Compare les historiques', accountId='robert', **kwargs), http_request)
-        event = json.loads(self.invoker.invoke.call_args.kwargs['Payload'])
+        event = json.loads(self.queue.send_message.call_args.kwargs['MessageBody'])
         return result['jobId'], event
 
     def read(self, job_id, after=0, account='robert'):
@@ -103,7 +104,7 @@ class ProfileJobTests(unittest.TestCase):
         self.assertNotIn('request', record)
         self.assertNotIn('authorization', event)
         self.assertRegex(event['principalHash'], r'^[0-9a-f]{64}$')
-        self.assertEqual(self.invoker.invoke.call_args.kwargs['InvocationType'], 'Event')
+        self.assertEqual(self.queue.send_message.call_args.kwargs['QueueUrl'], 'https://sqs.us-east-1.amazonaws.com/123/jobs')
 
     def test_worker_scopes_principal_hash_to_research_calls(self):
         from investoros_api.profiles.research_bridge import _principal_hash
@@ -113,7 +114,7 @@ class ProfileJobTests(unittest.TestCase):
         self.assertEqual(_principal_hash.get(), '')
 
     def test_missing_configuration_is_explicit_not_mock_fallback(self):
-        with patch.dict(os.environ, {'PROFILE_CHAT_WORKER_FUNCTION': ''}):
+        with patch.dict(os.environ, {'PROFILE_CHAT_QUEUE_URL': ''}):
             with self.assertRaises(HTTPException) as error:
                 jobs.start_job(ChatRequest(message='Bonjour'), types.SimpleNamespace(scope={}))
         self.assertEqual(error.exception.status_code, 503)
@@ -125,10 +126,10 @@ class ProfileJobTests(unittest.TestCase):
             self.start(history=history)
         self.assertEqual(error.exception.status_code, 413)
         self.assertFalse(self.table.items)
-        self.invoker.invoke.assert_not_called()
+        self.queue.send_message.assert_not_called()
 
-    def test_worker_invocation_failure_does_not_leave_queued_job(self):
-        self.invoker.invoke.side_effect = ClientError({'Error': {'Code': 'AccessDeniedException', 'Message': 'private role data'}}, 'Invoke')
+    def test_queue_failure_does_not_leave_queued_job(self):
+        self.queue.send_message.side_effect = ClientError({'Error': {'Code': 'AccessDeniedException', 'Message': 'private role data'}}, 'SendMessage')
         with self.assertRaises(HTTPException) as error:
             self.start()
         self.assertEqual(error.exception.status_code, 503)
@@ -136,8 +137,8 @@ class ProfileJobTests(unittest.TestCase):
         self.assertEqual(record['status'], 'failed')
         self.assertNotIn('private role data', json.dumps(record))
 
-    def test_worker_must_acknowledge_asynchronous_invocation(self):
-        self.invoker.invoke.return_value = {'StatusCode': 200}
+    def test_queue_must_acknowledge_the_job(self):
+        self.queue.send_message.return_value = {}
         with self.assertRaises(HTTPException):
             self.start()
         self.assertEqual(next(iter(self.table.items.values()))['status'], 'failed')
@@ -265,6 +266,19 @@ class ProfileJobTests(unittest.TestCase):
                 self.read(job_id)
         self.assertEqual(error.exception.status_code, 503)
         self.assertNotIn('SECRET', str(error.exception.detail))
+
+    def test_sqs_handler_acknowledges_a_completed_job(self):
+        payload = {'source': jobs.WORKER_SOURCE, 'jobId': str(UUID(int=1)), 'request': {}}
+        record = {'messageId': 'm-1', 'eventSource': 'aws:sqs', 'body': json.dumps(payload)}
+        with patch.object(jobs, 'execute_job', return_value={'jobId': payload['jobId'], 'status': 'done'}):
+            self.assertEqual(jobs.handle_sqs_event({'Records': [record]}), {'batchItemFailures': []})
+
+    def test_sqs_handler_returns_failed_records_for_redrive(self):
+        payload = {'source': jobs.WORKER_SOURCE, 'jobId': str(UUID(int=1)), 'request': {}}
+        record = {'messageId': 'm-1', 'eventSource': 'aws:sqs', 'body': json.dumps(payload)}
+        with patch.object(jobs, 'execute_job', side_effect=RuntimeError('transient storage failure')):
+            self.assertEqual(jobs.handle_sqs_event({'Records': [record]}),
+                             {'batchItemFailures': [{'itemIdentifier': 'm-1'}]})
 
 
 if __name__ == '__main__':
