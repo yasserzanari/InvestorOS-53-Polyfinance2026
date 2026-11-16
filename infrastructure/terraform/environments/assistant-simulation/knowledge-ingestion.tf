@@ -107,7 +107,7 @@ resource "aws_s3_bucket_notification" "knowledge_documents" {
 }
 
 resource "aws_iam_role" "knowledge_ingestion_dispatcher" {
-  name        = "${local.knowledge_ingestion_name}-dispatcher"
+  name        = "${local.name_prefix}-kb-dispatcher"
   description = "Dispatches authorized S3 uploads to the Bedrock ingestion workflow."
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -121,7 +121,7 @@ resource "aws_iam_role" "knowledge_ingestion_dispatcher" {
 }
 
 resource "aws_cloudwatch_log_group" "knowledge_ingestion_dispatcher" {
-  name              = "/aws/lambda/${local.knowledge_ingestion_name}-dispatcher"
+  name              = "/aws/lambda/${local.name_prefix}-kb-dispatcher"
   retention_in_days = 14
   tags              = local.common_tags
 }
@@ -161,7 +161,7 @@ resource "aws_iam_role_policy" "knowledge_ingestion_dispatcher" {
 }
 
 resource "aws_lambda_function" "knowledge_ingestion_dispatcher" {
-  function_name                  = "${local.knowledge_ingestion_name}-dispatcher"
+  function_name                  = "${local.name_prefix}-kb-dispatcher"
   description                    = "Idempotently dispatches uploaded KB documents to Step Functions."
   role                           = aws_iam_role.knowledge_ingestion_dispatcher.arn
   runtime                        = "python3.12"
