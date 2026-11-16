@@ -157,28 +157,33 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      PROFILE_CHAT_JOBS_TABLE          = aws_dynamodb_table.profile_chat_jobs.name
-      PROFILE_CONVERSATIONS_TABLE      = aws_dynamodb_table.profile_conversations.name
-      PROFILE_CHAT_WORKER_FUNCTION     = aws_lambda_function.profile_chat_worker.function_name
-      BEDROCK_MODEL_ID                 = var.bedrock_model_id
-      CORS_ALLOWED_ORIGINS             = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
-      RESEARCH_API_URL                 = data.aws_apigatewayv2_api.application.api_endpoint
-      DEMO_CONTEXTS                    = jsonencode(local.demo_contexts)
-      DEMO_PORTFOLIO_MODE              = "dynamodb"
-      ENVIRONMENT                      = var.environment
-      PORTFOLIOS_TABLE_NAME            = local.portfolio_table_name
-      PORTFOLIO_MONITOR_TABLE_NAME     = aws_dynamodb_table.portfolio_monitor.name
-      PORTFOLIO_MONITOR_FUNCTION_NAME  = aws_lambda_function.portfolio_monitor.function_name
-      SOURCE_WORKSPACE_TABLE           = local.accounts_table_name
-      POWERTOOLS_SERVICE_NAME          = "investoros-assistant-simulation"
-      SIMULATION_X_SEARCH_ENABLED      = "false"
-      X_API_BEARER_TOKEN_SECRET_ARN    = ""
-      REQUIRE_ADMIN_AUTH               = "true"
-      VOICE_TRANSCRIBE_VOCABULARY_NAME = aws_transcribe_vocabulary.finance_fr_ca.vocabulary_name
+      PROFILE_CHAT_JOBS_TABLE            = aws_dynamodb_table.profile_chat_jobs.name
+      PROFILE_CHAT_QUEUE_URL             = aws_sqs_queue.profile_chat.url
+      PROFILE_CONVERSATIONS_TABLE        = aws_dynamodb_table.profile_conversations.name
+      BEDROCK_MODEL_ID                   = var.bedrock_model_id
+      BEDROCK_GUARDRAIL_CONFIG_PARAMETER = local.bedrock_guardrail_parameter_name
+      BEDROCK_GUARDRAIL_ID               = aws_bedrock_guardrail.assistant.guardrail_id
+      KNOWLEDGE_BASE_ID                  = local.knowledge_base_id
+      KNOWLEDGE_DATA_SOURCE_ID           = local.knowledge_data_source_id
+      KNOWLEDGE_DOCUMENTS_BUCKET         = data.aws_s3_bucket.knowledge_documents.id
+      CORS_ALLOWED_ORIGINS               = "https://${data.terraform_remote_state.foundation.outputs.cloudfront_domain_name},http://localhost:5173"
+      RESEARCH_API_URL                   = data.aws_apigatewayv2_api.application.api_endpoint
+      DEMO_CONTEXTS                      = jsonencode(local.demo_contexts)
+      DEMO_PORTFOLIO_MODE                = "dynamodb"
+      ENVIRONMENT                        = var.environment
+      PORTFOLIOS_TABLE_NAME              = local.portfolio_table_name
+      PORTFOLIO_MONITOR_TABLE_NAME       = aws_dynamodb_table.portfolio_monitor.name
+      PORTFOLIO_MONITOR_FUNCTION_NAME    = aws_lambda_function.portfolio_monitor.function_name
+      SOURCE_WORKSPACE_TABLE             = local.accounts_table_name
+      POWERTOOLS_SERVICE_NAME            = "investoros-assistant-simulation"
+      SIMULATION_X_SEARCH_ENABLED        = "false"
+      X_API_BEARER_TOKEN_SECRET_ARN      = ""
+      REQUIRE_ADMIN_AUTH                 = "true"
+      VOICE_TRANSCRIBE_VOCABULARY_NAME   = aws_transcribe_vocabulary.finance_fr_ca.vocabulary_name
     }
   }
 
-  depends_on = [aws_iam_role_policy.api, aws_iam_role_policy.profile_conversations, aws_iam_role_policy.portfolio_monitor_api, aws_transcribe_vocabulary.finance_fr_ca]
+  depends_on = [aws_iam_role_policy.api, aws_iam_role_policy.profile_conversations, aws_iam_role_policy.portfolio_monitor_api, aws_iam_role_policy.profile_chat_dispatch, aws_iam_role_policy.bedrock_guardrail_runtime, aws_iam_role_policy.knowledge_api, aws_transcribe_vocabulary.finance_fr_ca]
   tags       = local.common_tags
 }
 
@@ -226,6 +231,14 @@ resource "aws_apigatewayv2_route" "portfolio_monitor" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
+resource "aws_apigatewayv2_route" "knowledge" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "ANY /v1/knowledge/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
 resource "aws_apigatewayv2_route" "profiles_preflight" {
   api_id             = data.aws_apigatewayv2_api.application.id
   route_key          = "OPTIONS /v1/profiles/{proxy+}"
@@ -243,6 +256,58 @@ resource "aws_apigatewayv2_route" "simulation_preflight" {
 resource "aws_apigatewayv2_route" "portfolio_monitor_preflight" {
   api_id             = data.aws_apigatewayv2_api.application.id
   route_key          = "OPTIONS /v1/portfolio-monitor/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "knowledge_preflight" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "OPTIONS /v1/knowledge/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "knowledge_root" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "ANY /v1/knowledge"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+resource "aws_apigatewayv2_route" "knowledge_preflight_root" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "OPTIONS /v1/knowledge"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "admin_guardrails_root" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "ANY /v1/admin/guardrails"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+resource "aws_apigatewayv2_route" "admin_guardrails" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "ANY /v1/admin/guardrails/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+resource "aws_apigatewayv2_route" "admin_guardrails_preflight_root" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "OPTIONS /v1/admin/guardrails"
+  target             = "integrations/${aws_apigatewayv2_integration.api.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "admin_guardrails_preflight" {
+  api_id             = data.aws_apigatewayv2_api.application.id
+  route_key          = "OPTIONS /v1/admin/guardrails/{proxy+}"
   target             = "integrations/${aws_apigatewayv2_integration.api.id}"
   authorization_type = "NONE"
 }
@@ -269,6 +334,22 @@ resource "aws_lambda_permission" "portfolio_monitor" {
   function_name = aws_lambda_function.api.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${data.aws_apigatewayv2_api.application.execution_arn}/*/*/v1/portfolio-monitor/*"
+}
+
+resource "aws_lambda_permission" "knowledge" {
+  statement_id  = "AllowKnowledgeRoutes"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${data.aws_apigatewayv2_api.application.execution_arn}/*/*/v1/knowledge*"
+}
+
+resource "aws_lambda_permission" "admin_guardrails" {
+  statement_id  = "AllowAdminGuardrailRoutes"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${data.aws_apigatewayv2_api.application.execution_arn}/*/*/v1/admin/guardrails*"
 }
 
 resource "aws_lambda_permission" "preflight" {

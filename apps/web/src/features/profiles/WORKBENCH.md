@@ -71,7 +71,7 @@ La passerelle HTTP API tamponne les réponses Lambda et impose un délai d’env
 - `stream` : NDJSON direct, conservé pour le développement local et les serveurs sans jobs configurés.
 - `async` : `POST /v1/profiles/chat/jobs` renvoie `202`, puis le navigateur lit `GET /v1/profiles/chat/jobs/{jobId}?accountId=…&after=…` toutes les 800 ms. Les événements d’outils, de texte et de navigation sont ceux du worker Bedrock; le curseur évite de les rejouer.
 
-`PROFILE_CHAT_JOBS_TABLE` et `PROFILE_CHAT_WORKER_FUNCTION` activent le mode asynchrone. Les jobs ont une expiration applicative d’une heure, un délai terminal de 180 secondes et une TTL DynamoDB `expiresAt`. Le worker Lambda est limité à 120 secondes. La requête est bornée à 200 000 octets et les événements à environ 378 000 octets; un dépassement termine avec une erreur explicite et conserve la progression déjà publiée.
+`PROFILE_CHAT_JOBS_TABLE` et `PROFILE_CHAT_QUEUE_URL` activent le mode asynchrone. Les jobs ont une expiration applicative d’une heure, un délai terminal de 900 secondes et une TTL DynamoDB `expiresAt`. SQS fournit une livraison durable, trois tentatives de traitement puis une DLQ; le worker Lambda est limité à 300 secondes et sa concurrence à deux. La requête est bornée à 200 000 octets et les événements à environ 378 000 octets; un dépassement termine avec une erreur explicite et conserve la progression déjà publiée.
 
 L’arrêt demande `POST /v1/profiles/chat/jobs/{jobId}/cancel?accountId=…`. Le worker vérifie l’état entre ses événements et opérations; un appel AWS déjà engagé peut finir. L’arrêt ne promet aucun retour arrière d’une opération exécutée. Aucun JWT ni mot de passe n’est stocké dans la table de jobs; les outils de recherche du worker passent par l’entrée IAM configurée.
 

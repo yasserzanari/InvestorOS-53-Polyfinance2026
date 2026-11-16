@@ -19,6 +19,7 @@ from investoros_api.simulation import router as simulation_router
 from investoros_api.source_store import router as source_store_router
 from investoros_api.source_learning import router as source_learning_router
 from investoros_api.admin_console import router as admin_router
+from investoros_api.admin_guardrails import router as admin_guardrails_router
 from investoros_api.portfolio_monitor import router as portfolio_monitor_router
 
 def _cors_allowed_origins() -> list[str]:
@@ -36,7 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_allowed_origins(),
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["accept", "authorization", "content-type"],
+    allow_headers=["accept", "authorization", "content-type", "x-admin-token", "x-knowledge-admin-token"],
 )
 from investoros_api.profiles.memory import router as profile_memory_router
 from investoros_api.profiles.conversations import router as profile_conversations_router
@@ -51,6 +52,7 @@ app.include_router(simulation_router)
 app.include_router(source_store_router)
 app.include_router(source_learning_router)
 app.include_router(admin_router)
+app.include_router(admin_guardrails_router)
 app.include_router(portfolio_monitor_router)
 _dynamodb = None
 
@@ -195,6 +197,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     narrows access to app administrators. Local FastAPI development bypasses
     the wrapper because REQUIRE_ADMIN_AUTH is unset.
     """
+    if event.get('Records') and all(record.get('eventSource') == 'aws:sqs' for record in event['Records']):
+        from investoros_api.profiles.jobs import handle_sqs_event
+        return handle_sqs_event(event)
     if event.get('source') == 'investoros.profile-chat-job' and 'requestContext' not in event:
         from investoros_api.profiles.jobs import execute_job
         return execute_job(event)
@@ -214,5 +219,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     "headers": {"content-type": "application/json"},
                     "body": json.dumps({"detail": "Administrator access required"}),
                 }
+            # Strip any caller-supplied value before passing the verified role
+            # to FastAPI dependencies.
+            headers = event.setdefault("headers", {})
+            for key in list(headers):
+                if key.lower() == "x-investoros-admin-authorized":
+                    del headers[key]
+            headers["x-investoros-admin-authorized"] = "true"
 
     return _mangum_handler(event, context)

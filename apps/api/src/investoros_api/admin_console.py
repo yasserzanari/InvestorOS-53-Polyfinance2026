@@ -16,7 +16,7 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from investoros_api.admin_terraform import terraform_architecture
@@ -24,6 +24,12 @@ from investoros_api.admin_terraform import terraform_architecture
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 # The deployed Lambda entry point enforces API Gateway JWT claims and the
 # Cognito administrators group in main.handler before forwarding requests here.
+
+
+def require_admin(x_investoros_admin_authorized: str | None = Header(default=None, alias="x-investoros-admin-authorized")) -> None:
+    """Trust only the header injected after the Lambda wrapper checks Cognito."""
+    if os.getenv("REQUIRE_ADMIN_AUTH", "false").lower() == "true" and x_investoros_admin_authorized != "true":
+        raise HTTPException(status_code=403, detail="Administrator access required")
 
 RECOMMENDED_FINANCE_VOCABULARY = [
     "NVIDIA", "NVDA", "TSMC", "ASML", "Micron", "Broadcom", "AMD", "Intel",

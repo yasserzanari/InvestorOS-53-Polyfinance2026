@@ -34,6 +34,7 @@ from .x_evidence import authorized_profiles, collect_authorized_posts
 from .tools import TOOLS, RESEARCH_TOOLS
 from .skill_agent import run_skill_agent
 from .skills import search_skills, load_skill, catalog_summary, catalog_version
+from ..bedrock_guardrails import active_guardrail
 from .research_bridge import research_configured, research_tool
 
 SYSTEM = '''Dans l’espace Profile, le chat reste à gauche et les sous-onglets sont pilotables à droite. `compare_profile_instruments` sert uniquement à une comparaison explicitement historique de rendements ou de prix. Ne l’utilise pas pour décider si un titre convient au persona, correspond à ses objectifs ou préserverait la diversification; pour ces demandes, charge `portfolio-exposures` puis appelle `analyze_demo_portfolio`. Si la personne demande à la fois adéquation et historique, traite l’adéquation d’abord et ne lance la comparaison historique que si elle est aussi explicitement demandée. Un échec de comparaison n’autorise aucune recommandation ni substitution par des rendements mémorisés. Pour expliciter une tension ou une inconnue liée au profil, utilise publish_profile_insight et cite uniquement des evidenceIds réellement reçus; tu peux laisser cette liste vide si tu relies seulement les déclarations du profil. Une simple curiosité sur un actif ne prouve pas une intention d’achat. Ouvre la vue utile avec open_profile_view. Lorsqu’une échéance explicite est donnée pour le même projet, mets aussi à jour horizon; ne laisse pas l’ancien horizon contredire l’objectif nouveau. Pour une demande d’incohérence, examine d’abord la tension entre la tolérance élevée et la faible capacité de perte, au lieu de demander d’autres objectifs sans nécessité. Après toute nouvelle précision utile, enregistre-la avec update_profile avant de poser la question suivante. Réutilise le profil mémorisé et l’historique; ne redemande pas ce qui y figure. Les champs du profil et leurs inconnues ne doivent jamais bloquer une comparaison historique indépendante.
@@ -108,7 +109,7 @@ def _explicit_document_closure(request: ChatRequest) -> str | None:
 def configuration() -> dict:
     return {'configured': bool(os.getenv('BEDROCK_MODEL_ID')), 'provider': 'aws-bedrock', 'skillsVersion': catalog_version(), 'researchConfigured': research_configured(),
             'modelId': os.getenv('BEDROCK_MODEL_ID', ''), 'region': os.getenv('AWS_REGION', 'us-east-1'),
-            'chatTransport': 'async' if os.getenv('PROFILE_CHAT_JOBS_TABLE') and os.getenv('PROFILE_CHAT_WORKER_FUNCTION') else 'stream'}
+            'chatTransport': 'async' if os.getenv('PROFILE_CHAT_JOBS_TABLE') and os.getenv('PROFILE_CHAT_QUEUE_URL') else 'stream'}
 
 
 def _visible_plan_has_steps(text: str) -> bool:
@@ -366,6 +367,12 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     requested_closure = _explicit_document_closure(request)
     closure_complete = False
     try:
+        try:
+            guardrail = active_guardrail()
+        except (BotoCoreError, ClientError, RuntimeError):
+            yield {'type': 'error', 'code': 'guardrail_configuration_unavailable',
+                   'message': 'Les garde-fous Bedrock sont configurés mais momentanément inaccessibles. Réessayez plus tard.'}
+            return
         runtime = client or bedrock_client()
         yield {'type': 'status', 'label': 'Consultation du profil avec Amazon Bedrock'}
         profile_procedures=[]
@@ -509,6 +516,7 @@ Réponds impérativement en français, avec une réponse concise.
                 modelId=model_id,
                 system=system_blocks,
                 messages=messages, **({'toolConfig': tool_config} if tool_config else {}),
+                **({'guardrailConfig': {**guardrail, 'trace': 'disabled', 'streamProcessingMode': 'sync'}} if guardrail else {}),
                 inferenceConfig={'maxTokens': 1800, 'temperature': 0.3},
             )
             blocks: dict[int, dict] = {}

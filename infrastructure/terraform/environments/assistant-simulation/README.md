@@ -20,7 +20,7 @@ L’intégration HTTP API tamponne la réponse Lambda et reste plafonnée à env
 
 ```text
 Navigateur connecté → POST /v1/profiles/chat/jobs → réponse 202
-                                  ↓ invocation Lambda Event
+                                  ↓ SQS durable + DLQ
                        profile-chat-worker → Bedrock/outils
                                   ↓ progression réelle
                        profile-chat-jobs (DynamoDB)
@@ -32,17 +32,23 @@ La table utilise `job_id` comme clé et `expiresAt` comme TTL. Les identifiants 
 | Réglage | Valeur / effet |
 |---|---|
 | `PROFILE_CHAT_JOBS_TABLE` | Table DynamoDB des événements et statuts. |
-| `PROFILE_CHAT_WORKER_FUNCTION` | Fonction dédiée invoquée par la Lambda API; avec la table, active le transport asynchrone. |
-| Worker | Python 3.12, 512 Mo, timeout 120 secondes. |
-| Invocation asynchrone | Âge maximal 60 secondes, aucune relance automatique. |
-| Délai applicatif du job | 180 secondes, puis état terminal explicite au polling. |
+| `PROFILE_CHAT_QUEUE_URL` | File SQS qui active le transport asynchrone avec la table de jobs. |
+| Worker | Python 3.12, 512 Mo, timeout 300 secondes; concurrence réservée et maximale SQS de deux. |
+| File / DLQ | Visibilité 1 800 secondes, trois réceptions avant DLQ; alarmes sur messages DLQ et âge de file. |
+| Délai applicatif du job | 900 secondes, puis état terminal explicite au polling. |
 | Conservation | Expiration applicative après 3 600 secondes; suppression TTL DynamoDB différée. |
 | Bornes | Requête 200 000 octets; journal environ 378 000 octets, avec erreur explicite si dépassement. |
 | Recherche du worker | `RESEARCH_LAMBDA_FUNCTION=investoros-dev-api`, via IAM, sans transmettre le JWT navigateur. |
 
 `POST /v1/profiles/chat/jobs/{jobId}/cancel?accountId=…` demande l’arrêt. Le worker vérifie l’état entre événements et opérations. Un appel AWS déjà engagé peut finir; l’arrêt n’annule pas les effets d’une opération accomplie. Les lectures et arrêts vérifient le persona fictif propriétaire. La table ne conserve ni JWT, ni mot de passe, ni corps de requête de lancement.
 
-`profile-chat.tf` définit sept ressources : table, groupe de logs, rôle worker, politique worker, fonction worker, configuration d’invocation et politique de dispatch de l’API. Le dispatch possède `GetItem`, `PutItem`, `UpdateItem` sur la seule table de jobs et `InvokeFunction` sur le seul worker. Le worker possède les opérations de table nécessaires, Bedrock et les accès bornés aux données et à l’entrée IAM de recherche. La Lambda API conserve sa concurrence réservée de deux; le worker utilise la capacité non réservée du compte.
+`profile-chat.tf` définit la table de jobs, la file et la DLQ SQS, le worker et son mapping SQS, ainsi que les rôles et alarmes. Le dispatch possède les opérations nécessaires sur la seule table et le droit `SendMessage` sur cette file. Le worker possède les opérations de table nécessaires, Bedrock et les accès bornés aux données et à l’entrée IAM de recherche. La Lambda API conserve sa concurrence réservée de douze; le worker et son mapping SQS sont limités à deux.
+
+## Documents autorisés et garde-fous Bedrock
+
+Les routes d’upload signent les dépôts vers le préfixe `documents/` du bucket Knowledge Base configuré par SSM. La notification S3 transmet les créations d’objets à SQS; un dispatcher attend le sidecar de métadonnées autorisées puis démarre une exécution Step Functions qui lance et suit l’ingestion Bedrock. Les échecs SQS vont en DLQ après dix réceptions. `POST /v1/knowledge/sync` reste disponible pour un lancement manuel. La route de récupération existe, mais le chat ne consomme pas encore ses passages comme contexte.
+
+La stack déclare aussi un Bedrock Guardrail et son binding SSM. Les appels du chat et des agents spécialisés appliquent le garde-fou actif et échouent explicitement si sa configuration existe mais ne peut être chargée. L’onglet Admin **Garde-fous** permet de consulter et modifier la configuration active. Les paramètres d’exécution ne sont pas une preuve de déploiement : après une fusion, vérifier les exécutions GitHub Actions et les ressources AWS avant d’annoncer cette capacité comme active.
 
 ## Dictée vocale en direct
 
