@@ -1,0 +1,31 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+const exportsObject = {};
+const source = fs.readFileSync('apps/web/src/features/profiles/conversation-writer.ts', 'utf8');
+new Function('exports', ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(exportsObject);
+const { createConversationWriter } = exportsObject;
+(async () => {
+  const calls = [], pauses = [];
+  let failures = 0;
+  const write = createConversationWriter(async (url, init) => {
+    calls.push({ url, ...init });
+    if (failures++ === 0) throw Error('Transient disconnect');
+    return new Response('', { status: failures === 2 ? 503 : 200 });
+  }, async ms => { pauses.push(ms); });
+  const results = await Promise.all([write('/conversation/1', 'old snapshot'), write('/conversation/1', 'new snapshot')]);
+  assert.deepEqual(results.map(result => result.status), [200, 200]);
+  assert.deepEqual(calls.map(call => call.body), ['old snapshot', 'old snapshot', 'old snapshot', 'new snapshot']);
+  assert.ok(calls.every(call => call.method === 'PUT'));
+  assert.deepEqual(pauses, [500, 1000]);
+  let attempts = 0;
+  const rejected = createConversationWriter(async () => { attempts++; return new Response('', { status: 403 }); });
+  assert.equal((await rejected('/forbidden', 'snapshot')).status, 403);
+  assert.equal(attempts, 1);
+  let count = 0;
+  const exhausted = createConversationWriter(async () => { if (++count <= 4) throw Error('Offline'); return new Response(); }, async () => {});
+  await assert.rejects(exhausted('/conversation/1', 'old'), /Offline/);
+  assert.equal((await exhausted('/conversation/1', 'new')).status, 200);
+  assert.equal(count, 5);
+  console.log('Conversation writer: bounded retry, ordering, authorization failure and recovery verified.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

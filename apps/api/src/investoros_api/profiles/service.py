@@ -361,6 +361,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
     last_tool_failed = False
     projection_requested = _scenario_calculation_requested(request) and 'project_market_scenarios' in available_names
     projection_complete = False
+    supply_chain_published = False
     scenario_readiness = None
     requested_closure = _explicit_document_closure(request)
     closure_complete = False
@@ -464,6 +465,10 @@ Réponds impérativement en français, avec une réponse concise.
             if insight_recovery:
                 system_blocks.append({'text':'La carte précédente a été refusée : '+insight_recovery+' Reformule les arguments; ne recopie pas l’appel refusé. Vise deux phrases et 250 à 450 caractères dans summary, maximum 800. Garde seulement le constat essentiel; les poids sont joints par le serveur et les inconnues vont dans limits. Aucun classement de concentration faible/modérée/élevée sans seuil fourni.'})
             tool_config={'tools':tools}
+            if supply_chain_published:
+                system_blocks.append({'text':'Le tab Chaîne d’approvisionnement a DÉJÀ été publié et ouvert par inspect_supply_chain. Ne recopie pas son contenu dans upsert_tab et ne crée pas une note pour le remplacer. Résume deux à quatre constats et les limites; les citations et tableaux sont déjà dans le tab.'})
+                if not note_requested:
+                    tool_config['tools'] = [tool for tool in tool_config['tools'] if tool['toolSpec']['name'] != 'upsert_tab']
             if historical_only:
                 system_blocks.append({'text':'Cette demande est limitée aux historiques. Ne modifie pas le profil et ne publie pas de carte d’adéquation. La comparaison et son ouverture sont prises en charge par compare_profile_instruments; utilise ses chiffres et ses limites. Ne pose que les questions nécessaires aux symboles ou à la période, jamais des questions personnelles pour ce calcul indépendant.'})
             if require_comparison:
@@ -782,6 +787,7 @@ Réponds impérativement en français, avec une réponse concise.
                         yield {'type':'sources','citations':list(source_registry)}
                         yield {'type':'workspace','profile':profile,'tabs':tabs}
                         yield {'type':'profile_view','view':'documents','documentId':identifier}
+                        supply_chain_published = True
                     elif name == 'get_simulation_capabilities':
                         if args:
                             raise ValueError('Cet outil ne prend aucun paramètre.')
@@ -933,6 +939,8 @@ Réponds impérativement en français, avec une réponse concise.
                         closure_complete=True
                         output={'closed':identifier}
                     elif name == 'upsert_tab':
+                        if args.get('kind') == 'network' or any(tab['id'] == args.get('id') and tab['kind'] == 'network' for tab in tabs):
+                            raise ValueError('Le dossier de chaîne est publié et actualisé par inspect_supply_chain. Ne recopie pas ses données avec upsert_tab.')
                         if args.get('id') in {'profile-comparison','profile-alignment'}:
                             raise ValueError('Utilisez compare_profile_instruments ou publish_profile_insight pour ce document structuré.')
                         tab = WorkspaceTab.model_validate(args).model_dump()

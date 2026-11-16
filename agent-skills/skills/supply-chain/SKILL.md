@@ -18,3 +18,5 @@ La vue Pressions montre les risques déclarés et annonces extraits, avec citati
 Les logos recherchés sur Wikidata/Wikimedia sont attribués séparément des preuves financières; à défaut, utilise des initiales. Un pays contextuel ne localise pas une usine. Résume deux à quatre constats et les limites après publication du tab, sans recopier tout le tableau.
 
 La collecte peut suivre des pages de divulgations et PDF explicitement liés par le site officiel. Vérifie l’exercice de la liste : une liste FY2023 lue aujourd’hui ne prouve pas la relation actuelle. Le titre conserve la période lorsqu’elle est publiée. Le graphe à un saut n’inclut que les fournisseurs opérationnels directs; ne transforme pas une raffinerie de rang indirect ou l’entreprise étudiée en fournisseur direct. Une liste sans rôle détaillé reste « rôle non précisé ».
+
+`inspect_supply_chain` publie et ouvre lui-même le dossier. Après sa réussite, ne recopie jamais le JSON dans `upsert_tab`; résume brièvement les constats et limites. Pour actualiser les sources ou changer d’entreprise, rappelle l’outil dédié.

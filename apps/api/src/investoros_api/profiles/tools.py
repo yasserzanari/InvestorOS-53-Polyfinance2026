@@ -26,6 +26,8 @@ TOOLS = [
 ]
 # Pydantic's nested $refs need their definitions included in the JSON root.
 TOOLS[1]['toolSpec']['inputSchema']['json']['$defs'] = ScenarioProjectionRequest.model_json_schema().get('$defs', {})
+upsert_schema = next(tool['toolSpec']['inputSchema']['json'] for tool in TOOLS if tool['toolSpec']['name'] == 'upsert_tab')
+upsert_schema['properties']['kind']['enum'].remove('network')
 # Display metadata is derived by the tool adapter; financial inputs remain required.
 branch_schema=TOOLS[1]['toolSpec']['inputSchema']['json']['$defs']['ScenarioBranch']
 branch_schema['required']=[field for field in branch_schema['required'] if field!='event']
