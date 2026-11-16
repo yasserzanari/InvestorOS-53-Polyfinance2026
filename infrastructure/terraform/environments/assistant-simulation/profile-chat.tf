@@ -137,7 +137,9 @@ resource "aws_iam_role_policy" "profile_chat_dispatch" {
     Version = "2012-10-17"
     Statement = [
       { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.profile_chat_jobs.arn },
-      { Effect = "Allow", Action = ["sqs:SendMessage"], Resource = aws_sqs_queue.profile_chat.arn }
+      { Effect = "Allow", Action = ["sqs:SendMessage"], Resource = aws_sqs_queue.profile_chat.arn },
+      # Existing deployments retain PROFILE_CHAT_WORKER_FUNCTION until the queue URL is configured.
+      { Sid = "InvokeExistingProfileWorker", Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = aws_lambda_function.profile_chat_worker.arn }
     ]
   })
 }
