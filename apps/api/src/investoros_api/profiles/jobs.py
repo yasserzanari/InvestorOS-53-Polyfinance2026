@@ -37,7 +37,7 @@ def _json(value):
 
 def _settings(require_queue=False):
     table = os.getenv('PROFILE_CHAT_JOBS_TABLE', '')
-    queue_url = os.getenv('PROFILE_CHAT_QUEUE_URL', '')
+    queue_url = os.getenv('PROFILE_CHAT_QUEUE_URL', '') or os.getenv('PROFILE_CHAT_WORKER_FUNCTION', '')
     if not table or (require_queue and not queue_url):
         raise HTTPException(503, 'Les réponses asynchrones ne sont pas configurées sur ce serveur.')
     return table, queue_url
@@ -57,6 +57,13 @@ def _sqs(region):
         connect_timeout=5, read_timeout=10,
         retries={'total_max_attempts': 2, 'mode': 'standard'},
     ))
+
+
+@lru_cache(maxsize=4)
+def _lambda(region):
+    """Real legacy dispatch while the explicit SQS infrastructure migration is pending."""
+    return boto3.Session().client('lambda',region_name=region,config=Config(
+        connect_timeout=5,read_timeout=10,retries={'total_max_attempts':2,'mode':'standard'}))
 
 
 def _storage(require_queue=False):
@@ -101,13 +108,14 @@ def start_job(request: ChatRequest, http_request: Request):
     try:
         table.put_item(Item=item, ConditionExpression=Attr('job_id').not_exists())
         try:
-            response = _sqs(region).send_message(
-                QueueUrl=queue_url,
-                MessageBody=_json({'source': WORKER_SOURCE, 'jobId': job_id,
-                                   'request': json.loads(payload), 'principalHash': principal_hash}),
-            )
-            if not response.get('MessageId'):
-                raise RuntimeError('Queue did not acknowledge the job')
+            event={'source':WORKER_SOURCE,'jobId':job_id,'request':json.loads(payload),'principalHash':principal_hash}
+            if os.getenv('PROFILE_CHAT_QUEUE_URL',''):
+                response=_sqs(region).send_message(QueueUrl=queue_url,MessageBody=_json(event))
+                if not response.get('MessageId'):raise RuntimeError('Queue did not acknowledge the job')
+            else:
+                # No synthetic success: the already-deployed Lambda must acknowledge the event.
+                response=_lambda(region).invoke(FunctionName=queue_url,InvocationType='Event',Payload=_json(event).encode('utf-8'))
+                if response.get('StatusCode')!=202:raise RuntimeError('Worker did not acknowledge the job')
         except (BotoCoreError, ClientError, RuntimeError):
             table.update_item(
                 Key={'job_id': job_id},
