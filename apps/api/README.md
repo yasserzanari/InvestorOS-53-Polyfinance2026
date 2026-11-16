@@ -2,7 +2,7 @@
 
 FastAPI est l’application HTTP commune au développement local et à AWS Lambda. Mangum adapte FastAPI à Lambda. L’API expose la lecture du contexte de démonstration, la conversation partagée avec Bedrock dans `/v1/profiles/*`, et des séries historiques de marché dans `/v1/simulation/*`.
 
-Ce README décrit les contrats et capacités du code. Leur présence ne prouve pas que chaque stack AWS est déployée ou que chaque intégration distante répond. Pour toute affirmation sur l’état réel, consulter la matrice de [HACKATHON_ALIGNMENT.md](../../HACKATHON_ALIGNMENT.md), les README Terraform de la stack concernée et une vérification de bout en bout datée.
+Ce README décrit les contrats et capacités du code. Leur présence ne prouve pas que chaque stack AWS est déployée ou que chaque intégration distante répond. Pour toute affirmation sur l’état réel, consulter la matrice de [l’alignement hackathon](../../docs/product/hackathon-alignment.md), les README Terraform de la stack concernée et une vérification de bout en bout datée.
 
 ## Contrat de démonstration
 

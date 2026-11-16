@@ -1,5 +1,10 @@
-# Documentation and supplied research files stay local
-/docs/
+# New maintained documentation is versioned; existing local notes and research stay ignored.
+/docs/*
+!/docs/README.md
+!/docs/architecture/
+!/docs/development/
+!/docs/design/
+!/docs/product/
 
 # JavaScript
 node_modules/
