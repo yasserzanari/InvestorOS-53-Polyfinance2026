@@ -30,7 +30,6 @@ export function SupplyChainProductTour() {
       <div className="profile-tour__inner">
         <header className="profile-tour__intro">
           <div>
-            <span className="profile-tour__eyebrow"><span aria-hidden="true" />De l’entreprise à ses fournisseurs</span>
             <h2 id="supply-chain-tour-title">Explorer la chaîne d’approvisionnement.</h2>
           </div>
           <p>Un exemple autour de NVIDIA : examiner les fournisseurs documentés, leurs rôles, les informations publiées et les risques cités.</p>

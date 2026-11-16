@@ -1,14 +1,27 @@
-import { useRef, useState, type KeyboardEvent } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, CircleHelp } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
+import { ArrowLeft, ArrowRight, CircleHelp, Pause, Play } from "lucide-react";
 import { profileTourSlides } from "./profile-tour-content";
 
 export function ProfileProductTour() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [direction, setDirection] = useState(1);
+  const [manualPaused, setManualPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const sectionRef = useRef<HTMLElement | null>(null);
   const reduced = useReducedMotion();
+  const isInView = useInView(sectionRef, { amount: 0.2 });
   const active = profileTourSlides[activeIndex];
+  useEffect(() => {
+    if (reduced || manualPaused || hovered || focused || !isInView) return;
+    const timer = window.setInterval(() => {
+      setDirection(1);
+      setActiveIndex(index => (index + 1) % profileTourSlides.length);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [focused, hovered, isInView, manualPaused, reduced]);
   const moveTo = (nextIndex: number) => {
     setDirection(nextIndex > activeIndex ? 1 : -1);
     setActiveIndex((nextIndex + profileTourSlides.length) % profileTourSlides.length);
@@ -26,11 +39,10 @@ export function ProfileProductTour() {
   };
 
   return (
-    <section id="approche" className="profile-tour" aria-labelledby="profile-tour-title">
+    <section id="approche" ref={sectionRef} className="profile-tour" aria-labelledby="profile-tour-title" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
       <div className="profile-tour__inner">
         <header className="profile-tour__intro">
           <div>
-            <span className="profile-tour__eyebrow"><span aria-hidden="true" />Le profil investisseur</span>
             <h2 id="profile-tour-title">Un profil.<br />Plusieurs angles de lecture.</h2>
           </div>
           <p>Passe d’une vue à l’autre : ses projets, son contexte, son rapport au risque, ses préférences et la synthèse qui relie ces éléments.</p>
@@ -56,7 +68,7 @@ export function ProfileProductTour() {
         </div>
 
         <div id="profile-tour-panel" className="profile-tour__panel" role="tabpanel" aria-labelledby={`profile-tour-tab-${active.id}`}>
-          <div className="profile-tour__explanation" aria-live="polite">
+          <div className="profile-tour__explanation">
             <AnimatePresence mode="wait" custom={direction} initial={false}>
               <motion.div
                 key={active.id}
@@ -79,6 +91,7 @@ export function ProfileProductTour() {
                 {profileTourSlides.map((slide, index) => <button key={slide.id} type="button" aria-label={`Afficher ${slide.label}`} aria-current={index === activeIndex ? "step" : undefined} onClick={() => moveTo(index)} />)}
               </div>
               <button type="button" onClick={() => moveTo(activeIndex + 1)} aria-label="Afficher la vue suivante"><ArrowRight size={17} aria-hidden="true" /></button>
+              <button type="button" aria-label={manualPaused ? "Reprendre le défilement automatique" : "Mettre en pause le défilement automatique"} aria-pressed={manualPaused} onClick={() => setManualPaused(value => !value)}><span className="sr-only">{manualPaused ? "Reprendre le défilement automatique" : "Mettre en pause le défilement automatique"}</span>{manualPaused ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}</button>
             </div>
           </div>
 
@@ -99,7 +112,6 @@ export function ProfileProductTour() {
           </AnimatePresence>
         </div>
 
-        <p id="transparence" className="profile-tour__disclaimer">Persona de démonstration fictif · renseignements financiers facultatifs · l’interface aide à explorer le profil, elle ne valide pas une convenance.</p>
       </div>
     </section>
   );
