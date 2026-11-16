@@ -120,6 +120,22 @@ class ProfileJobTests(unittest.TestCase):
         self.assertEqual(error.exception.status_code, 503)
         self.assertFalse(self.table.items)
 
+    def test_existing_lambda_transport_works_before_sqs_migration(self):
+        worker=Mock();worker.invoke.return_value={'StatusCode':202}
+        with patch.dict(os.environ,{'PROFILE_CHAT_QUEUE_URL':'','PROFILE_CHAT_WORKER_FUNCTION':'existing-worker'}),patch.object(jobs,'_lambda',return_value=worker):
+            response=jobs.start_job(ChatRequest(message='Déclaration fictive'),types.SimpleNamespace(scope={}))
+        self.assertIn(response['jobId'],self.table.items)
+        self.assertEqual(worker.invoke.call_args.kwargs['FunctionName'],'existing-worker')
+        self.assertEqual(worker.invoke.call_args.kwargs['InvocationType'],'Event')
+        self.queue.send_message.assert_not_called()
+
+    def test_legacy_worker_rejection_never_claims_a_queued_success(self):
+        worker=Mock();worker.invoke.return_value={'StatusCode':500}
+        with patch.dict(os.environ,{'PROFILE_CHAT_QUEUE_URL':'','PROFILE_CHAT_WORKER_FUNCTION':'existing-worker'}),patch.object(jobs,'_lambda',return_value=worker):
+            with self.assertRaises(HTTPException) as error:jobs.start_job(ChatRequest(message='Déclaration fictive'),types.SimpleNamespace(scope={}))
+        self.assertEqual(error.exception.status_code,503)
+        self.assertTrue(all(item['status']=='failed' for item in self.table.items.values()))
+
     def test_request_size_is_bounded_before_creating_job(self):
         history = [{'role': 'user' if i % 2 == 0 else 'assistant', 'content': 'x' * 12000} for i in range(20)]
         with self.assertRaises(HTTPException) as error:
