@@ -1,4 +1,4 @@
-"""Publish only existing profile API/worker code; preserve config and support rollback.
+"""Publish existing assistant and API Anything worker code; preserve config and rollback.
 
 For the GitHub OIDC deployment role. Uses the same content-addressed private artifact
 bucket as Terraform. A later successful Terraform apply reconciles its code hashes.
@@ -23,6 +23,7 @@ s3 = session.client("s3")
 functions = [
     "investoros-dev-assistant-simulation",
     "investoros-dev-profile-chat-worker",
+    "investoros-dev-research-worker",
 ]
 bucket = f"investoros-dev-{expected}-lambda-artifacts-{region}"
 package = Path("apps/api/build/investoros-api.zip")
@@ -33,7 +34,7 @@ expected_hash = base64.b64encode(digest).decode()
 changed = []
 backups = {}
 with tempfile.TemporaryDirectory(prefix="profile-runtime-") as directory:
-    # Capture both baselines before writing anything; do not print signed URLs or environments.
+    # Capture all baselines before writing anything; do not print signed URLs or environments.
     for index, function in enumerate(functions):
         previous = lambda_client.get_function(FunctionName=function)
         backup = Path(directory) / f"{index}.zip"
