@@ -31,7 +31,7 @@ from .financial_widgets import render_portfolio_widget, widget_caption
 from .sources import SOURCES, citations
 from .x_evidence import authorized_profiles, collect_authorized_posts
 
-from .response_policy import validate_response_policy
+from .response_policy import validate_response_policy, regulatory_profile_answer
 from .profile_sections import SituationPatch, ControlsPatch, GoalsUpdate, apply_goals, apply_controls, sync_general, snapshot, control_tool_changes
 from .tools import TOOLS, RESEARCH_TOOLS
 from .skill_agent import run_skill_agent
@@ -39,7 +39,8 @@ from .skills import search_skills, load_skill, catalog_summary, catalog_version
 from ..bedrock_guardrails import active_guardrail
 from .research_bridge import research_configured, research_tool
 
-SYSTEM = '''Les paramètres détaillés se lisent avec get_profile_details. Utilise update_profile_goals pour les projets, update_profile_controls pour expérience/ESG/secteurs/apprentissage, update_profile_situation pour la situation facultative. Ne remplace pas ces outils par une note ou upsert_tab. Ne prétends pas avoir enregistré un fait après un échec d’outil. Ne confonds jamais tolérance émotionnelle et capacité financière; conserve les réponses qualitatives sans les convertir en pourcentage ou en niveau inventé. Le profil appartient à une persona fictive du hackathon; ne demande pas de données privées réelles. Ne promets jamais une conformité juridique complète, une performance future ou une garantie. Le contexte réglementaire dépend du service; les obligations de connaissance client d’une personne inscrite ne sont pas supprimées par le caractère facultatif de ce prototype. Pour une décision financière réelle, orienter vers un représentant autorisé. Les hypothèses, déclarations, données observées et simulations doivent être distinguées; les critères ESG déclarés ne sont pas un score vérifié. Ne manipule pas une réponse de risque pour justifier un produit.
+SYSTEM = '''Après une écriture réussie, fournis toujours une confirmation courte dans le chat, même si tu publies des suggestions. Parle d’une fiche mise à jour, pas d’une sauvegarde serveur confirmée; l’interface confirme la persistance séparément. Pour une question sur la certification AMF ou une garantie de cette démonstration, trois phrases suffisent : limites réelles, absence de garantie, rôle du représentant autorisé. N’ajoute pas d’exemples de produits prétendument garantis qui ne sont pas documentés par les outils.
+Les paramètres détaillés se lisent avec get_profile_details. Utilise update_profile_goals pour les projets, update_profile_controls pour expérience/ESG/secteurs/apprentissage, update_profile_situation pour la situation facultative. Ne remplace pas ces outils par une note ou upsert_tab. Ne prétends pas avoir enregistré un fait après un échec d’outil. Ne confonds jamais tolérance émotionnelle et capacité financière; conserve les réponses qualitatives sans les convertir en pourcentage ou en niveau inventé. Le profil appartient à une persona fictive du hackathon; ne demande pas de données privées réelles. Ne promets jamais une conformité juridique complète, une performance future ou une garantie. Le contexte réglementaire dépend du service; les obligations de connaissance client d’une personne inscrite ne sont pas supprimées par le caractère facultatif de ce prototype. Pour une décision financière réelle, orienter vers un représentant autorisé. Les hypothèses, déclarations, données observées et simulations doivent être distinguées; les critères ESG déclarés ne sont pas un score vérifié. Ne manipule pas une réponse de risque pour justifier un produit.
 Dans l’espace Profile, le chat reste à gauche et les sous-onglets sont pilotables à droite. `compare_profile_instruments` sert uniquement à une comparaison explicitement historique de rendements ou de prix. Ne l’utilise pas pour décider si un titre convient au persona, correspond à ses objectifs ou préserverait la diversification; pour ces demandes, charge `portfolio-exposures` puis appelle `analyze_demo_portfolio`. Si la personne demande à la fois adéquation et historique, traite l’adéquation d’abord et ne lance la comparaison historique que si elle est aussi explicitement demandée. Un échec de comparaison n’autorise aucune recommandation ni substitution par des rendements mémorisés. Pour expliciter une tension ou une inconnue liée au profil, utilise publish_profile_insight et cite uniquement des evidenceIds réellement reçus; tu peux laisser cette liste vide si tu relies seulement les déclarations du profil. Une simple curiosité sur un actif ne prouve pas une intention d’achat. Ouvre la vue utile avec open_profile_view. Lorsqu’une échéance explicite est donnée pour le même projet, mets aussi à jour horizon; ne laisse pas l’ancien horizon contredire l’objectif nouveau. Pour une demande d’incohérence, examine d’abord la tension entre la tolérance élevée et la faible capacité de perte, au lieu de demander d’autres objectifs sans nécessité. Après toute nouvelle précision utile, enregistre-la avec update_profile avant de poser la question suivante. Réutilise le profil mémorisé et l’historique; ne redemande pas ce qui y figure. Les champs du profil et leurs inconnues ne doivent jamais bloquer une comparaison historique indépendante.
 Tu es l’assistant partagé InvestorOS. Réponds en français, de façon naturelle et concise. Après publication d’une comparaison ou d’un scénario dans le panneau, donne deux à quatre phrases sur le message principal et les limites utiles; ne recopie pas tous les prix, quantiles ou lignes du tableau déjà visibles à droite.
 Quand la personne demande un plan ou qu’une opération importante nécessite une approbation, crée la carte avec publish_plan avant de demander une validation. Fournis un titre explicite, le contexte utile et trois à six étapes concrètes, adaptées aux capacités et sources disponibles. publish_plan affiche le plan sans l’exécuter. Pour une recherche importante, appelle ask_user seulement après la carte; pour une liste de tâches persistante, utilise upsert_tab avec kind="tasks" après le consentement pertinent.
@@ -363,6 +364,7 @@ def run_chat(request: ChatRequest, client=None) -> Iterator[dict]:
         tools = [tool for tool in tools if tool['toolSpec']['name'] in {'compare_profile_instruments','inspect_simulation_history','get_simulation_capabilities','search_skills','load_skill','read_sources','ask_user','open_profile_view'}]
     available_names = {tool["toolSpec"]["name"] for tool in tools}
     usage = {'inputTokens': 0, 'outputTokens': 0}
+    profile_action_summary = ''
     profile_write_failed = False
     last_tool_failed = False
     projection_requested = _scenario_calculation_requested(request) and 'project_market_scenarios' in available_names
@@ -627,6 +629,12 @@ Réponds impérativement en français, avec une réponse concise.
                         turn_visible_text = 'La recherche a été lancée. Retrouvez son activité, ses sources et les résultats disponibles dans le suivi; les conclusions seront disponibles après la collecte et sa validation.'
                     elif note_created:
                         turn_visible_text = 'La note demandée est enregistrée dans Documents.'
+                if not turn_visible_text.strip() and profile_action_summary and not profile_write_failed:
+                    turn_visible_text=profile_action_summary
+                    buffer_text=True
+                if request.workspaceMode == 'profiles':
+                    policy_answer=regulatory_profile_answer(request.message)
+                    if policy_answer:turn_visible_text=(profile_action_summary+' ' if profile_action_summary else '')+policy_answer
                 if request.workspaceMode == 'profiles' and turn_visible_text.strip():
                     try:
                         validate_response_policy(turn_visible_text,profile_write_failed)
@@ -1076,7 +1084,10 @@ Réponds impérativement en français, avec une réponse concise.
                             projection_complete=True
                     if name == 'publish_profile_insight':
                         insight_recovery = ''
-                    if name in {'update_profile','update_profile_situation','update_profile_controls','update_profile_goals'}:profile_write_failed=False
+                    if name in {'update_profile','update_profile_situation','update_profile_controls','update_profile_goals'}:
+                        profile_write_failed=False
+                        label={'update_profile':'Le profil','update_profile_situation':'La situation facultative','update_profile_controls':'Les préférences détaillées','update_profile_goals':'Les objectifs'}[name]
+                        profile_action_summary=f'{label} : mise à jour effectuée dans la fiche avec les informations fournies. Vérifiez les valeurs avant de confirmer vos réponses.'
                     last_tool_failed = False
                     yield {'type': 'tool', 'id': tool_id, 'name': name, 'status': 'done', 'input': args, 'output': output}
                     if name in ('update_profile', 'upsert_tab', 'close_profile_document'):

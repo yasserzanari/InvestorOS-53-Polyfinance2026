@@ -186,6 +186,7 @@ const { chromium } = require("playwright");
     }, process.env.INVESTOROS_DEPLOYED_API || "https://2u00myl9n1.execute-api.us-east-1.amazonaws.com");
     for (const report of result.reports) {
       console.log(JSON.stringify(report));
+      assert.ok(report.text.trim(), report.id + ": empty confirmation");
       assert.equal(
         report.done,
         true,
@@ -214,6 +215,10 @@ const { chromium } = require("playwright");
     assert.ok(situation.tools.includes("update_profile_situation"));
     assert.ok(situation.state.situation.incomeRange);
     assert.match(policy.text, /pas|aucun|ne |impossible|non/i);
+    assert.ok(
+      policy.text.length < 800,
+      "Regulatory explanation should remain concise",
+    );
     console.log(
       "PASS: real deployed Bedrock section tools, preservation, optional situation and refusal of financial/regulatory guarantees. No persona memory was written.",
     );

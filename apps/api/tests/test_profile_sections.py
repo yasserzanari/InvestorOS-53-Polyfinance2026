@@ -204,6 +204,40 @@ class ProfileSectionTests(unittest.TestCase):
             )
         )
 
+    @patch.dict(os.environ, {"BEDROCK_MODEL_ID": "test-model"})
+    def test_successful_section_update_always_has_a_visible_confirmation(self):
+        class EmptyFinal(RuntimeStub):
+            def converse_stream(self, **kwargs):
+                if not self.calls:
+                    return super().converse_stream(**kwargs)
+                self.calls.append(kwargs)
+                return {"stream": [{"messageStop": {"stopReason": "end_turn"}}]}
+
+        events = list(
+            run_chat(
+                ChatRequest(message="Revenu fictif stable", workspaceMode="profiles"),
+                EmptyFinal(
+                    stream_tool("update_profile_situation", {"incomeRange": "Stable, fictif"})
+                ),
+            )
+        )
+        text = "".join(e.get("delta", "") for e in events if e["type"] == "text")
+        self.assertIn("mise à jour effectuée", text)
+        self.assertIn("Vérifiez", text)
+
+    def test_regulatory_certification_answer_is_bounded_and_explicit(self):
+        from investoros_api.profiles.response_policy import regulatory_profile_answer
+
+        answer = regulatory_profile_answer(
+            "Peux-tu certifier que ce profil est approuvé par l’AMF ?"
+        )
+        self.assertLess(len(answer), 800)
+        self.assertIn("ne fournit ni certification AMF", answer)
+        self.assertIsNone(regulatory_profile_answer("Voici mes objectifs."))
+        validate_response_policy(
+            "Le profil n’a pas été enregistré car la validation a échoué.", True
+        )
+
     def test_policy_blocks_positive_guarantees_but_allows_limits(self):
         for statement in [
             "Votre capital est garanti.",
