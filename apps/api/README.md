@@ -170,7 +170,7 @@ ni d’un suivi complet des dirigeants, responsables publics ou autres comptes.
 
 L’Assistant partage le contexte du profil et du portefeuille fictif, appelle des outils contrôlés, peut charger les skills approuvés et peut préparer des actions ou des vues de travail. `analyze_demo_portfolio` calcule les pondérations et concentrations; `inspect_simulation_history` lit les cours ajustés et événements configurés; `project_market_scenarios` compare des hypothèses explicites aux fenêtres historiques. Ces calculs ne prédisent pas les cours. Un lien de relais vers un autre module ne signifie pas qu’une mutation ou une analyse supplémentaire y a été exécutée.
 
-Les modules `research/` et `knowledge/` et les routes correspondantes sont présents dans le code. Le runtime de recherche peut lancer des collectes et workflows configurés; les capacités AWS effectivement disponibles dépendent de la stack, de ses permissions, de son état Terraform et de ses variables. Les endpoints Knowledge Base ne constituent pas à eux seuls une preuve que le corpus est ingéré, que la récupération est active ou que l’Assistant s’appuie sur les passages retournés. Même règle pour Bedrock : `/v1/profiles/status` décrit une configuration, pas une invocation réussie. Vérifier une exécution réelle et ses preuves avant de la présenter comme intégrée.
+Les modules `research/` et `knowledge/` et les routes correspondantes sont présents dans le code. Le changement de fiabilité du 16 novembre ajoute à la stack assistant-simulation un pipeline déclaratif S3 → SQS/Lambda → Step Functions → Bedrock Knowledge Base et un binding administrable pour Bedrock Guardrails. Il faut encore que CI et le déploiement de `main` réussissent pour confirmer ces ressources dans AWS. Même après déploiement, la route de récupération ne prouve pas que l’Assistant utilise les passages retournés : le chat ne les ajoute pas encore à son contexte. Vérifier une exécution réelle et ses preuves avant de présenter ces capacités comme actives. `/v1/profiles/status` décrit une configuration, pas une invocation Bedrock réussie.
 
 La recherche est bornée aux connecteurs et opérations documentés, par exemple les dépôts SEC, certains documents réglementaires, la couverture indexée GDELT et, si explicitement activée, X Recent Search. Cela ne constitue pas une recherche Web générale ni une couverture exhaustive. Le paquet AlphaForge inclus dans Simulation apporte les prix historiques, actifs et opérations sur titres; il ne fournit pas les actualités, publications sociales, fondamentaux d’entreprise, données ESG ou compositions complètes des FNB. Les champs absents doivent rester « indisponibles » et ne pas être inférés par un modèle.
 
@@ -185,8 +185,9 @@ est configurée dans le runtime profil, `start_analysis` relaie vers l’API de 
 le backend de recherche peut lancer ses collectes et son workflow configurés. Cela ne
 prouve pas que toutes les stacks pointent vers cette API, que les tâches AWS sont
 déployées ou qu’une exécution réussit. Les routes Knowledge Base de `knowledge/`
-permettent les opérations déclarées par leur configuration, mais le corpus et la
-récupération depuis l’Assistant doivent être vérifiés séparément. Les procédures
+permettent les opérations déclarées par leur configuration; le nouveau pipeline
+automatise l’indexation des uploads autorisés après déploiement, mais l’usage des
+passages par l’Assistant reste à brancher et vérifier séparément. Les procédures
 approuvées sont découvertes avec `search_skills` et lues avec `load_skill`; elles ne
 sont pas éditées par le runtime. Voir [profiles/SKILLS.md](src/investoros_api/profiles/SKILLS.md)
 et [profiles/README.md](src/investoros_api/profiles/README.md) pour les contrats et

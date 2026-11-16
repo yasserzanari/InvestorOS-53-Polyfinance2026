@@ -3,6 +3,7 @@ import json
 import re
 
 from .skills import catalog_summary, load_skill, search_skills
+from ..bedrock_guardrails import active_guardrail
 
 SKILL_TOOLS = [
     {'toolSpec': {'name': 'search_skills', 'description': 'Rechercher les procédures métier pertinentes avant de les lire.', 'inputSchema': {'json': {'type': 'object', 'properties': {'query': {'type': 'string', 'maxLength': 300}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 8}}, 'required': ['query'], 'additionalProperties': False}}}},
@@ -25,6 +26,8 @@ def run_skill_agent(client, *, model_id: str, system: str, prompt: str,
     messages = [{'role': 'user', 'content': [{'text': prompt}]}]
     discovered, loaded, loaded_content = set(), {}, {}
     trace, usage = [], {'inputTokens': 0, 'outputTokens': 0}
+    guardrail = active_guardrail()
+    guardrail_config = {**guardrail, 'trace': 'disabled'} if guardrail else None
     # Mandatory role procedures are deterministic. Optional discovery stays model-driven.
     # Do not fabricate model tool calls: record bootstrap actions as runtime actions.
     for identifier in required_skills:
@@ -55,6 +58,7 @@ def run_skill_agent(client, *, model_id: str, system: str, prompt: str,
         response = client.converse(modelId=model_id, system=[{'text': role_system}, {'text': policy}, {'text': phase_note},
                                   *([{'text': 'Procédures approuvées chargées pour ce rôle :\n' + applied}] if applied else [])],
                                   messages=messages, **({'toolConfig': structured_config} if structured_config else {'toolConfig': {'tools': SKILL_TOOLS}} if iteration < 2 else {}),
+                                  **({'guardrailConfig': guardrail_config} if guardrail_config else {}),
                                   inferenceConfig={'maxTokens': max_tokens, 'temperature': 0.1})
         for key in usage:
             usage[key] += response.get('usage', {}).get(key, 0)

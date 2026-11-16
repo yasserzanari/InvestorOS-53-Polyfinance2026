@@ -221,7 +221,7 @@ def create_document_upload(request: KnowledgeUploadRequest) -> dict[str, Any]:
         "metadata_content_type": "application/json",
         "metadata_sidecar": json.dumps(sidecar, ensure_ascii=False),
         "expires_in_seconds": 300,
-        "next_step": "Start a knowledge-base sync after both uploads succeed.",
+        "next_step": "After both uploads succeed, the S3 event pipeline starts and tracks Bedrock Knowledge Base ingestion automatically.",
     }
 
 
