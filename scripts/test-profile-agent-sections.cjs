@@ -15,7 +15,7 @@ const assert = require("node:assert/strict");
     });
     const errors = [];
     p.on("pageerror", (e) => errors.push(e.message));
-    let memory = { revision: 0, profile: null, tabs: [], sources: [] };
+    let memory = { revision: 0, profile: {objective:'Préserver le capital fictif',horizon:'4 ans',riskTolerance:'Faible à modérée',lossCapacity:'Une perte temporaire ne doit pas compromettre mon projet.',liquidity:'Réserve à conserver',constraints:'Sans levier',preferences:'Exclure le tabac et garder la diversification.',knowledge:'Intermédiaire',confirmed:false,version:1,origins:{}}, tabs: [], sources: [] };
     let writes = 0;
     const requests = [];
     await p.addInitScript(() =>
@@ -75,6 +75,11 @@ const assert = require("node:assert/strict");
     };
     await wait(() => writes > 0);
     const notes = memory.profile.preferences;
+    await p.getByRole('tab',{name:'Risque',exact:true}).click();
+    assert.equal(await p.getByRole('radio',{name:/Faible à modérée/}).isChecked(),true);
+    assert.equal(await p.getByLabel('Capacité de perte',{exact:true}).inputValue(),'Une perte temporaire ne doit pas compromettre mon projet.');
+    assert.equal(memory.profile.horizon,'4 ans');
+
     const send = async (text) => {
       const input = p.getByPlaceholder("Posez votre question…", {
         exact: true,

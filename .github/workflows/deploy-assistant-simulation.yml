@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      runtime_only:
+        description: 'Deploy code only to existing profile API and worker; preserve infrastructure/configuration'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -79,15 +84,25 @@ jobs:
             curl --fail --silent --show-error "$code_url" --output apps/api/build/investoros-api.zip
           fi
 
+      - name: Publish profile runtime only
+        if: github.event_name == 'workflow_dispatch' && inputs.runtime_only
+        env:
+          EXPECTED_AWS_ACCOUNT_ID: '010928221556'
+          PYTHONPATH: apps/api/build/package
+        run: python scripts/deploy-profile-runtime.py
+
       - name: Initialize Terraform
+        if: github.event_name != 'workflow_dispatch' || !inputs.runtime_only
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform init -input=false
 
       - name: Clear stale taint from existing portfolio monitor roles
+        if: github.event_name != 'workflow_dispatch' || !inputs.runtime_only
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: python "$GITHUB_WORKSPACE/scripts/repair-tainted-monitor-roles.py"
 
       - name: Plan and apply safe changes
+        if: github.event_name != 'workflow_dispatch' || !inputs.runtime_only
         working-directory: ${{ env.TERRAFORM_DIR }}
         shell: bash
         run: |

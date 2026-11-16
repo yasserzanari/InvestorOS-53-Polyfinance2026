@@ -35,3 +35,7 @@ Un contrôle final borné en mode Profil bloque des formulations positives de re
 Le code est vérifié par des tests de schémas, outils avec runtime simulé, mémoire et interface navigateur interceptée. Ces tests couvrent validité des valeurs, conservation des autres paramètres, synchronisation, rejet des documents libres et refus des promesses détectables. Les tests réels du modèle sont une preuve séparée; ne pas présenter un runtime simulé comme Bedrock réel.
 
 Après fusion sur main, les workflows distincts reconstruisent le frontend et le package Lambda. Une réussite du workflow web seule ne prouve pas la publication du backend ou du snapshot. Vérifier le statut du backend et la version de skills après le déploiement, puis exercer les outils réels sur une fixture fictive sans réécrire la mémoire des personas.
+
+### Publication limitée au runtime
+
+Le workflow assistant-simulation propose un mode manuel `runtime_only`. Il reconstruit le package contrôlé, vérifie le compte AWS, sauvegarde les deux codes existants avec contrôle SHA-256, publie uniquement le code de l’API et du worker déjà présents et vérifie leurs empreintes. En cas d’échec, il restaure les codes modifiés. Les variables, permissions et ressources d’infrastructure restent celles du déploiement existant. Ce mode sert notamment lorsque le plan global est bloqué par une autre intégration; il ne corrige pas ses permissions SSM ni ne prouve le déploiement de ces ressources. Le prochain apply Terraform réussi réconciliera les empreintes du code.

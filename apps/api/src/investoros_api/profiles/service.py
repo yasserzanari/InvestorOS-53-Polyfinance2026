@@ -971,6 +971,8 @@ Réponds impérativement en français, avec une réponse concise.
                         output = {'published': True, 'title': plan_input.title, 'stepCount': len(plan_input.steps)}
                     elif name == 'close_profile_document':
                         identifier=args.get('id')
+                        if identifier in {'profile-objectives','profile-controls'}:
+                            raise ValueError('Les paramètres du profil ne se ferment pas comme un document. Utilisez les outils typés pour les projets et le mécanisme de suppression confirmé pour tout le profil.')
                         if set(args)!={'id'} or not isinstance(identifier,str) or not any(t['id']==identifier for t in tabs):
                             raise ValueError('Document inconnu dans cette conversation.')
                         if requested_closure and identifier!=requested_closure:
