@@ -153,9 +153,22 @@ class SupplyChainResearchTests(unittest.TestCase):
     @patch('investoros_api.profiles.supply_chain_research.build_dossier')
     def test_chat_opens_structured_tab_and_records_real_agent(self,build):
         build.return_value={'schemaVersion':2,'ticker':'ACME','company':'Acme','entities':[{'id':'issuer','kind':'product','label':'Acme'}],'relations':[],'evidence':[],'events':[],'reviewedAt':'2026-11-15','coverage':'insufficient','limitations':[],'skills':[],'skill_trace':[],'usage':{}}
-        events=list(run_chat(ChatRequest(message='Montre les fournisseurs de Acme'),RuntimeStub(stream_tool('inspect_supply_chain',{'ticker':'ACME'}))))
+        runtime=RuntimeStub(stream_tool('inspect_supply_chain',{'ticker':'ACME'}))
+        events=list(run_chat(ChatRequest(message='Montre les fournisseurs de Acme'),runtime))
         self.assertTrue(any(e['type']=='workspace' and any(t['kind']=='network' for t in e['tabs']) for e in events))
         self.assertTrue(any(e['type']=='profile_view' and e.get('documentId')=='supply-chain-acme' for e in events))
         self.assertEqual([e['status'] for e in events if e['type']=='agent'],['running','done'])
+        self.assertNotIn('upsert_tab',[tool['toolSpec']['name'] for tool in runtime.calls[1]['toolConfig']['tools']])
+        self.assertTrue(any('DÉJÀ été publié' in block['text'] for block in runtime.calls[1]['system']))
+
+    @patch.dict('os.environ',{'BEDROCK_MODEL_ID':'test'})
+    def test_model_cannot_replace_source_bound_network_with_generic_upsert(self):
+        network=WorkspaceTab(id='supply-chain-acme',title='Chaîne · ACME',kind='network',content='{"coverage":"documented"}')
+        runtime=RuntimeStub(stream_tool('upsert_tab',{'id':network.id,'title':'Replacement','kind':'note','content':'Unverified replacement'}))
+        events=list(run_chat(ChatRequest(message='Actualise ce dossier',tabs=[network]),runtime))
+        self.assertTrue(any(e.get('name')=='upsert_tab' and e.get('status')=='failed' for e in events))
+        self.assertTrue(all(tab['content']==network.content for e in events if e.get('type')=='workspace' for tab in e.get('tabs',[]) if tab['id']==network.id))
+        schema=next(t['toolSpec']['inputSchema']['json'] for t in runtime.calls[0]['toolConfig']['tools'] if t['toolSpec']['name']=='upsert_tab')
+        self.assertNotIn('network',schema['properties']['kind']['enum'])
 
 if __name__=='__main__': unittest.main()
