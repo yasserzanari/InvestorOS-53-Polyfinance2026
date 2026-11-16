@@ -1,30 +1,84 @@
 # InvestorOS
 
-InvestorOS est le projet du Datathon Polyfinance 2026 : une expérience d’aide à la décision d’investissement qui rend visibles les données, les hypothèses et les limites de ses analyses. Le produit cible AWS; les profils et portefeuilles de démonstration sont fictifs et aucune transaction n’est exécutée.
+InvestorOS est une plateforme d’aide à la décision d’investissement créée pour le Datathon Polyfinance 2026. Elle permet d’explorer des profils et portefeuilles fictifs, de comparer des actifs, d’examiner des risques et de construire des scénarios conditionnels. Les analyses distinguent les données, les hypothèses et leurs limites. La plateforme n’exécute aucune transaction et ne fournit pas de conseil financier personnalisé.
 
-## Démarrer le frontend
+## Lancer le projet en local
 
-Prérequis : Node.js 24.x (version utilisée par la CI) et npm 11.x. `.nvmrc` sélectionne Node 24 avec nvm; les `engines` des deux manifestes npm annoncent la version attendue.
+Prérequis : Node.js 24, npm, Python 3.12 et `uv`.
+
+À la racine du dépôt :
 
 ```bash
 npm ci
 npm run dev:local
 ```
 
-Cette commande démarre le frontend et l’API locale. L’interface reste sans login; les intégrations AWS locales utilisent le profil IAM/SSO du serveur, jamais des credentials dans le navigateur. Pour les étapes de configuration et le chemin de lecture des analyses, événements et preuves AWS, voir [le guide de développement local](apps/web/README-local-development.md). `npm run dev` seul lance Vite sans l’API. `npm run dev:aws` teste les routes HTTP AWS avec Cognito.
+Cette commande démarre le frontend et l’API locale. Ouvrir l’URL affichée par Vite dans le terminal. Pour lancer seulement le frontend : `npm run dev:web`.
 
-Le frontend Vite/React est dans `apps/web`. L’API Python est dans `apps/api`. Terraform et les workflows AWS se trouvent dans `infrastructure/terraform` et `services/workflows`.
+## Préparer et appliquer Terraform
 
-## Structure
+Les stacks sont séparées. Pour la stack Assistant/Simulation :
 
-- `apps/web` — interface React + TypeScript + Vite.
-- `apps/api` — API Python/FastAPI, adaptateur Lambda et intégrations AWS.
-- `services/workflows` — définitions Step Functions pour les analyses.
-- `infrastructure/terraform/environments` — environnements déployables (`dev`, `demo`).
-- `infrastructure/terraform/modules` — modules AWS réutilisables.
-- `data` — contrats et outils de données; fichiers du datathon gardés localement.
-- `scripts` — commandes de développement et de déploiement.
-- `docs` — notes préparatoires locales, exclues de Git.
+```bash
+# Avec un profil AWS SSO déjà configuré pour le compte de développement
+export AWS_PROFILE=mon-profil-sso
+aws sso login --profile "$AWS_PROFILE"
 
-Voir [ARCHITECTURE.md](ARCHITECTURE.md) pour les frontières de composants et le flux d’une analyse.
-Voir [HACKATHON_ALIGNMENT.md](HACKATHON_ALIGNMENT.md) pour l’état coordonné des chantiers, la couverture des besoins AlphaForge et les intégrations à vérifier avant de déclarer une capacité terminée.
+# Depuis la racine du dépôt
+uv python install 3.12
+./scripts/build-api.sh
+cd infrastructure/terraform/environments/assistant-simulation
+terraform init -reconfigure
+terraform workspace show
+terraform plan -out=/tmp/investoros-assistant-simulation.tfplan
+terraform show /tmp/investoros-assistant-simulation.tfplan
+```
+
+Terraform requiert une session AWS autorisée dans le compte et la région attendus (`us-east-1`), ainsi que l’accès au backend S3 de cette stack. Après avoir vérifié que le plan ne supprime, ne remplace ni ne modifie de ressources hors du périmètre prévu, appliquer le plan examiné :
+
+```bash
+terraform apply /tmp/investoros-assistant-simulation.tfplan
+```
+
+`plan` ne modifie pas les ressources AWS; `apply` les modifie et peut entraîner des frais. Pour les prérequis, l’état connu et les limites de chaque stack, consulter son README avant toute application : [Assistant/Simulation](infrastructure/terraform/environments/assistant-simulation/README.md) et [dev](infrastructure/terraform/environments/dev/README.md). Ne pas appliquer une stack uniquement parce que son code Terraform existe.
+
+`scripts/build-api.sh` a aussi besoin des fichiers `assets_universe.csv`, `prices_daily.csv` et `corporate_actions.csv` dans `docs/prep/sources/Datathon2026/alphaforge_starter/`. Ces données du datathon sont locales et ne sont pas incluses dans Git; le script s’arrête si elles sont absentes. Configurez `AWS_PROFILE` avec le nom d’un profil existant sur votre machine.
+
+## Structure du dépôt
+
+- `apps/web` — interface React, TypeScript et Vite.
+- `apps/api` — API Python/FastAPI et intégrations AWS.
+- `services/workflows` — définitions des workflows d’analyse.
+- `infrastructure/terraform/environments` — stacks Terraform (`dev`, `assistant-simulation`, entre autres).
+- `infrastructure/terraform/modules` — modules d’infrastructure réutilisables.
+- `agent-skills` — skills et contrats utilisés par les agents.
+- `data` — contrats et outils de données; les jeux locaux ou privés ne sont pas versionnés.
+- `scripts` — démarrage local, préparation de l’API et outils de développement.
+
+## Architecture AWS
+
+```mermaid
+flowchart LR
+  U[Utilisateur] --> CF[CloudFront]
+  CF --> WEB[S3 · application web]
+  U --> COG[Cognito · authentification]
+  U --> APIG[API Gateway · API HTTP]
+  COG -->|JWT| APIG
+  APIG --> API[Lambda API · FastAPI]
+  APIG --> AS[Lambda Assistant / Simulation]
+  API --> SFN[Step Functions · analyses]
+  SFN --> RW[Lambda worker de recherche]
+  RW --> ECS[ECS Fargate · API-Anything]
+  API --> DDB[(DynamoDB)]
+  AS --> Q[SQS · jobs de chat]
+  Q --> CW[Lambda worker de chat]
+  CW --> BR[Bedrock]
+  API --> BR
+  API --> KB[Bedrock Knowledge Base]
+  API --> S3[S3 · données et documents]
+  API --> OBS[CloudWatch · journaux et alarmes]
+  CW --> DDB
+  RW --> DDB
+```
+
+Le diagramme résume les composants utilisés par les parcours applicatifs et les stacks AWS. La présence d’une ressource dans le code ou dans Terraform ne garantit pas qu’elle est déployée ou vérifiée de bout en bout. L’état et les prérequis sont documentés dans le README Terraform de chaque environnement.
