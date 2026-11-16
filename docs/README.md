@@ -6,7 +6,7 @@ Cette documentation suivie par Git décrit le code et l’usage du dépôt. Les 
 
 - [Installer et lancer le projet](development/local-setup.md)
 - [Architecture du code et parcours d’une requête](architecture/codebase.md)
-- [Architecture AWS, démarrage et déploiement](architecture/runtime-and-deployment.md)
+- [Architecture AWS, démarrage et déploiement](../README.md)
 
 ## Architecture et contrats
 
