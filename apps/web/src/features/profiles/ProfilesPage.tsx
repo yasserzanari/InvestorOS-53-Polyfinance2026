@@ -66,7 +66,7 @@ function ProfilesWorkspace({ assistantMode = false, initialPrompt }: ProfilesWor
   const [profileExpanded,setProfileExpanded]=useState(false);
   const [mobilePane,setMobilePane]=useState<'chat'|'profile'>('profile');
   const splitContainer=useRef<HTMLDivElement>(null);
-  const [split,setSplit]=useState(()=>{try{const value=Number(localStorage.getItem('investoros.profile-split'));return value>=25&&value<=75?value:50;}catch{return 50;}});
+  const [split,setSplit]=useState(()=>{try{const value=Number(localStorage.getItem('investoros.profile-split'));return value>=25&&value<=75?value:(assistantMode?50:32);}catch{return assistantMode?50:32;}});
   const [resizing,setResizing]=useState(false);
   const changeSplit=(value:number)=>{const next=Math.max(25,Math.min(75,value));setSplit(next);try{localStorage.setItem('investoros.profile-split',String(next));}catch{}};
   const resizeAt=(clientX:number)=>{const rect=splitContainer.current?.getBoundingClientRect();if(rect)changeSplit((clientX-rect.left)/rect.width*100);};

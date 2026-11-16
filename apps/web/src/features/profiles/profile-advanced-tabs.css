@@ -548,3 +548,10 @@
     font-size: 20px;
   }
 }
+/* Keep the profile cards readable inside the shared workbench typography. */
+.pdt-root .pat-title h2 { color:#10164b; font-size:26px; font-weight:700; }
+.pdt-root .pat-card h3 { color:#11194f; font-size:17px; font-weight:700; }
+.pdt-root .pat-root p { font-size:12px; color:#37476c; }
+.pdt-root .pat-legend p {font-size:10px;}
+.pdt-root .pat-quadrants button {font-size:11px;line-height:1.35;}
+.pdt-root .pat-questions button {font-size:11px;}
