@@ -88,6 +88,8 @@ class ApiAnythingClient:
             "intent": source["description"],
             **({"pick": source["api_pick"]} if source.get("api_pick") else {}),
             **({"extract": source["api_extract"]} if source.get("api_extract") else {}),
+            **({"embedded": source["api_embedded"]} if source.get("api_embedded") else {}),
+            **({"fresh": True} if source.get("api_fresh") is True else {}),
         })
         return self.resolve_pending(result)
 
