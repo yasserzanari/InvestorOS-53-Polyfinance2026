@@ -13,8 +13,13 @@
 .investor-landing .investoros-hero > header { display: none; }
 .investor-landing .landing-header { -webkit-backdrop-filter: blur(24px) saturate(145%); backdrop-filter: blur(24px) saturate(145%); }
 .investor-landing .investoros-hero { min-height: min(780px, 100svh); background: radial-gradient(ellipse at 50% 12%, #36567d 0, #172943 54%, #101c35 100%); }
+.investor-landing .investoros-hero__veil { background: linear-gradient(180deg, rgba(239, 248, 255, .12), rgba(239, 248, 255, .04) 48%, rgba(11, 42, 73, .14)); }
+.investor-landing .investoros-hero h1 { color: #10223d; }
+.investor-landing .investoros-hero .animate-fade-slide-in-3 { color: #344d6b; }
+.investor-landing .investoros-hero .animate-fade-slide-in-1 { color: #48617d; }
 .investor-landing .investoros-hero .animate-fade-slide-in-4 a:first-child { background: #fff; color: #16243b; }
-.investor-landing .investoros-hero .animate-fade-slide-in-4 a:nth-child(2) { color: #fff; }
+.investor-landing .investoros-hero .animate-fade-slide-in-4 a:first-child { border: 1px solid rgba(33,74,120,.2); box-shadow: 0 8px 24px rgba(22,48,82,.12); }
+.investor-landing .investoros-hero .animate-fade-slide-in-4 a:nth-child(2) { color: #1c3556; }
 .investor-landing .investoros-hero > img { object-position: center 58%; }
 .investor-landing .investoros-hero > div:last-child { position: relative; z-index: 2; }
 .investor-landing .investoros-hero .max-w-7xl { padding-top: clamp(132px, 17vh, 180px); }
